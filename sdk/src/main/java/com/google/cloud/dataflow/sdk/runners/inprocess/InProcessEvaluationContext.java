@@ -49,8 +49,10 @@ import org.joda.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -81,6 +83,7 @@ class InProcessEvaluationContext {
 
   private final CounterSet mergedCounters;
 
+  private final NavigableSet<Instant> processingWaits;
   private final Executor callbackExecutor;
 
   public static InProcessEvaluationContext create(InProcessPipelineOptions options,
@@ -120,6 +123,7 @@ class InProcessEvaluationContext {
     this.applicationStateInternals = new ConcurrentHashMap<>();
     this.mergedCounters = new CounterSet();
 
+    this.processingWaits = new TreeSet<>();
     this.callbackExecutor = Executors.newCachedThreadPool();
   }
 
@@ -431,5 +435,15 @@ class InProcessEvaluationContext {
    */
   public boolean isDone() {
     return watermarkManager.isDone();
+  }
+
+  public void waitingUntil(Instant sleepingUntil) {
+    processingWaits.add(sleepingUntil);
+  }
+
+  public Instant getEarliestProcessingWait() {
+    Instant earliest = processingWaits.ceiling(options.getClock().now());
+    processingWaits.removeAll(ImmutableList.copyOf(processingWaits.headSet(earliest)));
+    return earliest;
   }
 }

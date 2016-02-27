@@ -45,6 +45,9 @@ public class NanosOffsetClock implements Clock {
             System.nanoTime() - nanosAtBaseMillis, TimeUnit.NANOSECONDS)));
   }
 
+  @Override
+  public void refresh() {}
+
   /**
    * Creates instances of {@link NanosOffsetClock}.
    */

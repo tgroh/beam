@@ -25,5 +25,10 @@ public interface Clock {
    * Returns the current time as an {@link Instant}.
    */
   Instant now();
+  
+  /**
+   * If the clock is dependent on a data source that is not automatically updated, force an update.
+   */
+  void refresh();
 }
 
