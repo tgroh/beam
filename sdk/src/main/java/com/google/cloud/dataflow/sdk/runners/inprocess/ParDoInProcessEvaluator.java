@@ -95,6 +95,7 @@ class ParDoInProcessEvaluator<T> implements TransformEvaluator<T> {
       @SuppressWarnings("rawtypes")
       UncommittedBundle bundle = bundles.get(tag);
       if (bundle == null) {
+        @SuppressWarnings("rawtypes")
         List undeclaredContents = undeclaredOutputs.get(tag);
         if (undeclaredContents == null) {
           undeclaredContents = new ArrayList<T>();

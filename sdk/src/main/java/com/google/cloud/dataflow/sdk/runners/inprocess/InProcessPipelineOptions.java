@@ -48,7 +48,7 @@ public interface InProcessPipelineOptions extends PipelineOptions, ApplicationNa
 
   void setClock(Clock clock);
 
-  @Default.Boolean(false)
+  @Default.Boolean(true)
   @Description("If the pipelien should block awaiting completion of the pipeline. If set to true, "
       + "a call to Pipeline#run() will block until all PTransforms are complete. Otherwise, the "
       + "Pipeline will execute asynchronously. If set to false, the completion of the pipeline can "
