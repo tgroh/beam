@@ -2,13 +2,6 @@ language: java
 
 sudo: false
 
-notifications:
-  email:
-    recipients:
-      - dataflow-sdk-build-notifications+travis@google.com
-    on_success: change
-    on_failure: always
-
 matrix:
   include:
     # On OSX, run with default JDK only.
