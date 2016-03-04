@@ -21,7 +21,6 @@ import com.google.cloud.dataflow.sdk.transforms.AppliedPTransform;
 /**
  * Creates {@link ModelEnforcement} instances.
  */
-public interface ModelEnforcementFactory<T> {
-  ModelEnforcement<T> forBundle(
-      CommittedBundle<T> input, AppliedPTransform<?, ?, ?> consumer);
+public interface ModelEnforcementFactory {
+  <T> ModelEnforcement<T> forBundle(CommittedBundle<T> input, AppliedPTransform<?, ?, ?> consumer);
 }

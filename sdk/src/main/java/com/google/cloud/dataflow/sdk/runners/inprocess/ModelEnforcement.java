@@ -36,8 +36,5 @@ public interface ModelEnforcement<T> {
   /**
    * Called after a bundle has been completed and finishBundle has been called.
    */
-  void afterFinish(
-      CommittedBundle<T> input,
-      InProcessTransformResult result,
-      Iterable<? extends CommittedBundle<?>> committedOutputs);
+  void afterFinish(CommittedBundle<T> input, InProcessTransformResult result);
 }

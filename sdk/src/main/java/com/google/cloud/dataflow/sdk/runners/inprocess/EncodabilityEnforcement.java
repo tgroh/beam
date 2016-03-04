@@ -28,47 +28,27 @@ import com.google.common.base.Throwables;
  * Enforces that all elements in a {@link PCollection} can be encoded using that
  * {@link PCollection PCollection's} {@link Coder}.
  */
-class EncodabilityEnforcmentFactory<T> implements ModelEnforcementFactory<T> {
+class EncodabilityEnforcmentFactory implements ModelEnforcementFactory {
   @Override
-  public ModelEnforcement<T> forBundle(
+  public <T> ModelEnforcement<T> forBundle(
       CommittedBundle<T> input, AppliedPTransform<?, ?, ?> consumer) {
     return new EncodabilityEnforcement<>(input);
   }
 
   public static class EncodabilityEnforcement<T> extends AbstractModelEnforcement<T> {
     private Coder<T> coder;
+
     public EncodabilityEnforcement(CommittedBundle<T> input) {
-    coder = input.getPCollection().getCoder();
-  }
-
-  @Override
-  public WindowedValue<T> beforeElement(WindowedValue<T> element) {
-    try {
-      return element.withValue(CoderUtils.clone(coder, element.getValue()));
-    } catch (CoderException e) {
-      throw Throwables.propagate(e);
+      coder = input.getPCollection().getCoder();
     }
-  }
 
-  @Override
-  public void afterFinish(
-      CommittedBundle<T> input,
-      InProcessTransformResult result,
-      Iterable<? extends CommittedBundle<?>> committedOutputs) {
-    for (CommittedBundle<?> bundle : committedOutputs) {
-      ensureBundleEncodable(bundle);
-    }
-  }
-
-  private <T> void ensureBundleEncodable(CommittedBundle<T> bundle) {
-    Coder<T> coder = bundle.getPCollection().getCoder();
-    for (WindowedValue<T> value : bundle.getElements()) {
+    @Override
+    public WindowedValue<T> beforeElement(WindowedValue<T> element) {
       try {
-        CoderUtils.clone(coder, value.getValue());
+        return element.withValue(CoderUtils.clone(coder, element.getValue()));
       } catch (CoderException e) {
-        Throwables.propagate(e);
+        throw Throwables.propagate(e);
       }
-    }
     }
   }
 }

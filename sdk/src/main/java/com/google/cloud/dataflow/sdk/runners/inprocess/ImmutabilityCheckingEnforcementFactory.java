@@ -33,9 +33,9 @@ import java.util.Map;
  *
  * <p>Implies {@link EncodabilityEnforcment}.
  */
-class ImmutabilityCheckingEnforcementFactory<T> implements ModelEnforcementFactory<T> {
+class ImmutabilityCheckingEnforcementFactory implements ModelEnforcementFactory {
   @Override
-  public ModelEnforcement<T> forBundle(
+  public <T> ModelEnforcement<T> forBundle(
       CommittedBundle<T> input, AppliedPTransform<?, ?, ?> consumer) {
     return new ImmutabilityCheckingEnforcement<T>(input);
   }
@@ -65,8 +65,7 @@ class ImmutabilityCheckingEnforcementFactory<T> implements ModelEnforcementFacto
     @Override
     public void afterFinish(
         CommittedBundle<T> input,
-        InProcessTransformResult result,
-        Iterable<? extends CommittedBundle<?>> committedOutputs) {
+        InProcessTransformResult result) {
       for (MutationDetector detector : mutationElements.values()) {
         detector.verifyUnmodified();
       }
