@@ -49,17 +49,13 @@ public class ModelEnforcingTransformEvaluatorFactory implements TransformEvaluat
     @SuppressWarnings({"rawtypes", "unchecked"})
     List<ModelEnforcement<InputT>> bundleEnforcements =
         createEnforcements(application, (CommittedBundle) inputBundle);
-    TransformEvaluator<InputT> underlyingEvaluator =
-        wrapped.forApplication(application, inputBundle, evaluationContext);
-    if (!bundleEnforcements.isEmpty()) {
-      return underlyingEvaluator;
-    } else {
-      @SuppressWarnings({"unchecked", "rawtypes"})
-      TransformEvaluator<InputT> evaluator =
-          createEnforcingEvaluator(
-              (CommittedBundle) inputBundle, bundleEnforcements, underlyingEvaluator);
-      return evaluator;
-    }
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    TransformEvaluator<InputT> enforcingEvaluator =
+        createEnforcingEvaluator(
+            (CommittedBundle) inputBundle,
+            bundleEnforcements,
+            wrapped.<InputT>forApplication(application, inputBundle, evaluationContext));
+    return enforcingEvaluator;
   }
 
   private <InputT> TransformEvaluator<InputT> createEnforcingEvaluator(

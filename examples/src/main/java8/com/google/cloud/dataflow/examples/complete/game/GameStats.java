@@ -26,9 +26,11 @@ import com.google.cloud.dataflow.sdk.options.Description;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.options.Validation;
 import com.google.cloud.dataflow.sdk.runners.DataflowPipelineRunner;
+import com.google.cloud.dataflow.sdk.runners.worker.windmill.Windmill.TagValue;
 import com.google.cloud.dataflow.sdk.transforms.Aggregator;
 import com.google.cloud.dataflow.sdk.transforms.Combine;
 import com.google.cloud.dataflow.sdk.transforms.DoFn;
+import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
 import com.google.cloud.dataflow.sdk.transforms.DoFn.RequiresWindowAccess;
 import com.google.cloud.dataflow.sdk.transforms.MapElements;
 import com.google.cloud.dataflow.sdk.transforms.Mean;
@@ -37,14 +39,23 @@ import com.google.cloud.dataflow.sdk.transforms.ParDo;
 import com.google.cloud.dataflow.sdk.transforms.Sum;
 import com.google.cloud.dataflow.sdk.transforms.Values;
 import com.google.cloud.dataflow.sdk.transforms.View;
+import com.google.cloud.dataflow.sdk.transforms.windowing.AfterDelayFromFirstElement;
+import com.google.cloud.dataflow.sdk.transforms.windowing.AfterEach;
+import com.google.cloud.dataflow.sdk.transforms.windowing.AfterPane;
+import com.google.cloud.dataflow.sdk.transforms.windowing.AfterProcessingTime;
+import com.google.cloud.dataflow.sdk.transforms.windowing.AfterWatermark;
 import com.google.cloud.dataflow.sdk.transforms.windowing.FixedWindows;
 import com.google.cloud.dataflow.sdk.transforms.windowing.IntervalWindow;
 import com.google.cloud.dataflow.sdk.transforms.windowing.OutputTimeFns;
+import com.google.cloud.dataflow.sdk.transforms.windowing.Repeatedly;
 import com.google.cloud.dataflow.sdk.transforms.windowing.Sessions;
 import com.google.cloud.dataflow.sdk.transforms.windowing.Window;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollection;
+import com.google.cloud.dataflow.sdk.values.PCollectionTuple;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
+import com.google.cloud.dataflow.sdk.values.TimestampedValue;
+import com.google.cloud.dataflow.sdk.values.TupleTag;
 import com.google.cloud.dataflow.sdk.values.TypeDescriptor;
 
 import org.joda.time.DateTimeZone;
@@ -155,7 +166,7 @@ public class GameStats extends LeaderBoard {
   /**
    * Calculate and output an element's session duration.
    */
-  private static class UserSessionInfoFn extends DoFn<KV<String, Integer>, Integer>
+  static class UserSessionInfoFn extends DoFn<KV<String, Integer>, Integer>
       implements RequiresWindowAccess {
 
     @Override
@@ -338,10 +349,78 @@ public class GameStats extends LeaderBoard {
                 options.getTablePrefix() + "_sessions", configureSessionWindowWrite()));
     // [END DocInclude_Rewindow]
 
+    TupleTag<Long> sumTag = new TupleTag<>();
+    TupleTag<Double> meanTag = new TupleTag<>();
+    PTransform<PCollection<Long>, PCollectionTuple> myExampleTransform =
+        new PTransform<PCollection<Long>, PCollectionTuple>() {
+          @Override
+          public PCollectionTuple apply(PCollection<Long> input) {
+            PCollection<Long> windowed =
+                input.apply(
+                    Window.<Long>into(FixedWindows.of(Duration.standardMinutes(10)))
+                        .triggering(
+                            AfterEach.inOrder(
+                                AfterPane.<IntervalWindow>elementCountAtLeast(2),
+                                AfterWatermark.<IntervalWindow>pastEndOfWindow(),
+                                Repeatedly.forever(
+                                    AfterProcessingTime.<IntervalWindow>pastFirstElementInPane()
+                                        .plusDelayOf(Duration.standardMinutes(5)))))
+                        .accumulatingFiredPanes());
+            PCollection<Long> sums = windowed.apply(Sum.longsGlobally());
+            PCollection<Double> mean = windowed.apply(Mean.globally());
+            return PCollectionTuple.of(sumTag, sums).and(meanTag, mean);
+          }
+        };
 
+    PTransformTester.of(myExampleTransform)
+        .withInput(
+            TimestampedValue.of(1L, new Instant(1000L)),
+            TimestampedValue.of(2L, new Instant(2000L)))
+        .atWatermark(new Instant(3000L))
+        .containsInAnyOrder(sumTag, 3L)
+        .containsInAnyOrder(meanTag, 1.5)
+        // On-time pane
+        .withInput(TimestampedValue.of(3L, new Instant(0L).plus(Duration.standardMinutes(3))))
+        .atWatermark(new Instant(0L).plus(Duration.standardMinutes(8)))
+        .containsInAnyOrder(sumTag, 6L)
+        .containsInAnyOrder(meanTag, 2.0)
+        // late pane
+        .withInput(TimestampedValue.of(10L, new Instant(0L).plus(Duration.standardMinutes(2))))
+        .afterProcessingTime(Duration.standardMinutes(5))
+        .containsInAnyOrder(sumTag, 16L)
+        .containsInAnyOrder(meanTag, 4.0)
+        .finish();
+    
     // Run the pipeline and wait for the pipeline to finish; capture cancellation requests from the
     // command line.
     PipelineResult result = pipeline.run();
     dataflowUtils.waitToFinish(result);
+  }
+  
+  private static class PTransformTester<T> {
+    public static <T> PTransformTester<T> of(PTransform<PCollection<T>, PCollectionTuple> transform) {
+      return new PTransformTester<>();
+    }
+
+    public PTransformTester<T> afterProcessingTime(Duration standardMinutes) {
+      return this;
+    }
+
+    @SafeVarargs
+    public final PTransformTester<T> withInput(TimestampedValue<T>... values) {
+      return this;
+    }
+    
+    public PTransformTester<T> atWatermark(Instant wm) {
+      return this;
+    }
+    
+    public <OutputT> PTransformTester<T> containsInAnyOrder(
+        TupleTag<OutputT> outputTag, OutputT... values) {
+      return this;
+    }
+    
+    public void finish() {
+    }
   }
 }
