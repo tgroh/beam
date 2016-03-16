@@ -40,7 +40,8 @@ class ParDoSingleEvaluatorFactory implements TransformEvaluatorFactory {
       final AppliedPTransform<?, ?, ?> application,
       CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext) {
-    return createSingleEvaluator((AppliedPTransform) application, inputBundle, evaluationContext);
+    return createSingleEvaluator(
+        (AppliedPTransform) application, (CommittedBundle<T>) inputBundle, evaluationContext);
   }
 
   private static <InputT, OutputT> ParDoInProcessEvaluator<InputT> createSingleEvaluator(
