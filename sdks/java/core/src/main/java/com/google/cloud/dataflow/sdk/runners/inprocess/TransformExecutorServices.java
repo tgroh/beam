@@ -78,6 +78,16 @@ final class TransformExecutorServices {
     public void complete(TransformExecutor<?> completed) {
       scheduled.remove(completed);
     }
+
+    /**
+     * {@inheritDoc}.
+     *
+     * Always returns true.
+     */
+    @Override
+    public boolean isEmpty() {
+      return true;
+    }
   }
 
   /**
@@ -140,6 +150,19 @@ final class TransformExecutorServices {
             }
           }
         }
+      }
+    }
+
+    @Override
+    public boolean isEmpty() {
+      if (currentlyEvaluating.get() != null) {
+        return false;
+      }
+      synchronized (this) {
+        if (currentlyEvaluating.get() == null && workQueue.isEmpty()) {
+          return true;
+        }
+        return false;
       }
     }
 

@@ -32,5 +32,11 @@ interface TransformExecutorService {
    * {@link TransformExecutor TransformExecutors} to be evaluated.
    */
   void complete(TransformExecutor<?> completed);
+
+  /**
+   * Returns true if this {@link TransformExecutorService} has no active {@link TransformExecutor}
+   * and no work queue, if applicable.
+   */
+  boolean isEmpty();
 }
 
