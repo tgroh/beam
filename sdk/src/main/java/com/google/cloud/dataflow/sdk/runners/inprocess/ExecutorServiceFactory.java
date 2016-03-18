@@ -15,7 +15,6 @@
  */
 package com.google.cloud.dataflow.sdk.runners.inprocess;
 
-<<<<<<< HEAD
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -30,39 +29,3 @@ public interface ExecutorServiceFactory {
    */
   ExecutorService create();
 }
-
-=======
-import com.google.cloud.dataflow.sdk.options.DefaultValueFactory;
-import com.google.cloud.dataflow.sdk.options.PipelineOptions;
-
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-/**
- * A factory for creating ExecutorServices.
- */
-public interface ExecutorServiceFactory {
-
-  /** Create a new ExecutorService. */
-  ExecutorService create();
-  /**
-   * A {@link DefaultValueFactory} that produces cached thread pools via
-   * {@link Executors#newCachedThreadPool()}.
-   */
-  class WorkStealingPoolExecutorServiceFactoryFactory
-      implements DefaultValueFactory<ExecutorServiceFactory> {
-    @Override
-    public ExecutorServiceFactory create(PipelineOptions options) {
-      return new WorkStealingPoolExecutorServiceFactory();
-    }
-
-    class WorkStealingPoolExecutorServiceFactory implements ExecutorServiceFactory {
-      @Override
-      public ExecutorService create() {
-        ExecutorService service = Executors.newCachedThreadPool();
-        return service;
-      }
-    }
-  }
-}
->>>>>>> f94a1b9... WIP:
