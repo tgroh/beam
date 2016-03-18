@@ -19,6 +19,7 @@ import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.Pipeline.PipelineExecutionException;
 import com.google.cloud.dataflow.sdk.PipelineResult;
 import com.google.cloud.dataflow.sdk.annotations.Experimental;
+import com.google.cloud.dataflow.sdk.options.DefaultValueFactory;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.runners.AggregatorPipelineExtractor;
 import com.google.cloud.dataflow.sdk.runners.AggregatorRetrievalException;
@@ -31,6 +32,7 @@ import com.google.cloud.dataflow.sdk.transforms.AppliedPTransform;
 import com.google.cloud.dataflow.sdk.transforms.Create;
 import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
 import com.google.cloud.dataflow.sdk.transforms.PTransform;
+import com.google.cloud.dataflow.sdk.transforms.ParDo;
 import com.google.cloud.dataflow.sdk.transforms.View.CreatePCollectionView;
 import com.google.cloud.dataflow.sdk.util.InstanceBuilder;
 import com.google.cloud.dataflow.sdk.util.MapAggregatorValues;
@@ -46,6 +48,7 @@ import com.google.cloud.dataflow.sdk.values.PInput;
 import com.google.cloud.dataflow.sdk.values.POutput;
 import com.google.cloud.dataflow.sdk.values.PValue;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
@@ -53,6 +56,7 @@ import org.joda.time.Instant;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
@@ -185,6 +189,14 @@ public class InProcessPipelineRunner
     return options;
   }
 
+  private BundleFactory getBundleFactory() {
+    BundleFactory factory = InProcessBundleFactory.create();
+    if (options.isTestImmutability()) {
+      factory = ImmutabilityCheckingBundleFactory.create(factory);
+    }
+    return factory;
+  }
+
   @Override
   public <OutputT extends POutput, InputT extends PInput> OutputT apply(
       PTransform<InputT, OutputT> transform, InputT input) {
@@ -228,6 +240,7 @@ public class InProcessPipelineRunner
     InProcessEvaluationContext context =
         InProcessEvaluationContext.create(
             getPipelineOptions(),
+            getBundleFactory(),
             consumerTrackingVisitor.getRootTransforms(),
             consumerTrackingVisitor.getValueToConsumers(),
             consumerTrackingVisitor.getStepNames(),
@@ -299,6 +312,7 @@ public class InProcessPipelineRunner
           String stepName =
               String.format(
                   "user-%s-%s", evaluationContext.getStepName(transform), aggregator.getName());
+          @SuppressWarnings("unchecked")
           Counter<T> counter = (Counter<T>) counters.getExistingCounter(stepName);
           if (counter != null) {
             stepValues.put(transform.getFullName(), counter.getAggregate());
@@ -337,6 +351,41 @@ public class InProcessPipelineRunner
         }
       }
       return state;
+    }
+  }
+
+  /**
+   * The {@link DefaultValueFactory} that produces the default map from {@link PTransform} class to
+   * {@link ModelEnforcementFactory ModelEnforcementFactories} that should be applied to evaluations
+   * of those transforms.
+   */
+  @SuppressWarnings("rawtypes")
+  public static class DefaultModelEnforcementsFactory
+      implements DefaultValueFactory<
+          Map<Class<? extends PTransform>, Collection<ModelEnforcementFactory>>> {
+
+    public DefaultModelEnforcementsFactory() {}
+
+    @Override
+    public Map<Class<? extends PTransform>, Collection<ModelEnforcementFactory>> create(
+        PipelineOptions options) {
+      InProcessPipelineOptions inProcessOptions = options.as(InProcessPipelineOptions.class);
+      List<ModelEnforcementFactory> parDoEnforcements = getParDoEnforcements(inProcessOptions);
+      return ImmutableMap
+          .<Class<? extends PTransform>, Collection<ModelEnforcementFactory>>builder()
+          .put(ParDo.Bound.class, parDoEnforcements)
+          .put(ParDo.BoundMulti.class, parDoEnforcements)
+          .build();
+    }
+
+    private List<ModelEnforcementFactory> getParDoEnforcements(InProcessPipelineOptions options) {
+      ImmutableList.Builder<ModelEnforcementFactory> parDoEnforcements = ImmutableList.builder();
+      if (options.isTestImmutability()) {
+        parDoEnforcements.add(ImmutabilityCheckingEnforcementFactory.create());
+      } else if (options.isTestEncodability()) {
+        parDoEnforcements.add(EncodabilityEnforcementFactory.create());
+      }
+      return parDoEnforcements.build();
     }
   }
 }

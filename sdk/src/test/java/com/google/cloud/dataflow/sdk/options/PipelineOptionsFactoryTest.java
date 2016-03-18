@@ -53,6 +53,8 @@ import java.util.Map;
 /** Tests for {@link PipelineOptionsFactory}. */
 @RunWith(JUnit4.class)
 public class PipelineOptionsFactoryTest {
+  private static final String DEFAULT_RUNNER = "InProcessPipelineRunner";
+
   @Rule public ExpectedException expectedException = ExpectedException.none();
   @Rule public TestRule restoreSystemProperties = new RestoreSystemProperties();
   @Rule public ExpectedLogs expectedLogs = ExpectedLogs.none(PipelineOptionsFactory.class);
@@ -949,7 +951,7 @@ public class PipelineOptionsFactoryTest {
     String output = new String(baos.toByteArray());
     assertThat(output, containsString("com.google.cloud.dataflow.sdk.options.PipelineOptions"));
     assertThat(output, containsString("--runner"));
-    assertThat(output, containsString("Default: DirectPipelineRunner"));
+    assertThat(output, containsString("Default: " + DEFAULT_RUNNER));
     assertThat(output,
         containsString("The pipeline runner that will be used to execute the pipeline."));
   }
@@ -964,7 +966,7 @@ public class PipelineOptionsFactoryTest {
     String output = new String(baos.toByteArray());
     assertThat(output, containsString("com.google.cloud.dataflow.sdk.options.PipelineOptions"));
     assertThat(output, containsString("--runner"));
-    assertThat(output, containsString("Default: DirectPipelineRunner"));
+    assertThat(output, containsString("Default: " + DEFAULT_RUNNER));
     assertThat(output,
         containsString("The pipeline runner that will be used to execute the pipeline."));
   }
@@ -979,7 +981,7 @@ public class PipelineOptionsFactoryTest {
     String output = new String(baos.toByteArray());
     assertThat(output, containsString("com.google.cloud.dataflow.sdk.options.PipelineOptions"));
     assertThat(output, containsString("--runner"));
-    assertThat(output, containsString("Default: DirectPipelineRunner"));
+    assertThat(output, containsString("Default: " + DEFAULT_RUNNER));
     assertThat(output,
         containsString("The pipeline runner that will be used to execute the pipeline."));
   }
@@ -1060,7 +1062,7 @@ public class PipelineOptionsFactoryTest {
     String output = new String(baos.toByteArray());
     assertThat(output, containsString("com.google.cloud.dataflow.sdk.options.PipelineOptions"));
     assertThat(output, containsString("--runner"));
-    assertThat(output, containsString("Default: DirectPipelineRunner"));
+    assertThat(output, containsString("Default: " + DEFAULT_RUNNER));
     assertThat(output,
         containsString("The pipeline runner that will be used to execute the pipeline."));
   }

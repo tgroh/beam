@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.PriorityQueue;
@@ -1322,5 +1323,54 @@ public class InMemoryWatermarkManager {
       }
     }
     return result;
+  }
+
+  public void printNextTimersAndWatermarks() {
+    for (Entry<AppliedPTransform<?, ?, ?>, TransformWatermarks> entry :
+        transformToWatermarks.entrySet()) {
+      Map<Object, NavigableSet<TimerData>> wmTimers;
+      Map<Object, NavigableSet<TimerData>> procTimers;
+      Map<Object, NavigableSet<TimerData>> syncProcTimers;
+
+      wmTimers = entry.getValue().inputWatermark.objectTimers;
+      procTimers = entry.getValue().synchronizedProcessingInputWatermark.processingTimers;
+      syncProcTimers =
+          entry.getValue().synchronizedProcessingInputWatermark.synchronizedProcessingTimers;
+      synchronized (this) {
+        if (empty(wmTimers) && empty(procTimers) && empty(syncProcTimers)) {
+          continue;
+        }
+        StringBuilder builder =
+            new StringBuilder(entry.getKey().getFullName() + " has pending timers:\n");
+        if (!empty(wmTimers)) {
+          builder.append(
+              String.format(
+                  "Input WM: %s%nPending WM Timers: %s%n",
+                  entry.getValue().inputWatermark.get(),
+                  wmTimers));
+        }
+        if (!empty(procTimers)) {
+          builder.append("Processing time Timers: " + procTimers + "\n");
+        }
+        if (!empty(syncProcTimers)) {
+          builder.append(
+              String.format(
+                  "Synchronized Processing Time %s%n"
+                      + "Pending Synchronized Processing Time Timers %s%n",
+                  entry.getValue().synchronizedProcessingInputWatermark.get(),
+                  syncProcTimers));
+        }
+        System.out.println(builder.toString());
+      }
+    }
+  }
+
+  private boolean empty(Map<Object, NavigableSet<TimerData>> timers) {
+    for (NavigableSet<TimerData> tmr : timers.values()) {
+      if (!tmr.isEmpty()) {
+        return true;
+      }
+    }
+    return false;
   }
 }

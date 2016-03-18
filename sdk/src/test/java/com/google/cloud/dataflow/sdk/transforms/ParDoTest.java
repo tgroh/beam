@@ -1107,7 +1107,7 @@ public class ParDoTest implements Serializable {
     input.apply(ParDo.of(new SideOutputDummyFn(sideOutputTag))
         .withOutputTags(mainOutputTag, TupleTagList.of(sideOutputTag)));
 
-    thrown.expect(PipelineExecutionException.class);
+    thrown.expect(IllegalStateException.class);
     thrown.expectMessage("Unable to return a default Coder");
     pipeline.run();
   }
@@ -1435,7 +1435,8 @@ public class ParDoTest implements Serializable {
           }
         }));
 
-    thrown.expect(IllegalMutationException.class);
+    thrown.expect(PipelineExecutionException.class);
+    thrown.expectCause(isA(IllegalMutationException.class));
     thrown.expectMessage("output");
     thrown.expectMessage("must not be mutated");
     pipeline.run();
@@ -1486,9 +1487,9 @@ public class ParDoTest implements Serializable {
           }
         }));
 
-    thrown.expect(IllegalMutationException.class);
-    thrown.expectMessage("input");
-    thrown.expectMessage("must not be mutated");
+    thrown.expect(PipelineExecutionException.class);
+    thrown.expectCause(isA(IllegalMutationException.class));
+    thrown.expectMessage("Input values must not be mutated");
     pipeline.run();
   }
 
@@ -1510,9 +1511,9 @@ public class ParDoTest implements Serializable {
           }
         }));
 
-    thrown.expect(IllegalMutationException.class);
-    thrown.expectMessage("input");
-    thrown.expectMessage("must not be mutated");
+    thrown.expect(PipelineExecutionException.class);
+    thrown.expectCause(isA(IllegalMutationException.class));
+    thrown.expectMessage("Input values must not be mutated");
     pipeline.run();
   }
 }

@@ -60,7 +60,9 @@ class TransformExecutor<T> implements Callable<InProcessTransformResult> {
   private final CompletionCallback onComplete;
   private final TransformExecutorService transformEvaluationState;
 
+  private boolean finished;
   private Thread thread;
+  private boolean inFinally;
 
   private TransformExecutor(
       TransformEvaluatorFactory factory,
@@ -78,6 +80,7 @@ class TransformExecutor<T> implements Callable<InProcessTransformResult> {
     this.onComplete = completionCallback;
 
     this.transformEvaluationState = transformEvaluationState;
+    finished = false;
   }
 
   @Override
@@ -92,14 +95,16 @@ class TransformExecutor<T> implements Callable<InProcessTransformResult> {
         }
       }
       InProcessTransformResult result = evaluator.finishBundle();
-      onComplete.handleResult(inputBundle, result);
+      onComplete.handleResult(inputBundle, transform, result);
       return result;
     } catch (Throwable t) {
-      onComplete.handleThrowable(inputBundle, t);
+      onComplete.handleThrowable(inputBundle, transform, t);
       throw Throwables.propagate(t);
     } finally {
+      inFinally = true;
       this.thread = null;
       transformEvaluationState.complete(this);
+      finished = true;
     }
   }
 

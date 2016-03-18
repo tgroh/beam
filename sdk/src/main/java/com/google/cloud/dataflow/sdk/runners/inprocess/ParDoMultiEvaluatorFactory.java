@@ -25,6 +25,7 @@ import com.google.cloud.dataflow.sdk.transforms.PTransform;
 import com.google.cloud.dataflow.sdk.transforms.ParDo.BoundMulti;
 import com.google.cloud.dataflow.sdk.util.DoFnRunner;
 import com.google.cloud.dataflow.sdk.util.DoFnRunners;
+import com.google.cloud.dataflow.sdk.util.UserCodeException;
 import com.google.cloud.dataflow.sdk.util.common.CounterSet;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.cloud.dataflow.sdk.values.PCollectionTuple;
@@ -82,7 +83,11 @@ class ParDoMultiEvaluatorFactory implements TransformEvaluatorFactory {
             counters.getAddCounterMutator(),
             application.getInput().getWindowingStrategy());
 
-    runner.startBundle();
+    try {
+      runner.startBundle();
+    } catch (Exception e) {
+      throw UserCodeException.wrap(e);
+    }
 
     return new ParDoInProcessEvaluator<>(
         runner, application, counters, outputBundles.values(), stepContext);

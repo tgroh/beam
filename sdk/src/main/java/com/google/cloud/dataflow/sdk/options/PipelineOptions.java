@@ -21,8 +21,8 @@ import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.options.GoogleApiDebugOptions.GoogleApiTracer;
 import com.google.cloud.dataflow.sdk.options.ProxyInvocationHandler.Deserializer;
 import com.google.cloud.dataflow.sdk.options.ProxyInvocationHandler.Serializer;
-import com.google.cloud.dataflow.sdk.runners.DirectPipelineRunner;
 import com.google.cloud.dataflow.sdk.runners.PipelineRunner;
+import com.google.cloud.dataflow.sdk.runners.inprocess.InProcessPipelineRunner;
 import com.google.cloud.dataflow.sdk.transforms.DoFn;
 import com.google.cloud.dataflow.sdk.transforms.DoFn.Context;
 
@@ -222,7 +222,7 @@ public interface PipelineOptions {
   @Description("The pipeline runner that will be used to execute the pipeline. "
       + "For registered runners, the class name can be specified, otherwise the fully "
       + "qualified name needs to be specified.")
-  @Default.Class(DirectPipelineRunner.class)
+  @Default.Class(InProcessPipelineRunner.class)
   Class<? extends PipelineRunner<?>> getRunner();
   void setRunner(Class<? extends PipelineRunner<?>> kls);
 

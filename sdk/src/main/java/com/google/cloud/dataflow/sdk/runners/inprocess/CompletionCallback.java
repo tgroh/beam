@@ -16,6 +16,7 @@
 package com.google.cloud.dataflow.sdk.runners.inprocess;
 
 import com.google.cloud.dataflow.sdk.runners.inprocess.InProcessPipelineRunner.CommittedBundle;
+import com.google.cloud.dataflow.sdk.transforms.AppliedPTransform;
 
 /**
  * A callback for completing a bundle of input.
@@ -24,10 +25,14 @@ interface CompletionCallback {
   /**
    * Handle a successful result.
    */
-  void handleResult(CommittedBundle<?> inputBundle, InProcessTransformResult result);
+  void handleResult(
+      CommittedBundle<?> inputBundle,
+      AppliedPTransform<?, ?, ?> transform,
+      InProcessTransformResult result);
 
   /**
    * Handle a result that terminated abnormally due to the provided {@link Throwable}.
    */
-  void handleThrowable(CommittedBundle<?> inputBundle, Throwable t);
+  void handleThrowable(
+      CommittedBundle<?> inputBundle, AppliedPTransform<?, ?, ?> transform, Throwable t);
 }

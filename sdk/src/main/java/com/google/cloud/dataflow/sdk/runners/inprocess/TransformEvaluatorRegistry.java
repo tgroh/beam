@@ -23,6 +23,7 @@ import com.google.cloud.dataflow.sdk.transforms.PTransform;
 import com.google.cloud.dataflow.sdk.transforms.ParDo;
 import com.google.common.collect.ImmutableMap;
 
+import java.util.Collection;
 import java.util.Map;
 
 import javax.annotation.Nullable;
@@ -33,7 +34,11 @@ import javax.annotation.Nullable;
  */
 class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
   public static TransformEvaluatorRegistry defaultRegistry() {
-    @SuppressWarnings("rawtypes")
+    return new TransformEvaluatorRegistry(defaultEvaluators());
+  }
+
+  @SuppressWarnings("rawtypes")
+  private static Map<Class<? extends PTransform>, TransformEvaluatorFactory> defaultEvaluators() {
     ImmutableMap<Class<? extends PTransform>, TransformEvaluatorFactory> primitives =
         ImmutableMap.<Class<? extends PTransform>, TransformEvaluatorFactory>builder()
             .put(Read.Bounded.class, new BoundedReadEvaluatorFactory())
@@ -46,7 +51,40 @@ class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
             .put(FlattenPCollectionList.class, new FlattenEvaluatorFactory())
             .put(ViewEvaluatorFactory.WriteView.class, new ViewEvaluatorFactory())
             .build();
-    return new TransformEvaluatorRegistry(primitives);
+    return primitives;
+  }
+
+  public static TransformEvaluatorRegistry defaultWithModelEnforcements(
+      @SuppressWarnings("rawtypes")
+      Map<Class<? extends PTransform>, Collection<ModelEnforcementFactory>> enforcements) {
+    @SuppressWarnings("rawtypes")
+    ImmutableMap.Builder<Class<? extends PTransform>, TransformEvaluatorFactory> enforcedBuilder =
+        ImmutableMap.builder();
+    for (@SuppressWarnings("rawtypes")
+    Map.Entry<Class<? extends PTransform>, TransformEvaluatorFactory> defaultEvaluator :
+        defaultEvaluators().entrySet()) {
+
+      Collection<ModelEnforcementFactory> classEnforcements =
+          enforcements.get(defaultEvaluator.getKey());
+      TransformEvaluatorFactory enforced =
+          getEnforcedEvaluator(defaultEvaluator.getValue(), classEnforcements);
+      enforcedBuilder.put(defaultEvaluator.getKey(), enforced);
+    }
+    return new TransformEvaluatorRegistry(enforcedBuilder.build());
+  }
+
+  private static TransformEvaluatorFactory getEnforcedEvaluator(
+      TransformEvaluatorFactory evaluatorFactory,
+      Collection<ModelEnforcementFactory> classEnforcements) {
+    TransformEvaluatorFactory enforced;
+    if (classEnforcements == null || classEnforcements.isEmpty()) {
+      enforced = evaluatorFactory;
+    } else {
+      enforced =
+          ModelEnforcingTransformEvaluatorFactory.of(
+              evaluatorFactory, classEnforcements);
+    }
+    return enforced;
   }
 
   // the TransformEvaluatorFactories can construct instances of all generic types of transform,

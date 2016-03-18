@@ -25,6 +25,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import com.google.cloud.dataflow.sdk.Pipeline;
+import com.google.cloud.dataflow.sdk.coders.AvroCoder;
 import com.google.cloud.dataflow.sdk.io.Source.Reader;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
@@ -33,6 +34,7 @@ import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.avro.reflect.ReflectData;
 import org.hamcrest.Matchers;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -52,6 +54,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import javax.annotation.Nullable;
 import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlRootElement;
 
@@ -153,16 +156,17 @@ public class XmlSourceTest {
   @XmlRootElement
   static class Train {
     public static final int TRAIN_NUMBER_UNDEFINED = -1;
-    public String name = null;
-    public String color = null;
+    @Nullable public String name = null;
+    @Nullable public String color = null;
     public int number = TRAIN_NUMBER_UNDEFINED;
 
     @XmlAttribute(name = "size")
+    @Nullable
     public String size = null;
 
     public Train() {}
 
-    public Train(String name, int number, String color, String size) {
+    public Train(@Nullable String name, int number, @Nullable String color, @Nullable String size) {
       this.name = name;
       this.number = number;
       this.color = color;
@@ -573,14 +577,19 @@ public class XmlSourceTest {
             .withRecordClass(Train.class)
             .withMinBundleSize(1024);
 
-    PCollection<Train> output = p.apply(Read.from(source).named("ReadFileData"));
+    PCollection<Train> output =
+        p.apply(Read.from(source).named("ReadFileData"))
+            .setCoder(
+                AvroCoder.of(Train.class, ReflectData.AllowNull.get().getSchema(Train.class)));
 
     List<Train> expectedResults =
         ImmutableList.of(new Train("Thomas", 1, "blue", null), new Train("Henry", 3, "green", null),
             new Train("Toby", 7, "brown", null), new Train("Gordon", 4, "blue", null),
             new Train("Emily", -1, "red", null), new Train("Percy", 6, "green", null));
 
-    DataflowAssert.that(output).containsInAnyOrder(expectedResults);
+    DataflowAssert.that(output)
+        .containsInAnyOrder(expectedResults)
+        .setCoder(AvroCoder.of(Train.class, ReflectData.AllowNull.get().getSchema(Train.class)));
     p.run();
   }
 
@@ -662,9 +671,10 @@ public class XmlSourceTest {
             .withRecordElement("train")
             .withRecordClass(Train.class)
             .withMinBundleSize(1024);
-    PCollection<Train> output = p.apply(Read.from(source).named("ReadFileData"));
+    PCollection<Train> output =
+        p.apply(Read.from(source).named("ReadFileData")).setCoder(AvroCoder.of(Train.class));
 
-    DataflowAssert.that(output).containsInAnyOrder(trains);
+    DataflowAssert.that(output).containsInAnyOrder(trains).setCoder(AvroCoder.of(Train.class));
     p.run();
   }
 
@@ -809,14 +819,17 @@ public class XmlSourceTest {
                                   .withRecordElement("train")
                                   .withRecordClass(Train.class)
                                   .withMinBundleSize(1024);
-    PCollection<Train> output = p.apply(Read.from(source).named("ReadFileData"));
+    PCollection<Train> output =
+        p.apply(Read.from(source).named("ReadFileData")).setCoder(AvroCoder.of(Train.class));
 
     List<Train> expectedResults = new ArrayList<>();
     expectedResults.addAll(trains1);
     expectedResults.addAll(trains2);
     expectedResults.addAll(trains3);
 
-    DataflowAssert.that(output).containsInAnyOrder(expectedResults);
+    DataflowAssert.that(output)
+        .containsInAnyOrder(expectedResults)
+        .setCoder(AvroCoder.of(Train.class));
     p.run();
   }
 }

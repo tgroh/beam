@@ -26,6 +26,8 @@ import com.google.cloud.dataflow.sdk.transforms.PTransform;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -87,4 +89,24 @@ public interface InProcessPipelineOptions extends PipelineOptions, ApplicationNa
   boolean isBlockOnRun();
 
   void setBlockOnRun(boolean b);
+
+  @SuppressWarnings("rawtypes")
+  @Default.InstanceFactory(InProcessPipelineRunner.DefaultModelEnforcementsFactory.class)
+  Map<Class<? extends PTransform>, Collection<ModelEnforcementFactory>> getModelEnforcements();
+
+  void setModelEnforcements(
+      Map<Class<? extends PTransform>, Collection<ModelEnforcementFactory>> enforcements);
+
+  @JsonIgnore
+  @Default.Boolean(true)
+  boolean isTestImmutability();
+
+  void setTestImmutability(boolean test);
+
+
+  @JsonIgnore
+  @Default.Boolean(true)
+  boolean isTestEncodability();
+
+  void setTestEncodability(boolean test);
 }
