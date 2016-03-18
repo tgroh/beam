@@ -229,6 +229,7 @@ public class InProcessPipelineRunner
     InProcessEvaluationContext context =
         InProcessEvaluationContext.create(
             getPipelineOptions(),
+            createBundleFactory(getPipelineOptions()),
             consumerTrackingVisitor.getRootTransforms(),
             consumerTrackingVisitor.getValueToConsumers(),
             consumerTrackingVisitor.getStepNames(),
@@ -260,6 +261,10 @@ public class InProcessPipelineRunner
       }
     }
     return result;
+  }
+
+  private BundleFactory createBundleFactory(InProcessPipelineOptions pipelineOptions) {
+    return InProcessBundleFactory.create();
   }
 
   /**
