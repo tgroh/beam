@@ -28,7 +28,6 @@ import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.runners.inprocess.InMemoryWatermarkManager.FiredTimers;
 import com.google.cloud.dataflow.sdk.runners.inprocess.InMemoryWatermarkManager.TimerUpdate;
 import com.google.cloud.dataflow.sdk.runners.inprocess.InProcessExecutionContext.InProcessStepContext;
-import com.google.cloud.dataflow.sdk.runners.inprocess.InProcessPipelineRunner.CommittedBundle;
 import com.google.cloud.dataflow.sdk.runners.inprocess.InProcessPipelineRunner.PCollectionViewWriter;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.transforms.AppliedPTransform;
@@ -110,6 +109,7 @@ public class InProcessEvaluationContextTest {
     Collection<PCollectionView<?>> views = ImmutableList.<PCollectionView<?>>of(view);
     context = InProcessEvaluationContext.create(
             runner.getPipelineOptions(),
+            InProcessBundleFactory.create(),
             rootTransforms,
             valueToConsumers,
             stepNames,
@@ -156,7 +156,9 @@ public class InProcessEvaluationContextTest {
     stepContext.stateInternals().state(StateNamespaces.global(), intBag).add(1);
 
     context.handleResult(
-        InProcessBundle.keyed(created, "foo").commit(Instant.now()),
+        InProcessBundleFactory.create()
+            .createKeyedBundle(null, "foo", created)
+            .commit(Instant.now()),
         ImmutableList.<TimerData>of(),
         StepTransformResult.withoutHold(created.getProducingTransformInternal())
             .withState(stepContext.commitState())
@@ -248,7 +250,7 @@ public class InProcessEvaluationContextTest {
             .withCounters(againCounters)
             .build();
     context.handleResult(
-        InProcessBundle.unkeyed(created).commit(Instant.now()),
+        context.createRootBundle(created).commit(Instant.now()),
         ImmutableList.<TimerData>of(),
         secondResult);
     assertThat((Long) context.getCounters().getExistingCounter("foo").getAggregate(), equalTo(12L));
@@ -275,7 +277,7 @@ public class InProcessEvaluationContextTest {
             .build();
 
     context.handleResult(
-        InProcessBundle.keyed(created, myKey).commit(Instant.now()),
+        context.createKeyedBundle(null, myKey, created).commit(Instant.now()),
         ImmutableList.<TimerData>of(),
         stateResult);
 
@@ -357,7 +359,7 @@ public class InProcessEvaluationContextTest {
     // haven't added any timers, must be empty
     assertThat(context.extractFiredTimers().entrySet(), emptyIterable());
     context.handleResult(
-        InProcessBundle.keyed(created, key).commit(Instant.now()),
+        context.createKeyedBundle(null, key, created).commit(Instant.now()),
         ImmutableList.<TimerData>of(),
         timerResult);
 
@@ -384,41 +386,6 @@ public class InProcessEvaluationContextTest {
 
     // Don't reextract timers
     assertThat(context.extractFiredTimers().entrySet(), emptyIterable());
-  }
-
-  @Test
-  public void createBundleUnkeyedResultUnkeyed() {
-    CommittedBundle<KV<String, Integer>> newBundle =
-        context
-            .createBundle(InProcessBundle.unkeyed(created).commit(Instant.now()), downstream)
-            .commit(Instant.now());
-    assertThat(newBundle.isKeyed(), is(false));
-  }
-
-  @Test
-  public void createBundleKeyedResultPropagatesKey() {
-    CommittedBundle<KV<String, Integer>> newBundle =
-        context
-            .createBundle(InProcessBundle.keyed(created, "foo").commit(Instant.now()), downstream)
-            .commit(Instant.now());
-    assertThat(newBundle.isKeyed(), is(true));
-    assertThat(newBundle.getKey(), Matchers.<Object>equalTo("foo"));
-  }
-
-  @Test
-  public void createRootBundleUnkeyed() {
-    assertThat(context.createRootBundle(created).commit(Instant.now()).isKeyed(), is(false));
-  }
-
-  @Test
-  public void createKeyedBundleKeyed() {
-    CommittedBundle<KV<String, Integer>> keyedBundle =
-        context
-            .createKeyedBundle(
-                InProcessBundle.unkeyed(created).commit(Instant.now()), "foo", downstream)
-            .commit(Instant.now());
-    assertThat(keyedBundle.isKeyed(), is(true));
-    assertThat(keyedBundle.getKey(), Matchers.<Object>equalTo("foo"));
   }
 
   private static class TestBoundedWindow extends BoundedWindow {

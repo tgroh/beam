@@ -45,6 +45,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.annotation.Nullable;
 
@@ -55,6 +56,7 @@ import javax.annotation.Nullable;
 final class ExecutorServiceParallelExecutor implements InProcessExecutor {
   private static final Logger LOG = LoggerFactory.getLogger(ExecutorServiceParallelExecutor.class);
 
+  private final ExecutorService monitorExecutor;
   private final ExecutorService executorService;
 
   private final Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers;
@@ -89,6 +91,7 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
       Set<PValue> keyedPValues,
       TransformEvaluatorRegistry registry,
       InProcessEvaluationContext context) {
+    this.monitorExecutor = Executors.newSingleThreadExecutor();
     this.executorService = executorService;
     this.valueToConsumers = valueToConsumers;
     this.keyedPValues = keyedPValues;
@@ -163,7 +166,18 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
     do {
       update = visibleUpdates.take();
       if (update.throwable.isPresent()) {
-        throw update.throwable.get();
+        if (update.throwable.get() instanceof Exception) {
+          if (update.transform.isPresent()) {
+
+            LOG.error(
+                "Unhandled Exception while evaluating {}",
+                update.transform.get().getFullName(),
+                update.throwable.get());
+          }
+          throw update.throwable.get();
+        } else {
+          throw update.throwable.get();
+        }
       }
     } while (!update.isDone());
     executorService.shutdown();
@@ -176,17 +190,21 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
    */
   private class DefaultCompletionCallback implements CompletionCallback {
     @Override
-    public void handleResult(CommittedBundle<?> inputBundle, InProcessTransformResult result) {
+    public void handleResult(
+        CommittedBundle<?> inputBundle,
+        AppliedPTransform<?, ?, ?> transform,
+        InProcessTransformResult result) {
       Iterable<? extends CommittedBundle<?>> resultBundles =
           evaluationContext.handleResult(inputBundle, Collections.<TimerData>emptyList(), result);
       for (CommittedBundle<?> outputBundle : resultBundles) {
-        allUpdates.offer(ExecutorUpdate.fromBundle(outputBundle));
+        allUpdates.offer(ExecutorUpdate.fromBundle(transform, outputBundle));
       }
     }
 
     @Override
-    public void handleThrowable(CommittedBundle<?> inputBundle, Throwable t) {
-      allUpdates.offer(ExecutorUpdate.fromThrowable(t));
+    public void handleThrowable(
+        CommittedBundle<?> inputBundle, AppliedPTransform<?, ?, ?> transform, Throwable t) {
+      allUpdates.offer(ExecutorUpdate.fromThrowable(transform, t));
     }
   }
 
@@ -204,17 +222,21 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
     }
 
     @Override
-    public void handleResult(CommittedBundle<?> inputBundle, InProcessTransformResult result) {
+    public void handleResult(
+        CommittedBundle<?> inputBundle,
+        AppliedPTransform<?, ?, ?> transform,
+        InProcessTransformResult result) {
       Iterable<? extends CommittedBundle<?>> resultBundles =
           evaluationContext.handleResult(inputBundle, timers, result);
       for (CommittedBundle<?> outputBundle : resultBundles) {
-        allUpdates.offer(ExecutorUpdate.fromBundle(outputBundle));
+        allUpdates.offer(ExecutorUpdate.fromBundle(transform, outputBundle));
       }
     }
 
     @Override
-    public void handleThrowable(CommittedBundle<?> inputBundle, Throwable t) {
-      allUpdates.offer(ExecutorUpdate.fromThrowable(t));
+    public void handleThrowable(
+        CommittedBundle<?> inputBundle, AppliedPTransform<?, ?, ?> transform, Throwable t) {
+      allUpdates.offer(ExecutorUpdate.fromThrowable(transform, t));
     }
   }
 
@@ -224,18 +246,24 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
    * Used to signal when the executor should be shut down (due to an exception).
    */
   private static class ExecutorUpdate {
+    private final AppliedPTransform<?, ?, ?> transform;
     private final Optional<? extends CommittedBundle<?>> bundle;
     private final Optional<? extends Throwable> throwable;
 
-    public static ExecutorUpdate fromBundle(CommittedBundle<?> bundle) {
-      return new ExecutorUpdate(bundle, null);
+    public static ExecutorUpdate fromBundle(
+        AppliedPTransform<?, ?, ?> transform, CommittedBundle<?> bundle) {
+      return new ExecutorUpdate(transform, bundle, null);
     }
 
-    public static ExecutorUpdate fromThrowable(Throwable t) {
-      return new ExecutorUpdate(null, t);
+    public static ExecutorUpdate fromThrowable(AppliedPTransform<?, ?, ?> transform, Throwable t) {
+      return new ExecutorUpdate(transform, null, t);
     }
 
-    private ExecutorUpdate(CommittedBundle<?> producedBundle, Throwable throwable) {
+    private ExecutorUpdate(
+        AppliedPTransform<?, ?, ?> transform,
+        CommittedBundle<?> producedBundle,
+        Throwable throwable) {
+      this.transform = transform;
       this.bundle = Optional.fromNullable(producedBundle);
       this.throwable = Optional.fromNullable(throwable);
     }
@@ -248,10 +276,15 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
       return throwable;
     }
 
+    public AppliedPTransform<?, ?, ?> getTransform() {
+      return transform;
+    }
+
     @Override
     public String toString() {
       return MoreObjects.toStringHelper(ExecutorUpdate.class)
           .add("bundle", bundle)
+          .add("transform", transform)
           .add("exception", throwable)
           .toString();
     }
@@ -262,18 +295,24 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
    * return normally or throw an exception.
    */
   private static class VisibleExecutorUpdate {
+    private final Optional<AppliedPTransform<?, ?, ?>> transform;
     private final Optional<? extends Throwable> throwable;
     private final boolean done;
 
-    public static VisibleExecutorUpdate fromThrowable(Throwable e) {
-      return new VisibleExecutorUpdate(false, e);
+    public static VisibleExecutorUpdate fromThrowable(
+        AppliedPTransform<?, ?, ?> transform, Throwable e) {
+      return new VisibleExecutorUpdate(false, transform, e);
     }
 
     public static VisibleExecutorUpdate finished() {
-      return new VisibleExecutorUpdate(true, null);
+      return new VisibleExecutorUpdate(true, null, null);
     }
 
-    private VisibleExecutorUpdate(boolean done, @Nullable Throwable exception) {
+    private VisibleExecutorUpdate(
+        boolean done,
+        @Nullable AppliedPTransform<?, ?, ?> transform,
+        @Nullable Throwable exception) {
+      this.transform = Optional.<AppliedPTransform<?, ?, ?>>fromNullable(transform);
       this.throwable = Optional.fromNullable(exception);
       this.done = done;
     }
@@ -301,7 +340,9 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
           if (update.getBundle().isPresent()) {
             scheduleConsumers(update.getBundle().get());
           } else if (update.getException().isPresent()) {
-            visibleUpdates.offer(VisibleExecutorUpdate.fromThrowable(update.getException().get()));
+            visibleUpdates.offer(
+                VisibleExecutorUpdate.fromThrowable(
+                    update.getTransform(), update.getException().get()));
           }
         }
         fireTimers();
@@ -309,18 +350,23 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         LOG.error("Monitor died due to being interrupted");
-        while (!visibleUpdates.offer(VisibleExecutorUpdate.fromThrowable(e))) {
+        while (!visibleUpdates.offer(VisibleExecutorUpdate.fromThrowable(null, e))) {
           visibleUpdates.poll();
         }
       } catch (Throwable t) {
         LOG.error("Monitor thread died due to throwable", t);
-        while (!visibleUpdates.offer(VisibleExecutorUpdate.fromThrowable(t))) {
+        while (!visibleUpdates.offer(VisibleExecutorUpdate.fromThrowable(null, t))) {
           visibleUpdates.poll();
         }
       } finally {
         if (!shouldShutdown()) {
-          // The monitor thread should always be scheduled; but we only need to be scheduled once
-          executorService.submit(this);
+          // The monitor thread should always be scheduled; but we only need to be scheduled once;
+          // Allow other work to be done before reexecuting
+          try {
+            monitorExecutor.submit(this);
+          } catch (Throwable t) {
+            LOG.error("Error while rescheduling monitor", t);
+          }
         }
         Thread.currentThread().setName(oldName);
       }
@@ -341,8 +387,9 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
                   KeyedWorkItems.timersWorkItem(keyTimers.getKey(), delivery);
               @SuppressWarnings({"unchecked", "rawtypes"})
               CommittedBundle<?> bundle =
-                  InProcessBundle.<KeyedWorkItem<Object, Object>>keyed(
-                          (PCollection) transform.getInput(), keyTimers.getKey())
+                  evaluationContext
+                      .createKeyedBundle(
+                          null, keyTimers.getKey(), (PCollection) transform.getInput())
                       .add(WindowedValue.valueInEmptyWindows(work))
                       .commit(Instant.now());
               scheduleConsumption(transform, bundle, new TimerCompletionCallback(delivery));
@@ -391,4 +438,3 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
     }
   }
 }
-

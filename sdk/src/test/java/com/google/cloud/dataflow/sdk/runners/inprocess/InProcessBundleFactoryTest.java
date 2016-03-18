@@ -22,15 +22,19 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 
 import com.google.cloud.dataflow.sdk.runners.inprocess.InProcessPipelineRunner.CommittedBundle;
+import com.google.cloud.dataflow.sdk.runners.inprocess.InProcessPipelineRunner.UncommittedBundle;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.transforms.Create;
+import com.google.cloud.dataflow.sdk.transforms.WithKeys;
 import com.google.cloud.dataflow.sdk.util.WindowedValue;
+import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.common.collect.ImmutableList;
 
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.joda.time.Instant;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -42,18 +46,29 @@ import java.util.Collection;
 import java.util.Collections;
 
 /**
- * Tests for {@link InProcessBundle}.
+ * Tests for {@link InProcessBundleFactory}.
  */
 @RunWith(JUnit4.class)
-public class InProcessBundleTest {
-  @Rule
-  public ExpectedException thrown = ExpectedException.none();
+public class InProcessBundleFactoryTest {
+  @Rule public ExpectedException thrown = ExpectedException.none();
+
+  private InProcessBundleFactory bundleFactory = InProcessBundleFactory.create();
+
+  private PCollection<Integer> created;
+  private PCollection<KV<String, Integer>> downstream;
+
+  @Before
+  public void setup() {
+    TestPipeline p = TestPipeline.create();
+    created = p.apply(Create.of(1, 2, 3));
+    downstream = created.apply(WithKeys.<String, Integer>of("foo"));
+  }
 
   @Test
-  public void unkeyedShouldCreateWithNullKey() {
+  public void createRootBundleShouldCreateWithNullKey() {
     PCollection<Integer> pcollection = TestPipeline.create().apply(Create.of(1));
 
-    InProcessBundle<Integer> inFlightBundle = InProcessBundle.unkeyed(pcollection);
+    UncommittedBundle<Integer> inFlightBundle = bundleFactory.createRootBundle(pcollection);
 
     CommittedBundle<Integer> bundle = inFlightBundle.commit(Instant.now());
 
@@ -61,10 +76,11 @@ public class InProcessBundleTest {
     assertThat(bundle.getKey(), nullValue());
   }
 
-  private void keyedCreateBundle(Object key) {
+  private void createKeyedBundle(Object key) {
     PCollection<Integer> pcollection = TestPipeline.create().apply(Create.of(1));
 
-    InProcessBundle<Integer> inFlightBundle = InProcessBundle.keyed(pcollection, key);
+    UncommittedBundle<Integer> inFlightBundle =
+        bundleFactory.createKeyedBundle(null, key, pcollection);
 
     CommittedBundle<Integer> bundle = inFlightBundle.commit(Instant.now());
     assertThat(bundle.isKeyed(), is(true));
@@ -73,18 +89,18 @@ public class InProcessBundleTest {
 
   @Test
   public void keyedWithNullKeyShouldCreateKeyedBundle() {
-    keyedCreateBundle(null);
+    createKeyedBundle(null);
   }
 
   @Test
   public void keyedWithKeyShouldCreateKeyedBundle() {
-    keyedCreateBundle(new Object());
+    createKeyedBundle(new Object());
   }
 
   private <T> void afterCommitGetElementsShouldHaveAddedElements(Iterable<WindowedValue<T>> elems) {
     PCollection<T> pcollection = TestPipeline.create().apply(Create.<T>of());
 
-    InProcessBundle<T> bundle = InProcessBundle.unkeyed(pcollection);
+    UncommittedBundle<T> bundle = bundleFactory.createRootBundle(pcollection);
     Collection<Matcher<? super WindowedValue<T>>> expectations = new ArrayList<>();
     for (WindowedValue<T> elem : elems) {
       bundle.add(elem);
@@ -113,7 +129,7 @@ public class InProcessBundleTest {
   public void addAfterCommitShouldThrowException() {
     PCollection<Integer> pcollection = TestPipeline.create().apply(Create.<Integer>of());
 
-    InProcessBundle<Integer> bundle = InProcessBundle.unkeyed(pcollection);
+    UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle(pcollection);
     bundle.add(WindowedValue.valueInGlobalWindow(1));
     CommittedBundle<Integer> firstCommit = bundle.commit(Instant.now());
     assertThat(firstCommit.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(1)));
@@ -129,7 +145,7 @@ public class InProcessBundleTest {
   public void commitAfterCommitShouldThrowException() {
     PCollection<Integer> pcollection = TestPipeline.create().apply(Create.<Integer>of());
 
-    InProcessBundle<Integer> bundle = InProcessBundle.unkeyed(pcollection);
+    UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle(pcollection);
     bundle.add(WindowedValue.valueInGlobalWindow(1));
     CommittedBundle<Integer> firstCommit = bundle.commit(Instant.now());
     assertThat(firstCommit.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(1)));
@@ -139,5 +155,41 @@ public class InProcessBundleTest {
 
     bundle.commit(Instant.now());
   }
-}
 
+  @Test
+  public void createBundleUnkeyedResultUnkeyed() {
+    CommittedBundle<KV<String, Integer>> newBundle =
+        bundleFactory
+            .createBundle(bundleFactory.createRootBundle(created).commit(Instant.now()), downstream)
+            .commit(Instant.now());
+    assertThat(newBundle.isKeyed(), is(false));
+  }
+
+  @Test
+  public void createBundleKeyedResultPropagatesKey() {
+    CommittedBundle<KV<String, Integer>> newBundle =
+        bundleFactory
+            .createBundle(
+                bundleFactory.createKeyedBundle(null, "foo", created).commit(Instant.now()),
+                downstream)
+            .commit(Instant.now());
+    assertThat(newBundle.isKeyed(), is(true));
+    assertThat(newBundle.getKey(), Matchers.<Object>equalTo("foo"));
+  }
+
+  @Test
+  public void createRootBundleUnkeyed() {
+    assertThat(bundleFactory.createRootBundle(created).commit(Instant.now()).isKeyed(), is(false));
+  }
+
+  @Test
+  public void createKeyedBundleKeyed() {
+    CommittedBundle<KV<String, Integer>> keyedBundle =
+        bundleFactory
+            .createKeyedBundle(
+                bundleFactory.createRootBundle(created).commit(Instant.now()), "foo", downstream)
+            .commit(Instant.now());
+    assertThat(keyedBundle.isKeyed(), is(true));
+    assertThat(keyedBundle.getKey(), Matchers.<Object>equalTo("foo"));
+  }
+}
