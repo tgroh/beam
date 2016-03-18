@@ -20,6 +20,7 @@ import com.google.cloud.dataflow.sdk.coders.Coder;
 import com.google.cloud.dataflow.sdk.coders.CoderException;
 import com.google.cloud.dataflow.sdk.io.BoundedSource;
 import com.google.cloud.dataflow.sdk.io.Read;
+import com.google.cloud.dataflow.sdk.io.range.OffsetRangeTracker;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.transforms.Create;
 import com.google.cloud.dataflow.sdk.transforms.Create.Values;
@@ -31,8 +32,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.PeekingIterator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,7 +88,7 @@ class InProcessCreate<T> extends ForwardingPTransform<PInput, PCollection<T>> {
 
   @VisibleForTesting
   static class InMemorySource<T> extends BoundedSource<T> {
-    private final Collection<byte[]> allElementsBytes;
+    private final List<byte[]> allElementsBytes;
     private final long totalSize;
     private final Coder<T> coder;
 
@@ -149,7 +148,7 @@ class InProcessCreate<T> extends ForwardingPTransform<PInput, PCollection<T>> {
 
     @Override
     public BoundedSource.BoundedReader<T> createReader(PipelineOptions options) throws IOException {
-      return new BytesReader();
+      return new BytesReader(this);
     }
 
     @Override
@@ -160,21 +159,25 @@ class InProcessCreate<T> extends ForwardingPTransform<PInput, PCollection<T>> {
       return coder;
     }
 
-    private class BytesReader extends BoundedReader<T> {
-      private final PeekingIterator<byte[]> iter;
+    private static class BytesReader<T> extends BoundedReader<T> {
+      private final OffsetRangeTracker rangeTracker;
+      private InMemorySource<T> source;
+      private int index;
       /**
        * Use an optional to distinguish between null next element (as Optional.absent()) and no next
        * element (next is null).
        */
       @Nullable private Optional<T> next;
 
-      public BytesReader() {
-        this.iter = Iterators.peekingIterator(allElementsBytes.iterator());
+      public BytesReader(InMemorySource<T> source) {
+        rangeTracker = new OffsetRangeTracker(0L, source.allElementsBytes.size());
+        this.source = source;
+        index = -1;
       }
 
       @Override
       public BoundedSource<T> getCurrentSource() {
-        return InMemorySource.this;
+        return source;
       }
 
       @Override
@@ -184,13 +187,15 @@ class InProcessCreate<T> extends ForwardingPTransform<PInput, PCollection<T>> {
 
       @Override
       public boolean advance() throws IOException {
-        boolean hasNext = iter.hasNext();
-        if (hasNext) {
-          next = Optional.fromNullable(CoderUtils.decodeFromByteArray(coder, iter.next()));
+        index++;
+        if (rangeTracker.tryReturnRecordAt(true, index)) {
+          next =
+              Optional.fromNullable(
+                  CoderUtils.decodeFromByteArray(source.coder, source.allElementsBytes.get(index)));
         } else {
           next = null;
         }
-        return hasNext;
+        return next != null;
       }
 
       @Override
@@ -204,6 +209,32 @@ class InProcessCreate<T> extends ForwardingPTransform<PInput, PCollection<T>> {
 
       @Override
       public void close() throws IOException {}
+
+      @Override
+      public Double getFractionConsumed() {
+        return rangeTracker.getFractionConsumed();
+      }
+
+      @Override
+      public InMemorySource<T> splitAtFraction(double fraction) {
+        long splitPosition = rangeTracker.getPositionForFractionConsumed(fraction);
+        if (rangeTracker.trySplitAtPosition(splitPosition)) {
+          List<byte[]> oldSourceElems =
+              ImmutableList.copyOf(source.allElementsBytes.subList(0, (int) splitPosition));
+          List<byte[]> newSourceElems =
+              ImmutableList.copyOf(
+                  source.allElementsBytes.subList(
+                      (int) splitPosition, source.allElementsBytes.size()));
+
+          long totalSize = source.totalSize;
+          long mySourceSizeEstimate = (long) (totalSize * fraction);
+          source = new InMemorySource<>(oldSourceElems, mySourceSizeEstimate, source.coder);
+          return new InMemorySource<>(
+              newSourceElems, totalSize - mySourceSizeEstimate, source.coder);
+        } else {
+          return null;
+        }
+      }
     }
   }
 }
