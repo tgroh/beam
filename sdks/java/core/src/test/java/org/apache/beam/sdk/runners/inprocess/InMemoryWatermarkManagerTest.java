@@ -582,7 +582,10 @@ public class InMemoryWatermarkManagerTest implements Serializable {
         not(laterThan(BoundedWindow.TIMESTAMP_MIN_VALUE)));
 
     CommittedBundle<Integer> createOutput =
-        bundleFactory.createRootBundle(createdInts).commit(new Instant(1250L));
+        bundleFactory.createRootBundle(createdInts)
+            .add(WindowedValue.valueInGlobalWindow(1))
+            .add(WindowedValue.valueInGlobalWindow(2))
+            .commit(new Instant(1250L));
 
     manager.updateWatermarks(null, createdInts.getProducingTransformInternal(), TimerUpdate.empty(),
         Collections.<CommittedBundle<?>>singleton(createOutput), BoundedWindow.TIMESTAMP_MAX_VALUE);
@@ -786,23 +789,18 @@ public class InMemoryWatermarkManagerTest implements Serializable {
     assertThat(downstreamWms.getSynchronizedProcessingInputTime(), not(earlierThan(clock.now())));
   }
 
-  @Test
-  public void synchronizedProcessingInputTimeIsHeldToPendingBundleTimes() {
-    CommittedBundle<Integer> created = globallyWindowedBundle(createdInts, 1, 2, 3);
-    manager.updateWatermarks(
-        null,
-        createdInts.getProducingTransformInternal(),
-        TimerUpdate.empty(),
-        Collections.<CommittedBundle<?>>singleton(created),
-        new Instant(29_919_235L));
+  public void synchronizedProcessingInputTimeIsHeldToPendingElementTimes() {
+    CommittedBundle<Integer> created = globallyWindowedBundle(createdInts, 1, 2);
+    manager.updateWatermarks(null, createdInts.getProducingTransformInternal(), TimerUpdate.empty(),
+        Collections.<CommittedBundle<?>>singleton(created), new Instant(29_919_235L));
 
     Instant upstreamHold = new Instant(2048L);
     CommittedBundle<Integer> filteredBundle =
-        bundleFactory.createKeyedBundle(null, "key", filtered).commit(upstreamHold);
-    manager.updateWatermarks(
-        created,
-        filtered.getProducingTransformInternal(),
-        TimerUpdate.empty(),
+        InProcessBundle.keyed(filtered, "key")
+            .add(WindowedValue.valueInGlobalWindow(1))
+            .add(WindowedValue.valueInGlobalWindow(2))
+            .commit(upstreamHold);
+    manager.updateWatermarks(created, filtered.getProducingTransformInternal(), TimerUpdate.empty(),
         Collections.<CommittedBundle<?>>singleton(filteredBundle),
         BoundedWindow.TIMESTAMP_MAX_VALUE);
 
@@ -812,6 +810,34 @@ public class InMemoryWatermarkManagerTest implements Serializable {
 
     clock.set(BoundedWindow.TIMESTAMP_MAX_VALUE);
     assertThat(downstreamWms.getSynchronizedProcessingInputTime(), equalTo(upstreamHold));
+
+    CommittedBundle<Integer> halfFilteredBundle =
+        InProcessBundle.keyed(filtered, "key")
+            .add(WindowedValue.valueInGlobalWindow(1))
+            .commit(upstreamHold);
+
+    manager.updateWatermarks(
+        halfFilteredBundle,
+        filteredTimesTwo.getProducingTransformInternal(),
+        TimerUpdate.empty(),
+        Collections.<CommittedBundle<?>>emptyList(),
+        BoundedWindow.TIMESTAMP_MAX_VALUE);
+    assertThat(downstreamWms.getSynchronizedProcessingInputTime(), equalTo(upstreamHold));
+
+    CommittedBundle<Integer> otherHalfFilteredBundle =
+        InProcessBundle.keyed(filtered, "key")
+            .add(WindowedValue.valueInGlobalWindow(2))
+            .commit(upstreamHold);
+
+    manager.updateWatermarks(
+        otherHalfFilteredBundle,
+        filteredTimesTwo.getProducingTransformInternal(),
+        TimerUpdate.empty(),
+        Collections.<CommittedBundle<?>>emptyList(),
+        BoundedWindow.TIMESTAMP_MAX_VALUE);
+    assertThat(
+        downstreamWms.getSynchronizedProcessingInputTime(),
+        equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
   }
 
   @Test

@@ -32,10 +32,12 @@ import org.apache.beam.sdk.values.PValue;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ComparisonChain;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.SortedMultiset;
 import com.google.common.collect.TreeMultiset;
@@ -379,7 +381,7 @@ public class InMemoryWatermarkManager {
    */
   private static class SynchronizedProcessingTimeInputWatermark implements Watermark {
     private final Collection<? extends Watermark> inputWms;
-    private final Collection<CommittedBundle<?>> pendingBundles;
+    private final ListMultimap<WindowedValue<?>, Instant> pendingValueHolds;
     private final Map<Object, NavigableSet<TimerData>> processingTimers;
     private final Map<Object, NavigableSet<TimerData>> synchronizedProcessingTimers;
 
@@ -389,7 +391,7 @@ public class InMemoryWatermarkManager {
 
     public SynchronizedProcessingTimeInputWatermark(Collection<? extends Watermark> inputWms) {
       this.inputWms = inputWms;
-      this.pendingBundles = new HashSet<>();
+      this.pendingValueHolds = ArrayListMultimap.create();
       this.processingTimers = new HashMap<>();
       this.synchronizedProcessingTimers = new HashMap<>();
       this.pendingTimers = new PriorityQueue<>();
@@ -425,22 +427,25 @@ public class InMemoryWatermarkManager {
       for (Watermark input : inputWms) {
         minTime = INSTANT_ORDERING.min(minTime, input.get());
       }
-      for (CommittedBundle<?> bundle : pendingBundles) {
-        // TODO: Track elements in the bundle by the processing time they were output instead of
-        // entire bundles. Requried to support arbitrarily splitting and merging bundles between
-        // steps
-        minTime = INSTANT_ORDERING.min(minTime, bundle.getSynchronizedProcessingOutputWatermark());
+      for (Instant hold : pendingValueHolds.values()) {
+        minTime = INSTANT_ORDERING.min(minTime, hold);
       }
       earliestHold.set(minTime);
       return WatermarkUpdate.fromTimestamps(oldHold, minTime);
     }
 
     public synchronized void addPending(CommittedBundle<?> bundle) {
-      pendingBundles.add(bundle);
+      Instant hold = bundle.getSynchronizedProcessingOutputWatermark();
+      for (WindowedValue<?> pending : bundle.getElements()) {
+        pendingValueHolds.put(pending, hold);
+      }
     }
 
     public synchronized void removePending(CommittedBundle<?> bundle) {
-      pendingBundles.remove(bundle);
+      Instant hold = bundle.getSynchronizedProcessingOutputWatermark();
+      for (WindowedValue<?> pending : bundle.getElements()) {
+        pendingValueHolds.remove(pending, hold);
+      }
     }
 
     /**
