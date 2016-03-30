@@ -37,7 +37,7 @@ import com.google.cloud.dataflow.sdk.options.DirectPipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.runners.DataflowPipelineRunner;
 import com.google.cloud.dataflow.sdk.runners.DirectPipelineRunner;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.transforms.windowing.FixedWindows;
@@ -108,7 +108,7 @@ public class ViewTest implements Serializable {
               }
             }));
 
-    DataflowAssert.that(output).containsInAnyOrder(47, 47, 47);
+    PAssert.that(output).containsInAnyOrder(47, 47, 47);
 
     pipeline.run();
   }
@@ -138,7 +138,7 @@ public class ViewTest implements Serializable {
               }
             }));
 
-    DataflowAssert.that(output).containsInAnyOrder(47, 47, 48);
+    PAssert.that(output).containsInAnyOrder(47, 47, 48);
 
     pipeline.run();
   }
@@ -213,7 +213,7 @@ public class ViewTest implements Serializable {
               }
             }));
 
-    DataflowAssert.that(output).containsInAnyOrder(11, 13, 17, 23, 11, 13, 17, 23);
+    PAssert.that(output).containsInAnyOrder(11, 13, 17, 23, 11, 13, 17, 23);
 
     pipeline.run();
   }
@@ -252,7 +252,7 @@ public class ViewTest implements Serializable {
               }
             }));
 
-    DataflowAssert.that(output).containsInAnyOrder(11, 13, 17, 23, 31, 33, 37, 43);
+    PAssert.that(output).containsInAnyOrder(11, 13, 17, 23, 31, 33, 37, 43);
 
     pipeline.run();
   }
@@ -278,7 +278,7 @@ public class ViewTest implements Serializable {
             }));
 
     // Pass at least one value through to guarantee that DoFn executes.
-    DataflowAssert.that(results).containsInAnyOrder(1);
+    PAssert.that(results).containsInAnyOrder(1);
 
     pipeline.run();
   }
@@ -323,7 +323,7 @@ public class ViewTest implements Serializable {
             }));
 
     // Pass at least one value through to guarantee that DoFn executes.
-    DataflowAssert.that(output).containsInAnyOrder(11);
+    PAssert.that(output).containsInAnyOrder(11);
 
     pipeline.run();
   }
@@ -348,7 +348,7 @@ public class ViewTest implements Serializable {
               }
             }));
 
-    DataflowAssert.that(output).containsInAnyOrder(11, 13, 17, 23, 11, 13, 17, 23);
+    PAssert.that(output).containsInAnyOrder(11, 13, 17, 23, 11, 13, 17, 23);
 
     pipeline.run();
   }
@@ -385,7 +385,7 @@ public class ViewTest implements Serializable {
               }
             }));
 
-    DataflowAssert.that(output).containsInAnyOrder(11, 13, 17, 23, 31, 33, 37, 43);
+    PAssert.that(output).containsInAnyOrder(11, 13, 17, 23, 31, 33, 37, 43);
 
     pipeline.run();
   }
@@ -410,7 +410,7 @@ public class ViewTest implements Serializable {
             }));
 
     // Pass at least one value through to guarantee that DoFn executes.
-    DataflowAssert.that(results).containsInAnyOrder(1);
+    PAssert.that(results).containsInAnyOrder(1);
 
     pipeline.run();
   }
@@ -441,7 +441,7 @@ public class ViewTest implements Serializable {
             }));
 
     // Pass at least one value through to guarantee that DoFn executes.
-    DataflowAssert.that(output).containsInAnyOrder(11);
+    PAssert.that(output).containsInAnyOrder(11);
 
     pipeline.run();
   }
@@ -468,7 +468,7 @@ public class ViewTest implements Serializable {
                   }
                 }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("apple", 1), KV.of("apple", 2), KV.of("banana", 3), KV.of("blackberry", 3));
 
     pipeline.run();
@@ -500,7 +500,7 @@ public class ViewTest implements Serializable {
                   }
                 }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("a", 1), KV.of("a", 2), KV.of("b", 3));
 
     pipeline.run();
@@ -550,7 +550,7 @@ public class ViewTest implements Serializable {
                   }
                 }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("apple", 1), KV.of("apple", 2), KV.of("banana", 3), KV.of("blackberry", 3));
 
     pipeline.run();
@@ -589,7 +589,7 @@ public class ViewTest implements Serializable {
                                              }
                                            }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("apple", 1), KV.of("apple", 2), KV.of("banana", 3), KV.of("blackberry", 3));
 
     pipeline.run();
@@ -632,7 +632,7 @@ public class ViewTest implements Serializable {
                                              }
                                            }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("a", 1), KV.of("a", 2), KV.of("b", 3));
 
     pipeline.run();
@@ -672,7 +672,7 @@ public class ViewTest implements Serializable {
                                              }
                                            }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("apple", 1), KV.of("apple", 2), KV.of("banana", 3), KV.of("blackberry", 3));
 
     pipeline.run();
@@ -701,7 +701,7 @@ public class ViewTest implements Serializable {
             }));
 
     // Pass at least one value through to guarantee that DoFn executes.
-    DataflowAssert.that(results).containsInAnyOrder(1);
+    PAssert.that(results).containsInAnyOrder(1);
 
     pipeline.run();
   }
@@ -730,7 +730,7 @@ public class ViewTest implements Serializable {
             }));
 
     // Pass at least one value through to guarantee that DoFn executes.
-    DataflowAssert.that(results).containsInAnyOrder(1);
+    PAssert.that(results).containsInAnyOrder(1);
 
     pipeline.run();
   }
@@ -778,7 +778,7 @@ public class ViewTest implements Serializable {
                 }));
 
     // Pass at least one value through to guarantee that DoFn executes.
-    DataflowAssert.that(output).containsInAnyOrder(KV.of("apple", 1));
+    PAssert.that(output).containsInAnyOrder(KV.of("apple", 1));
 
     pipeline.run();
   }
@@ -804,7 +804,7 @@ public class ViewTest implements Serializable {
                   }
                 }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("apple", 1), KV.of("banana", 3), KV.of("blackberry", 3));
 
     pipeline.run();
@@ -834,7 +834,7 @@ public class ViewTest implements Serializable {
                   }
                 }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("a", 1), KV.of("b", 3));
 
     pipeline.run();
@@ -863,7 +863,7 @@ public class ViewTest implements Serializable {
                   }
                 }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("apple", 1), KV.of("banana", 3), KV.of("blackberry", 3));
 
     pipeline.run();
@@ -901,7 +901,7 @@ public class ViewTest implements Serializable {
                                              }
                                            }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("apple", 1), KV.of("banana", 2), KV.of("blackberry", 3));
 
     pipeline.run();
@@ -942,7 +942,7 @@ public class ViewTest implements Serializable {
                                              }
                                            }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("a", 1), KV.of("b", 2), KV.of("b", 3));
 
     pipeline.run();
@@ -983,7 +983,7 @@ public class ViewTest implements Serializable {
                                              }
                                            }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("apple", 1), KV.of("banana", 2), KV.of("blackberry", 3));
 
     pipeline.run();
@@ -1012,7 +1012,7 @@ public class ViewTest implements Serializable {
             }));
 
     // Pass at least one value through to guarantee that DoFn executes.
-    DataflowAssert.that(results).containsInAnyOrder(1);
+    PAssert.that(results).containsInAnyOrder(1);
 
     pipeline.run();
   }
@@ -1040,7 +1040,7 @@ public class ViewTest implements Serializable {
             }));
 
     // Pass at least one value through to guarantee that DoFn executes.
-    DataflowAssert.that(results).containsInAnyOrder(1);
+    PAssert.that(results).containsInAnyOrder(1);
 
     pipeline.run();
   }
@@ -1070,7 +1070,7 @@ public class ViewTest implements Serializable {
                   }
                 }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("apple", 1), KV.of("banana", 3), KV.of("blackberry", 3));
 
     // PipelineExecutionException is thrown with cause having a message stating that a
@@ -1122,7 +1122,7 @@ public class ViewTest implements Serializable {
                 }));
 
     // Pass at least one value through to guarantee that DoFn executes.
-    DataflowAssert.that(output).containsInAnyOrder(KV.of("apple", 1));
+    PAssert.that(output).containsInAnyOrder(KV.of("apple", 1));
 
     pipeline.run();
   }
@@ -1146,7 +1146,7 @@ public class ViewTest implements Serializable {
               }
             }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("apple", 21), KV.of("banana", 3), KV.of("blackberry", 3));
 
     pipeline.run();
@@ -1180,7 +1180,7 @@ public class ViewTest implements Serializable {
                                                     }
                                                   }));
 
-    DataflowAssert.that(output).containsInAnyOrder("A1", "B5", "C1");
+    PAssert.that(output).containsInAnyOrder("A1", "B5", "C1");
 
     p.run();
   }
@@ -1213,7 +1213,7 @@ public class ViewTest implements Serializable {
                                                     }
                                                   }));
 
-    DataflowAssert.that(output).containsInAnyOrder("A6", "B6", "C6");
+    PAssert.that(output).containsInAnyOrder("A6", "B6", "C6");
 
     p.run();
   }
@@ -1244,7 +1244,7 @@ public class ViewTest implements Serializable {
                                                     }
                                                   }));
 
-    DataflowAssert.that(output).containsInAnyOrder("A0", "B5", "C0");
+    PAssert.that(output).containsInAnyOrder("A0", "B5", "C0");
 
     p.run();
   }
@@ -1274,7 +1274,7 @@ public class ViewTest implements Serializable {
                   }
                 }));
 
-    DataflowAssert.that(output).containsInAnyOrder("null");
+    PAssert.that(output).containsInAnyOrder("null");
 
     p.run();
   }
@@ -1319,7 +1319,7 @@ public class ViewTest implements Serializable {
                   }
                 }));
 
-    DataflowAssert.that(output).containsInAnyOrder(17);
+    PAssert.that(output).containsInAnyOrder(17);
 
     pipeline.run();
   }

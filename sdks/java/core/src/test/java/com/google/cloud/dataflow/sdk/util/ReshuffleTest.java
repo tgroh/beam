@@ -22,7 +22,7 @@ import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.coders.KvCoder;
 import com.google.cloud.dataflow.sdk.coders.StringUtf8Coder;
 import com.google.cloud.dataflow.sdk.coders.VarIntCoder;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.transforms.Create;
@@ -78,7 +78,7 @@ public class ReshuffleTest {
     PCollection<KV<String, Integer>> output = input
         .apply(Reshuffle.<String, Integer>of());
 
-    DataflowAssert.that(output).containsInAnyOrder(ARBITRARY_KVS);
+    PAssert.that(output).containsInAnyOrder(ARBITRARY_KVS);
 
     assertEquals(
         input.getWindowingStrategy(),
@@ -102,7 +102,7 @@ public class ReshuffleTest {
     PCollection<KV<String, Iterable<Integer>>> output = input
         .apply(Reshuffle.<String, Iterable<Integer>>of());
 
-    DataflowAssert.that(output).containsInAnyOrder(GROUPED_TESTABLE_KVS);
+    PAssert.that(output).containsInAnyOrder(GROUPED_TESTABLE_KVS);
 
     assertEquals(
         input.getWindowingStrategy(),
@@ -126,7 +126,7 @@ public class ReshuffleTest {
     PCollection<KV<String, Iterable<Integer>>> output = input
         .apply(Reshuffle.<String, Iterable<Integer>>of());
 
-    DataflowAssert.that(output).containsInAnyOrder(GROUPED_TESTABLE_KVS);
+    PAssert.that(output).containsInAnyOrder(GROUPED_TESTABLE_KVS);
 
     assertEquals(
         input.getWindowingStrategy(),
@@ -150,7 +150,7 @@ public class ReshuffleTest {
     PCollection<KV<String, Iterable<Integer>>> output = input
         .apply(Reshuffle.<String, Iterable<Integer>>of());
 
-    DataflowAssert.that(output).containsInAnyOrder(GROUPED_TESTABLE_KVS);
+    PAssert.that(output).containsInAnyOrder(GROUPED_TESTABLE_KVS);
 
     assertEquals(
         input.getWindowingStrategy(),
@@ -173,7 +173,7 @@ public class ReshuffleTest {
     PCollection<KV<String, Integer>> output = input
         .apply(Reshuffle.<String, Integer>of());
 
-    DataflowAssert.that(output).containsInAnyOrder(ARBITRARY_KVS);
+    PAssert.that(output).containsInAnyOrder(ARBITRARY_KVS);
 
     assertEquals(
         input.getWindowingStrategy(),
@@ -197,7 +197,7 @@ public class ReshuffleTest {
     PCollection<KV<String, Integer>> output = input
         .apply(Reshuffle.<String, Integer>of());
 
-    DataflowAssert.that(output).containsInAnyOrder(ARBITRARY_KVS);
+    PAssert.that(output).containsInAnyOrder(ARBITRARY_KVS);
 
     assertEquals(
         input.getWindowingStrategy(),

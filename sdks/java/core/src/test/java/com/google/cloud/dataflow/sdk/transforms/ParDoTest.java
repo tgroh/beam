@@ -37,7 +37,7 @@ import com.google.cloud.dataflow.sdk.coders.CoderException;
 import com.google.cloud.dataflow.sdk.coders.ListCoder;
 import com.google.cloud.dataflow.sdk.coders.VarIntCoder;
 import com.google.cloud.dataflow.sdk.runners.DirectPipelineRunner;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.transforms.DoFn.RequiresWindowAccess;
@@ -342,7 +342,7 @@ public class ParDoTest implements Serializable {
         .apply(Create.of(inputs))
         .apply(ParDo.of(new TestDoFn()));
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs));
 
     pipeline.run();
@@ -359,7 +359,7 @@ public class ParDoTest implements Serializable {
         .apply(Create.of(inputs))
         .apply(ParDo.of(new TestDoFnWithContext()));
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs));
 
     pipeline.run();
@@ -376,7 +376,7 @@ public class ParDoTest implements Serializable {
         .apply(Create.of(inputs).withCoder(VarIntCoder.of()))
         .apply("TestDoFn", ParDo.of(new TestDoFn()));
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs));
 
     pipeline.run();
@@ -394,7 +394,7 @@ public class ParDoTest implements Serializable {
         .apply(Create.of(inputs).withCoder(VarIntCoder.of()))
         .apply("TestDoFn", ParDo.of(new TestNoOutputDoFn()));
 
-    DataflowAssert.that(output).empty();
+    PAssert.that(output).empty();
 
     pipeline.run();
   }
@@ -425,19 +425,19 @@ public class ParDoTest implements Serializable {
                        .and(sideOutputTagUnwritten)
                        .and(sideOutputTag2)));
 
-    DataflowAssert.that(outputs.get(mainOutputTag))
+    PAssert.that(outputs.get(mainOutputTag))
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs));
 
-    DataflowAssert.that(outputs.get(sideOutputTag1))
+    PAssert.that(outputs.get(sideOutputTag1))
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs)
                    .fromSideOutput(sideOutputTag1));
-    DataflowAssert.that(outputs.get(sideOutputTag2))
+    PAssert.that(outputs.get(sideOutputTag2))
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs)
                    .fromSideOutput(sideOutputTag2));
-    DataflowAssert.that(outputs.get(sideOutputTag3))
+    PAssert.that(outputs.get(sideOutputTag3))
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs)
                    .fromSideOutput(sideOutputTag3));
-    DataflowAssert.that(outputs.get(sideOutputTagUnwritten)).empty();
+    PAssert.that(outputs.get(sideOutputTagUnwritten)).empty();
 
     pipeline.run();
   }
@@ -466,19 +466,19 @@ public class ParDoTest implements Serializable {
                    TupleTagList.of(sideOutputTag3).and(sideOutputTag1)
                    .and(sideOutputTagUnwritten).and(sideOutputTag2)));
 
-    DataflowAssert.that(outputs.get(mainOutputTag))
+    PAssert.that(outputs.get(mainOutputTag))
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs));
 
-    DataflowAssert.that(outputs.get(sideOutputTag1))
+    PAssert.that(outputs.get(sideOutputTag1))
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs)
                    .fromSideOutput(sideOutputTag1));
-    DataflowAssert.that(outputs.get(sideOutputTag2))
+    PAssert.that(outputs.get(sideOutputTag2))
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs)
                    .fromSideOutput(sideOutputTag2));
-    DataflowAssert.that(outputs.get(sideOutputTag3))
+    PAssert.that(outputs.get(sideOutputTag3))
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs)
                    .fromSideOutput(sideOutputTag3));
-    DataflowAssert.that(outputs.get(sideOutputTagUnwritten)).empty();
+    PAssert.that(outputs.get(sideOutputTagUnwritten)).empty();
 
     pipeline.run();
   }
@@ -502,10 +502,10 @@ public class ParDoTest implements Serializable {
                    mainOutputTag,
                    TupleTagList.of(sideOutputTag1).and(sideOutputTag2)));
 
-    DataflowAssert.that(outputs.get(mainOutputTag)).empty();
+    PAssert.that(outputs.get(mainOutputTag)).empty();
 
-    DataflowAssert.that(outputs.get(sideOutputTag1)).empty();
-    DataflowAssert.that(outputs.get(sideOutputTag2)).empty();
+    PAssert.that(outputs.get(sideOutputTag1)).empty();
+    PAssert.that(outputs.get(sideOutputTag2)).empty();
 
     pipeline.run();
   }
@@ -530,8 +530,8 @@ public class ParDoTest implements Serializable {
                   c.sideOutput(sideOutputTag, c.element());
                 }}));
 
-    DataflowAssert.that(outputs.get(mainOutputTag)).empty();
-    DataflowAssert.that(outputs.get(sideOutputTag)).containsInAnyOrder(inputs);
+    PAssert.that(outputs.get(mainOutputTag)).empty();
+    PAssert.that(outputs.get(sideOutputTag)).containsInAnyOrder(inputs);
 
     pipeline.run();
   }
@@ -550,7 +550,7 @@ public class ParDoTest implements Serializable {
             Arrays.<PCollectionView<Integer>>asList(),
             Arrays.asList(sideTag))));
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs));
 
     pipeline.run();
@@ -616,7 +616,7 @@ public class ParDoTest implements Serializable {
                 Arrays.asList(sideInput1, sideInput2),
                 Arrays.<TupleTag<String>>asList())));
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .satisfies(ParDoTest.HasExpectedOutput
                    .forInput(inputs)
                    .andSideInputs(11, 222));
@@ -650,7 +650,7 @@ public class ParDoTest implements Serializable {
                 Arrays.asList(sideInput1, sideInput2),
                 Arrays.<TupleTag<String>>asList())));
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .satisfies(ParDoTest.HasExpectedOutput
                    .forInput(inputs)
                    .andSideInputs(11, 222));
@@ -688,7 +688,7 @@ public class ParDoTest implements Serializable {
                 Arrays.asList(sideInput1, sideInput2),
                 Arrays.<TupleTag<String>>asList())));
 
-    DataflowAssert.that(outputs.get(mainOutputTag))
+    PAssert.that(outputs.get(mainOutputTag))
         .satisfies(ParDoTest.HasExpectedOutput
                    .forInput(inputs)
                    .andSideInputs(11, 222));
@@ -726,7 +726,7 @@ public class ParDoTest implements Serializable {
                 Arrays.asList(sideInput1, sideInput2),
                 Arrays.<TupleTag<String>>asList())));
 
-    DataflowAssert.that(outputs.get(mainOutputTag))
+    PAssert.that(outputs.get(mainOutputTag))
         .satisfies(ParDoTest.HasExpectedOutput
                    .forInput(inputs)
                    .andSideInputs(11, 222));
@@ -895,7 +895,7 @@ public class ParDoTest implements Serializable {
 
     // Test that Coder inference of the result works through
     // user-defined PTransforms.
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .satisfies(ParDoTest.HasExpectedOutput.forInput(inputs));
 
     pipeline.run();
@@ -917,8 +917,8 @@ public class ParDoTest implements Serializable {
     PCollection<Integer> by3then2 = by3
         .apply("Filter2sAgain", ParDo.of(new MultiFilter.FilterFn(2)));
 
-    DataflowAssert.that(by2then3).containsInAnyOrder(6);
-    DataflowAssert.that(by3then2).containsInAnyOrder(6);
+    PAssert.that(by2then3).containsInAnyOrder(6);
+    PAssert.that(by3then2).containsInAnyOrder(6);
     pipeline.run();
   }
 
@@ -1208,7 +1208,7 @@ public class ParDoTest implements Serializable {
         .apply(ParDo.of(new TestShiftTimestampDoFn(Duration.ZERO, Duration.ZERO)))
         .apply(ParDo.of(new TestFormatTimestampDoFn()));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
                    "processing: 3, timestamp: 3",
                    "processing: 42, timestamp: 42",
                    "processing: 6, timestamp: 6");
@@ -1239,7 +1239,7 @@ public class ParDoTest implements Serializable {
         .apply(ParDo.of(new TestShiftTimestampDoFn(Duration.ZERO, Duration.ZERO)))
         .apply(ParDo.of(new TestFormatTimestampDoFn()));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
                    "processing: 3, timestamp: 3",
                    "processing: 42, timestamp: 42",
                    "processing: 6, timestamp: 6");
@@ -1261,7 +1261,7 @@ public class ParDoTest implements Serializable {
                                                    Duration.millis(-1000))))
         .apply(ParDo.of(new TestFormatTimestampDoFn()));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
                    "processing: 3, timestamp: -997",
                    "processing: 42, timestamp: -958",
                    "processing: 6, timestamp: -994");
@@ -1368,7 +1368,7 @@ public class ParDoTest implements Serializable {
                 }))
         .apply(ParDo.of(new PrintingDoFn()));
 
-    DataflowAssert.that(output).satisfies(new Checker());
+    PAssert.that(output).satisfies(new Checker());
 
     pipeline.run();
   }

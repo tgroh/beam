@@ -20,7 +20,7 @@ import com.google.cloud.dataflow.examples.WordCount.WordCountOptions;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.io.TextIO;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.transforms.Aggregator;
 import com.google.cloud.dataflow.sdk.transforms.DoFn;
 import com.google.cloud.dataflow.sdk.transforms.ParDo;
@@ -175,7 +175,7 @@ public class DebuggingWordCount {
     List<KV<String, Long>> expectedResults = Arrays.asList(
         KV.of("Flourish", 3L),
         KV.of("stomach", 1L));
-    DataflowAssert.that(filteredWords).containsInAnyOrder(expectedResults);
+    PAssert.that(filteredWords).containsInAnyOrder(expectedResults);
 
     p.run();
   }

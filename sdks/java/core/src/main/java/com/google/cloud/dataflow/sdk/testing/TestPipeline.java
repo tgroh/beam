@@ -53,7 +53,7 @@ import javax.annotation.Nullable;
  * <li> Jars containing the SDK and test classes must be added to the test classpath.
  * </ul>
  *
- * <p>Use {@link DataflowAssert} for tests, as it integrates with this test
+ * <p>Use {@link PAssert} for tests, as it integrates with this test
  * harness in both direct and remote execution modes.  For example:
  *
  * <pre>{@code
@@ -73,7 +73,7 @@ public class TestPipeline extends Pipeline {
   /**
    * Creates and returns a new test pipeline.
    *
-   * <p>Use {@link DataflowAssert} to add tests, then call
+   * <p>Use {@link PAssert} to add tests, then call
    * {@link Pipeline#run} to execute the pipeline and check the tests.
    */
   public static TestPipeline create() {

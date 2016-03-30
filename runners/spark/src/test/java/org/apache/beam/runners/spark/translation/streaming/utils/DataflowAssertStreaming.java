@@ -27,7 +27,7 @@ import org.junit.Assert;
  */
 public final class DataflowAssertStreaming {
   /**
-   * Copied aggregator names from {@link com.google.cloud.dataflow.sdk.testing.DataflowAssert}
+   * Copied aggregator names from {@link com.google.cloud.dataflow.sdk.testing.PAssert}
    */
   static final String SUCCESS_COUNTER = "DataflowAssertSuccess";
   static final String FAILURE_COUNTER = "DataflowAssertFailure";

@@ -24,7 +24,7 @@ import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.coders.BigEndianIntegerCoder;
 import com.google.cloud.dataflow.sdk.coders.KvCoder;
 import com.google.cloud.dataflow.sdk.coders.StringUtf8Coder;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.transforms.Create;
@@ -128,7 +128,7 @@ public class CoGroupByKeyTest implements Serializable {
     PCollection<KV<Integer, CoGbkResult>> coGbkResults =
         buildGetOnlyGbk(p, tag1, tag2);
 
-    DataflowAssert.thatMap(coGbkResults).satisfies(
+    PAssert.thatMap(coGbkResults).satisfies(
         new SerializableFunction<Map<Integer, CoGbkResult>, Void>() {
           @Override
           public Void apply(Map<Integer, CoGbkResult> results) {
@@ -265,7 +265,7 @@ public class CoGroupByKeyTest implements Serializable {
     PCollection<KV<Integer, CoGbkResult>> coGbkResults =
         buildPurchasesCoGbk(p, purchasesTag, addressesTag, namesTag);
 
-    DataflowAssert.thatMap(coGbkResults).satisfies(
+    PAssert.thatMap(coGbkResults).satisfies(
         new SerializableFunction<Map<Integer, CoGbkResult>, Void>() {
           @Override
           public Void apply(Map<Integer, CoGbkResult> results) {
@@ -465,7 +465,7 @@ public class CoGroupByKeyTest implements Serializable {
             new CorrelatePurchaseCountForAddressesWithoutNamesFn(
                 purchasesTag, addressesTag, namesTag)));
 
-    DataflowAssert.that(purchaseCountByKnownAddressesWithoutKnownNames)
+    PAssert.that(purchaseCountByKnownAddressesWithoutKnownNames)
         .containsInAnyOrder(
             KV.of("29 School Rd", 2),
             KV.of("383 Jackson Street", 1));
@@ -490,7 +490,7 @@ public class CoGroupByKeyTest implements Serializable {
     PCollection<KV<String, String>>
         clickOfPurchase = coGbkResults.apply(ParDo.of(
             new ClickOfPurchaseFn(clicksTag, purchasesTag)));
-    DataflowAssert.that(clickOfPurchase)
+    PAssert.that(clickOfPurchase)
         .containsInAnyOrder(
             KV.of("Click t0:Boat t1", "0:3"),
             KV.of("Click t0:Shoesi t2", "0:3"),

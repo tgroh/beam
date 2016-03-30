@@ -16,7 +16,7 @@
 
 package com.google.cloud.dataflow.sdk.transforms;
 
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.values.PCollection;
@@ -64,7 +64,7 @@ public class FilterTest implements Serializable {
         .apply(Create.of(591, 11789, 1257, 24578, 24799, 307))
         .apply(Filter.by(new TrivialFn(true)));
 
-    DataflowAssert.that(output).containsInAnyOrder(591, 11789, 1257, 24578, 24799, 307);
+    PAssert.that(output).containsInAnyOrder(591, 11789, 1257, 24578, 24799, 307);
     p.run();
   }
 
@@ -77,7 +77,7 @@ public class FilterTest implements Serializable {
         .apply(Create.of(1, 2, 4, 5))
         .apply(Filter.by(new TrivialFn(false)));
 
-    DataflowAssert.that(output).empty();
+    PAssert.that(output).empty();
     p.run();
   }
 
@@ -91,7 +91,7 @@ public class FilterTest implements Serializable {
         .apply(Create.of(1, 2, 3, 4, 5, 6, 7))
         .apply(Filter.by(new EvenFn()));
 
-    DataflowAssert.that(output).containsInAnyOrder(2, 4, 6);
+    PAssert.that(output).containsInAnyOrder(2, 4, 6);
     p.run();
   }
 
@@ -104,7 +104,7 @@ public class FilterTest implements Serializable {
         .apply(Create.of(591, 11789, 1257, 24578, 24799, 307))
         .apply(Filter.byPredicate(new TrivialFn(true)));
 
-    DataflowAssert.that(output).containsInAnyOrder(591, 11789, 1257, 24578, 24799, 307);
+    PAssert.that(output).containsInAnyOrder(591, 11789, 1257, 24578, 24799, 307);
     p.run();
   }
 
@@ -116,7 +116,7 @@ public class FilterTest implements Serializable {
         .apply(Create.of(1, 2, 4, 5))
         .apply(Filter.byPredicate(new TrivialFn(false)));
 
-    DataflowAssert.that(output).empty();
+    PAssert.that(output).empty();
     p.run();
   }
 
@@ -129,7 +129,7 @@ public class FilterTest implements Serializable {
         .apply(Create.of(1, 2, 3, 4, 5, 6, 7))
         .apply(Filter.byPredicate(new EvenFn()));
 
-    DataflowAssert.that(output).containsInAnyOrder(2, 4, 6);
+    PAssert.that(output).containsInAnyOrder(2, 4, 6);
     p.run();
   }
 
@@ -142,7 +142,7 @@ public class FilterTest implements Serializable {
         .apply(Create.of(1, 2, 3, 4, 5, 6, 7))
         .apply(Filter.lessThan(4));
 
-    DataflowAssert.that(output).containsInAnyOrder(1, 2, 3);
+    PAssert.that(output).containsInAnyOrder(1, 2, 3);
     p.run();
   }
 
@@ -154,7 +154,7 @@ public class FilterTest implements Serializable {
         .apply(Create.of(1, 2, 3, 4, 5, 6, 7))
         .apply(Filter.greaterThan(4));
 
-    DataflowAssert.that(output).containsInAnyOrder(5, 6, 7);
+    PAssert.that(output).containsInAnyOrder(5, 6, 7);
     p.run();
   }
 }

@@ -108,7 +108,7 @@ public class TestDataflowPipelineRunnerTest {
   public void testRunBatchJobThatSucceeds() throws Exception {
     Pipeline p = TestPipeline.create(options);
     PCollection<Integer> pc = p.apply(Create.of(1, 2, 3));
-    DataflowAssert.that(pc).containsInAnyOrder(1, 2, 3);
+    PAssert.that(pc).containsInAnyOrder(1, 2, 3);
 
     DataflowPipelineJob mockJob = Mockito.mock(DataflowPipelineJob.class);
     when(mockJob.getDataflowClient()).thenReturn(service);
@@ -132,7 +132,7 @@ public class TestDataflowPipelineRunnerTest {
 
     Pipeline p = TestPipeline.create(options);
     PCollection<Integer> pc = p.apply(Create.of(1, 2, 3));
-    DataflowAssert.that(pc).containsInAnyOrder(1, 2, 3);
+    PAssert.that(pc).containsInAnyOrder(1, 2, 3);
 
     DataflowPipelineJob mockJob = Mockito.mock(DataflowPipelineJob.class);
     when(mockJob.getDataflowClient()).thenReturn(service);
@@ -152,7 +152,7 @@ public class TestDataflowPipelineRunnerTest {
     options.setStreaming(true);
     Pipeline p = TestPipeline.create(options);
     PCollection<Integer> pc = p.apply(Create.of(1, 2, 3));
-    DataflowAssert.that(pc).containsInAnyOrder(1, 2, 3);
+    PAssert.that(pc).containsInAnyOrder(1, 2, 3);
 
     DataflowPipelineJob mockJob = Mockito.mock(DataflowPipelineJob.class);
     when(mockJob.getDataflowClient()).thenReturn(service);
@@ -177,7 +177,7 @@ public class TestDataflowPipelineRunnerTest {
     options.setStreaming(true);
     Pipeline p = TestPipeline.create(options);
     PCollection<Integer> pc = p.apply(Create.of(1, 2, 3));
-    DataflowAssert.that(pc).containsInAnyOrder(1, 2, 3);
+    PAssert.that(pc).containsInAnyOrder(1, 2, 3);
 
     DataflowPipelineJob mockJob = Mockito.mock(DataflowPipelineJob.class);
     when(mockJob.getDataflowClient()).thenReturn(service);
@@ -200,7 +200,7 @@ public class TestDataflowPipelineRunnerTest {
         spy(new DataflowPipelineJob("test-project", "test-job", service, null));
     Pipeline p = TestPipeline.create(options);
     PCollection<Integer> pc = p.apply(Create.of(1, 2, 3));
-    DataflowAssert.that(pc).containsInAnyOrder(1, 2, 3);
+    PAssert.that(pc).containsInAnyOrder(1, 2, 3);
 
     TestDataflowPipelineRunner runner = (TestDataflowPipelineRunner) p.getRunner();
     when(request.execute()).thenReturn(
@@ -215,7 +215,7 @@ public class TestDataflowPipelineRunnerTest {
         spy(new DataflowPipelineJob("test-project", "test-job", service, null));
     Pipeline p = TestPipeline.create(options);
     PCollection<Integer> pc = p.apply(Create.of(1, 2, 3));
-    DataflowAssert.that(pc).containsInAnyOrder(1, 2, 3);
+    PAssert.that(pc).containsInAnyOrder(1, 2, 3);
 
     TestDataflowPipelineRunner runner = (TestDataflowPipelineRunner) p.getRunner();
     when(request.execute()).thenReturn(
@@ -230,7 +230,7 @@ public class TestDataflowPipelineRunnerTest {
         spy(new DataflowPipelineJob("test-project", "test-job", service, null));
     Pipeline p = TestPipeline.create(options);
     PCollection<Integer> pc = p.apply(Create.of(1, 2, 3));
-    DataflowAssert.that(pc).containsInAnyOrder(1, 2, 3);
+    PAssert.that(pc).containsInAnyOrder(1, 2, 3);
 
     TestDataflowPipelineRunner runner = (TestDataflowPipelineRunner) p.getRunner();
     when(request.execute()).thenReturn(
@@ -266,7 +266,7 @@ public class TestDataflowPipelineRunnerTest {
         spy(new DataflowPipelineJob("test-project", "test-job", service, null));
     Pipeline p = TestPipeline.create(options);
     PCollection<Integer> pc = p.apply(Create.of(1, 2, 3));
-    DataflowAssert.that(pc).containsInAnyOrder(1, 2, 3);
+    PAssert.that(pc).containsInAnyOrder(1, 2, 3);
 
     TestDataflowPipelineRunner runner = (TestDataflowPipelineRunner) p.getRunner();
     when(request.execute()).thenReturn(
@@ -283,7 +283,7 @@ public class TestDataflowPipelineRunnerTest {
     options.setStreaming(true);
     Pipeline p = TestPipeline.create(options);
     PCollection<Integer> pc = p.apply(Create.of(1, 2, 3));
-    DataflowAssert.that(pc).containsInAnyOrder(1, 2, 3);
+    PAssert.that(pc).containsInAnyOrder(1, 2, 3);
 
     DataflowPipelineJob mockJob = Mockito.mock(DataflowPipelineJob.class);
     when(mockJob.getDataflowClient()).thenReturn(service);

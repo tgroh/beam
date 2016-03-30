@@ -21,7 +21,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.coders.StringUtf8Coder;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.values.KV;
@@ -63,7 +63,7 @@ public class RemoveDuplicatesTest {
     PCollection<String> output =
         input.apply(RemoveDuplicates.<String>create());
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .containsInAnyOrder("k1", "k5", "k2", "k3");
     p.run();
   }
@@ -82,7 +82,7 @@ public class RemoveDuplicatesTest {
     PCollection<String> output =
         input.apply(RemoveDuplicates.<String>create());
 
-    DataflowAssert.that(output).empty();
+    PAssert.that(output).empty();
     p.run();
   }
 
@@ -124,7 +124,7 @@ public class RemoveDuplicatesTest {
         input.apply(RemoveDuplicates.withRepresentativeValueFn(new Keys()));
 
 
-    DataflowAssert.that(output).satisfies(new Checker());
+    PAssert.that(output).satisfies(new Checker());
 
     p.run();
   }

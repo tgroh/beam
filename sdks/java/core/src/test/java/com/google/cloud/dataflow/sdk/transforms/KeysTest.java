@@ -20,7 +20,7 @@ import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.coders.BigEndianIntegerCoder;
 import com.google.cloud.dataflow.sdk.coders.KvCoder;
 import com.google.cloud.dataflow.sdk.coders.StringUtf8Coder;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.values.KV;
@@ -61,7 +61,7 @@ public class KeysTest {
             KvCoder.of(StringUtf8Coder.of(), BigEndianIntegerCoder.of())));
 
     PCollection<String> output = input.apply(Keys.<String>create());
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .containsInAnyOrder("one", "two", "three", "dup", "dup");
 
     p.run();
@@ -77,7 +77,7 @@ public class KeysTest {
             KvCoder.of(StringUtf8Coder.of(), BigEndianIntegerCoder.of())));
 
     PCollection<String> output = input.apply(Keys.<String>create());
-    DataflowAssert.that(output).empty();
+    PAssert.that(output).empty();
     p.run();
   }
 }

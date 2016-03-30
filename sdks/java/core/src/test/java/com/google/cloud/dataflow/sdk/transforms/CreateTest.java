@@ -26,7 +26,7 @@ import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.coders.SerializableCoder;
 import com.google.cloud.dataflow.sdk.coders.StringUtf8Coder;
 import com.google.cloud.dataflow.sdk.coders.VoidCoder;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.values.KV;
@@ -64,7 +64,7 @@ public class CreateTest {
     PCollection<String> output =
         p.apply(Create.of(LINES));
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .containsInAnyOrder(LINES_ARRAY);
     p.run();
   }
@@ -78,7 +78,7 @@ public class CreateTest {
         p.apply(Create.of(NO_LINES)
             .withCoder(StringUtf8Coder.of()));
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .containsInAnyOrder(NO_LINES_ARRAY);
     p.run();
   }
@@ -121,7 +121,7 @@ public class CreateTest {
     PCollection<String> output =
         p.apply(Create.of(null, "test1", null, "test2", null)
             .withCoder(SerializableCoder.of(String.class)));
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .containsInAnyOrder(null, "test1", null, "test2", null);
     p.run();
   }
@@ -135,7 +135,7 @@ public class CreateTest {
             TimestampedValue.of("a", new Instant(0)),
             TimestampedValue.of("b", new Instant(0))));
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .containsInAnyOrder(
             TimestampedValue.of("a", new Instant(0)),
             TimestampedValue.of("b", new Instant(0)));
@@ -161,7 +161,7 @@ public class CreateTest {
         p.apply(Create.timestamped(data))
         .apply(ParDo.of(new PrintTimestamps()));
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .containsInAnyOrder("a:1", "b:2", "c:3");
     p.run();
   }
@@ -175,7 +175,7 @@ public class CreateTest {
         .apply(Create.timestamped(new ArrayList<TimestampedValue<String>>())
             .withCoder(StringUtf8Coder.of()));
 
-    DataflowAssert.that(output).empty();
+    PAssert.that(output).empty();
     p.run();
   }
 
@@ -212,7 +212,7 @@ public class CreateTest {
   public void testCreateWithVoidType() throws Exception {
     Pipeline p = TestPipeline.create();
     PCollection<Void> output = p.apply(Create.of((Void) null, (Void) null));
-    DataflowAssert.that(output).containsInAnyOrder((Void) null, (Void) null);
+    PAssert.that(output).containsInAnyOrder((Void) null, (Void) null);
     p.run();
   }
 
@@ -225,7 +225,7 @@ public class CreateTest {
         KV.of((Void) null, (Void) null),
         KV.of((Void) null, (Void) null)));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of((Void) null, (Void) null),
         KV.of((Void) null, (Void) null));
 

@@ -28,7 +28,7 @@ import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.io.Source.Reader;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.common.collect.ImmutableList;
@@ -580,7 +580,7 @@ public class XmlSourceTest {
             new Train("Toby", 7, "brown", null), new Train("Gordon", 4, "blue", null),
             new Train("Emily", -1, "red", null), new Train("Percy", 6, "green", null));
 
-    DataflowAssert.that(output).containsInAnyOrder(expectedResults);
+    PAssert.that(output).containsInAnyOrder(expectedResults);
     p.run();
   }
 
@@ -664,7 +664,7 @@ public class XmlSourceTest {
             .withMinBundleSize(1024);
     PCollection<Train> output = p.apply(Read.from(source).named("ReadFileData"));
 
-    DataflowAssert.that(output).containsInAnyOrder(trains);
+    PAssert.that(output).containsInAnyOrder(trains);
     p.run();
   }
 
@@ -816,7 +816,7 @@ public class XmlSourceTest {
     expectedResults.addAll(trains2);
     expectedResults.addAll(trains3);
 
-    DataflowAssert.that(output).containsInAnyOrder(expectedResults);
+    PAssert.that(output).containsInAnyOrder(expectedResults);
     p.run();
   }
 }

@@ -21,7 +21,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import com.google.cloud.dataflow.sdk.Pipeline;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.transforms.Create;
@@ -83,9 +83,9 @@ public final class PCollectionTupleTest implements Serializable {
     assertNotNull("outputs.getPipeline()", outputs.getPipeline());
     outputs = outputs.and(mainOutputTag, mainInput);
 
-    DataflowAssert.that(outputs.get(mainOutputTag)).containsInAnyOrder(inputs);
-    DataflowAssert.that(outputs.get(sideOutputTag)).containsInAnyOrder(inputs);
-    DataflowAssert.that(outputs.get(emptyOutputTag)).empty();
+    PAssert.that(outputs.get(mainOutputTag)).containsInAnyOrder(inputs);
+    PAssert.that(outputs.get(sideOutputTag)).containsInAnyOrder(inputs);
+    PAssert.that(outputs.get(emptyOutputTag)).empty();
 
     pipeline.run();
   }

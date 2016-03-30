@@ -20,7 +20,7 @@ package org.apache.beam.runners.spark.translation.streaming;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.coders.KvCoder;
 import com.google.cloud.dataflow.sdk.coders.StringUtf8Coder;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.transforms.DoFn;
 import com.google.cloud.dataflow.sdk.transforms.ParDo;
 import com.google.cloud.dataflow.sdk.transforms.View;
@@ -115,7 +115,7 @@ public class KafkaStreamingTest {
 
     PCollection<String> formattedKV = windowedWords.apply(ParDo.of(new FormatKVFn()));
 
-    DataflowAssert.thatIterable(formattedKV.apply(View.<String>asIterable()))
+    PAssert.thatIterable(formattedKV.apply(View.<String>asIterable()))
         .containsInAnyOrder(EXPECTED);
 
     EvaluationResult res = SparkPipelineRunner.create(options).run(p);

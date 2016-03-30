@@ -18,7 +18,7 @@ package com.google.cloud.dataflow.sdk.transforms;
 import static org.hamcrest.Matchers.isA;
 
 import com.google.cloud.dataflow.sdk.Pipeline.PipelineExecutionException;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.values.KV;
@@ -70,9 +70,9 @@ public class WithTimestampsTest implements Serializable {
           }
         }));
 
-    DataflowAssert.that(timestamped)
+    PAssert.that(timestamped)
         .containsInAnyOrder(yearTwoThousand, "0", "1234", Integer.toString(Integer.MAX_VALUE));
-    DataflowAssert.that(timestampedVals)
+    PAssert.that(timestampedVals)
         .containsInAnyOrder(
             KV.of("0", new Instant(0)),
             KV.of("1234", new Instant(1234L)),
@@ -155,9 +155,9 @@ public class WithTimestampsTest implements Serializable {
           }
         }));
 
-    DataflowAssert.that(timestampedWithSkew)
+    PAssert.that(timestampedWithSkew)
         .containsInAnyOrder(yearTwoThousand, "0", "1234", Integer.toString(Integer.MAX_VALUE));
-    DataflowAssert.that(timestampedVals)
+    PAssert.that(timestampedVals)
         .containsInAnyOrder(
             KV.of("0", new Instant(0L).minus(skew)),
             KV.of("1234", new Instant(1234L).minus(skew)),

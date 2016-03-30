@@ -28,7 +28,7 @@ import com.google.cloud.dataflow.sdk.io.CompressedSource.CompressionMode;
 import com.google.cloud.dataflow.sdk.io.CompressedSource.DecompressingChannelFactory;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.SourceTestUtils;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.values.PCollection;
@@ -163,7 +163,7 @@ public class CompressedSourceTest {
         CompressedSource.from(new ByteSource(filePattern, 1));
     PCollection<Byte> output = p.apply(Read.from(source));
 
-    DataflowAssert.that(output).containsInAnyOrder(expected);
+    PAssert.that(output).containsInAnyOrder(expected);
     p.run();
   }
 
@@ -280,7 +280,7 @@ public class CompressedSourceTest {
             .withDecompression(CompressionMode.GZIP);
     PCollection<Byte> output = p.apply(Read.from(source));
 
-    DataflowAssert.that(output).containsInAnyOrder(expected);
+    PAssert.that(output).containsInAnyOrder(expected);
     p.run();
   }
 
@@ -342,7 +342,7 @@ public class CompressedSourceTest {
       source = source.withDecompression(decompressionFactory);
     }
     PCollection<Byte> output = p.apply(Read.from(source));
-    DataflowAssert.that(output).containsInAnyOrder(Bytes.asList(expected));
+    PAssert.that(output).containsInAnyOrder(Bytes.asList(expected));
     p.run();
   }
 

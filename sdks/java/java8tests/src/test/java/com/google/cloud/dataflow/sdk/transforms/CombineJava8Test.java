@@ -17,7 +17,7 @@
 package com.google.cloud.dataflow.sdk.transforms;
 
 import com.google.cloud.dataflow.sdk.Pipeline;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollection;
@@ -70,7 +70,7 @@ public class CombineJava8Test implements Serializable {
           return sum;
         }));
 
-    DataflowAssert.that(output).containsInAnyOrder(10);
+    PAssert.that(output).containsInAnyOrder(10);
     pipeline.run();
   }
 
@@ -85,7 +85,7 @@ public class CombineJava8Test implements Serializable {
         .apply(Create.of(1, 2, 3, 4))
         .apply(Combine.globally(new Summer()::sum));
 
-    DataflowAssert.that(output).containsInAnyOrder(10);
+    PAssert.that(output).containsInAnyOrder(10);
     pipeline.run();
   }
 
@@ -106,7 +106,7 @@ public class CombineJava8Test implements Serializable {
           return sum;
         }));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("a", 4),
         KV.of("b", 2),
         KV.of("c", 4));
@@ -124,7 +124,7 @@ public class CombineJava8Test implements Serializable {
         .apply(Create.of(KV.of("a", 1), KV.of("b", 2), KV.of("a", 3), KV.of("c", 4)))
         .apply(Combine.perKey(new Summer()::sum));
 
-    DataflowAssert.that(output).containsInAnyOrder(
+    PAssert.that(output).containsInAnyOrder(
         KV.of("a", 4),
         KV.of("b", 2),
         KV.of("c", 4));

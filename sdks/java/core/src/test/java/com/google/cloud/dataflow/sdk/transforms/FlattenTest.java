@@ -30,7 +30,7 @@ import com.google.cloud.dataflow.sdk.coders.ListCoder;
 import com.google.cloud.dataflow.sdk.coders.SetCoder;
 import com.google.cloud.dataflow.sdk.coders.StringUtf8Coder;
 import com.google.cloud.dataflow.sdk.coders.VoidCoder;
-import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
+import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.transforms.windowing.FixedWindows;
@@ -81,7 +81,7 @@ public class FlattenTest implements Serializable {
         makePCollectionListOfStrings(p, inputs)
         .apply(Flatten.<String>pCollections());
 
-    DataflowAssert.that(output).containsInAnyOrder(flattenLists(inputs));
+    PAssert.that(output).containsInAnyOrder(flattenLists(inputs));
     p.run();
   }
 
@@ -98,7 +98,7 @@ public class FlattenTest implements Serializable {
         .apply(Flatten.<String>pCollections())
         .apply(ParDo.of(new IdentityFn<String>(){}));
 
-    DataflowAssert.that(output).containsInAnyOrder(flattenLists(inputs));
+    PAssert.that(output).containsInAnyOrder(flattenLists(inputs));
     p.run();
   }
 
@@ -111,7 +111,7 @@ public class FlattenTest implements Serializable {
         PCollectionList.<String>empty(p)
         .apply(Flatten.<String>pCollections()).setCoder(StringUtf8Coder.of());
 
-    DataflowAssert.that(output).empty();
+    PAssert.that(output).empty();
     p.run();
   }
 
@@ -136,7 +136,7 @@ public class FlattenTest implements Serializable {
                   }
                 }));
 
-    DataflowAssert.that(output).empty();
+    PAssert.that(output).empty();
     p.run();
   }
 
@@ -151,7 +151,7 @@ public class FlattenTest implements Serializable {
         .apply(Flatten.<String>pCollections()).setCoder(StringUtf8Coder.of())
         .apply(ParDo.of(new IdentityFn<String>(){}));
 
-    DataflowAssert.that(output).empty();
+    PAssert.that(output).empty();
     p.run();
   }
 
@@ -183,7 +183,7 @@ public class FlattenTest implements Serializable {
     PCollection<String> output =
         input.apply(Flatten.<String>iterables());
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .containsInAnyOrder(LINES_ARRAY);
 
     p.run();
@@ -199,7 +199,7 @@ public class FlattenTest implements Serializable {
 
     PCollection<String> output = input.apply(Flatten.<String>iterables());
 
-    DataflowAssert.that(output).containsInAnyOrder(LINES_ARRAY);
+    PAssert.that(output).containsInAnyOrder(LINES_ARRAY);
 
     p.run();
   }
@@ -216,7 +216,7 @@ public class FlattenTest implements Serializable {
 
     PCollection<String> output = input.apply(Flatten.<String>iterables());
 
-    DataflowAssert.that(output).containsInAnyOrder(LINES_ARRAY);
+    PAssert.that(output).containsInAnyOrder(LINES_ARRAY);
 
     p.run();
   }
@@ -235,7 +235,7 @@ public class FlattenTest implements Serializable {
 
     PCollection<String> output = input.apply(Flatten.<String>iterables());
 
-    DataflowAssert.that(output).containsInAnyOrder(LINES_ARRAY);
+    PAssert.that(output).containsInAnyOrder(LINES_ARRAY);
 
     p.run();
   }
@@ -252,7 +252,7 @@ public class FlattenTest implements Serializable {
     PCollection<String> output =
         input.apply(Flatten.<String>iterables());
 
-    DataflowAssert.that(output)
+    PAssert.that(output)
         .containsInAnyOrder(NO_LINES_ARRAY);
 
     p.run();
