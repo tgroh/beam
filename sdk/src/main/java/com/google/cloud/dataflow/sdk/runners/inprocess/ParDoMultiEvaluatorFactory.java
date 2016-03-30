@@ -30,7 +30,6 @@ import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.cloud.dataflow.sdk.values.PCollectionTuple;
 import com.google.cloud.dataflow.sdk.values.TupleTag;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -43,45 +42,31 @@ class ParDoMultiEvaluatorFactory implements TransformEvaluatorFactory {
       AppliedPTransform<?, ?, ?> application,
       CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext) {
+<<<<<<< HEAD:sdk/src/main/java/com/google/cloud/dataflow/sdk/runners/inprocess/ParDoMultiEvaluatorFactory.java
     return createMultiEvaluator((AppliedPTransform) application, inputBundle, evaluationContext);
+=======
+    @SuppressWarnings({"cast", "unchecked", "rawtypes"})
+    TransformEvaluator<T> evaluator = createMultiEvaluator(
+            (AppliedPTransform) application, inputBundle, evaluationContext);
+    return evaluator;
+>>>>>>> ecc26d5... Move Shared construction code to ParDoInProcessEvaluator:sdks/java/core/src/main/java/org/apache/beam/sdk/runners/inprocess/ParDoMultiEvaluatorFactory.java
   }
 
   private static <InT, OuT> ParDoInProcessEvaluator<InT> createMultiEvaluator(
       AppliedPTransform<PCollection<InT>, PCollectionTuple, BoundMulti<InT, OuT>> application,
       CommittedBundle<InT> inputBundle,
       InProcessEvaluationContext evaluationContext) {
-    PCollectionTuple output = application.getOutput();
-    Map<TupleTag<?>, PCollection<?>> outputs = output.getAll();
-    Map<TupleTag<?>, UncommittedBundle<?>> outputBundles = new HashMap<>();
-    for (Map.Entry<TupleTag<?>, PCollection<?>> outputEntry : outputs.entrySet()) {
-      outputBundles.put(
-          outputEntry.getKey(),
-          evaluationContext.createBundle(inputBundle, outputEntry.getValue()));
-    }
-    InProcessExecutionContext executionContext =
-        evaluationContext.getExecutionContext(application, inputBundle.getKey());
-    String stepName = evaluationContext.getStepName(application);
-    InProcessStepContext stepContext =
-        executionContext.getOrCreateStepContext(stepName, stepName, null);
-
-    CounterSet counters = evaluationContext.createCounterSet();
-
+    Map<TupleTag<?>, PCollection<?>> outputs = application.getOutput().getAll();
     DoFn<InT, OuT> fn = application.getTransform().getFn();
-    DoFnRunner<InT, OuT> runner =
-        DoFnRunners.createDefault(
-            evaluationContext.getPipelineOptions(),
-            fn,
-            evaluationContext.createSideInputReader(application.getTransform().getSideInputs()),
-            BundleOutputManager.create(outputBundles),
-            application.getTransform().getMainOutputTag(),
-            application.getTransform().getSideOutputTags().getAll(),
-            stepContext,
-            counters.getAddCounterMutator(),
-            application.getInput().getWindowingStrategy());
 
-    runner.startBundle();
-
-    return new ParDoInProcessEvaluator<>(
-        runner, application, counters, outputBundles.values(), stepContext);
+    return ParDoInProcessEvaluator.create(
+        evaluationContext,
+        inputBundle,
+        application,
+        fn,
+        application.getTransform().getSideInputs(),
+        application.getTransform().getMainOutputTag(),
+        application.getTransform().getSideOutputTags().getAll(),
+        outputs);
   }
 }
