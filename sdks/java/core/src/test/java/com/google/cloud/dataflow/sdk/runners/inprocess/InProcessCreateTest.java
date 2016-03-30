@@ -75,6 +75,7 @@ public class InProcessCreateTest {
     InProcessCreate<Integer> converted = InProcessCreate.from(og);
 
     DataflowAssert.that(p.apply(converted)).containsInAnyOrder(2, 1, 3);
+    p.run();
   }
 
   @Test
@@ -89,6 +90,7 @@ public class InProcessCreateTest {
 
     DataflowAssert.that(p.apply(converted))
         .containsInAnyOrder(null, "foo", null, "spam", "ham", "eggs");
+    p.run();
   }
 
   static class Record implements Serializable {}
@@ -171,6 +173,7 @@ public class InProcessCreateTest {
             new UnserializableRecord("foo"),
             new UnserializableRecord("bar"),
             new UnserializableRecord("baz"));
+    p.run();
   }
 
   @Test
@@ -181,14 +184,15 @@ public class InProcessCreateTest {
             new UnserializableRecord("bar"),
             new UnserializableRecord("baz"));
     InMemorySource<UnserializableRecord> source =
-        new InMemorySource<>(elements, new UnserializableRecord.UnserializableRecordCoder());
+        InMemorySource.fromIterable(elements, new UnserializableRecord.UnserializableRecordCoder());
     SerializableUtils.ensureSerializable(source);
   }
 
   @Test
   public void testSplitIntoBundles() throws Exception {
     InProcessCreate.InMemorySource<Integer> source =
-        new InMemorySource<>(ImmutableList.of(1, 2, 3, 4, 5, 6, 7, 8), BigEndianIntegerCoder.of());
+        InMemorySource.fromIterable(
+            ImmutableList.of(1, 2, 3, 4, 5, 6, 7, 8), BigEndianIntegerCoder.of());
     PipelineOptions options = PipelineOptionsFactory.create();
     List<? extends BoundedSource<Integer>> splitSources = source.splitIntoBundles(12, options);
     assertThat(splitSources, hasSize(3));
@@ -198,7 +202,7 @@ public class InProcessCreateTest {
   @Test
   public void testDoesNotProduceSortedKeys() throws Exception {
     InProcessCreate.InMemorySource<String> source =
-        new InMemorySource<>(ImmutableList.of("spam", "ham", "eggs"), StringUtf8Coder.of());
+        InMemorySource.fromIterable(ImmutableList.of("spam", "ham", "eggs"), StringUtf8Coder.of());
     assertThat(source.producesSortedKeys(PipelineOptionsFactory.create()), is(false));
   }
 
@@ -206,7 +210,7 @@ public class InProcessCreateTest {
   public void testGetDefaultOutputCoderReturnsConstructorCoder() throws Exception {
     Coder<Integer> coder = VarIntCoder.of();
     InProcessCreate.InMemorySource<Integer> source =
-        new InMemorySource<>(ImmutableList.of(1, 2, 3, 4, 5, 6, 7, 8), coder);
+        InMemorySource.fromIterable(ImmutableList.of(1, 2, 3, 4, 5, 6, 7, 8), coder);
 
     Coder<Integer> defaultCoder = source.getDefaultOutputCoder();
     assertThat(defaultCoder, equalTo(coder));
@@ -216,11 +220,11 @@ public class InProcessCreateTest {
   public void testSplitAtFraction() throws Exception {
     List<Integer> elements = new ArrayList<>();
     Random random = new Random();
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 25; i++) {
       elements.add(random.nextInt());
     }
     InProcessCreate.InMemorySource<Integer> source =
-        new InMemorySource<>(elements, VarIntCoder.of());
+        InMemorySource.fromIterable(elements, VarIntCoder.of());
 
     SourceTestUtils.assertSplitAtFractionExhaustive(source, PipelineOptionsFactory.create());
   }
