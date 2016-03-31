@@ -19,21 +19,30 @@
 package com.google.cloud.dataflow.sdk.io;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 import com.google.cloud.dataflow.sdk.Pipeline;
+import com.google.cloud.dataflow.sdk.io.CountingInput.CounterMark;
 import com.google.cloud.dataflow.sdk.io.CountingInput.UnboundedCountingInput;
+import com.google.cloud.dataflow.sdk.io.CountingInput.UnboundedCountingSource;
+import com.google.cloud.dataflow.sdk.io.UnboundedSource.UnboundedReader;
 import com.google.cloud.dataflow.sdk.testing.DataflowAssert;
 import com.google.cloud.dataflow.sdk.testing.RunnableOnService;
 import com.google.cloud.dataflow.sdk.testing.TestPipeline;
 import com.google.cloud.dataflow.sdk.transforms.Count;
 import com.google.cloud.dataflow.sdk.transforms.DoFn;
+import com.google.cloud.dataflow.sdk.transforms.Flatten;
 import com.google.cloud.dataflow.sdk.transforms.Max;
 import com.google.cloud.dataflow.sdk.transforms.Min;
 import com.google.cloud.dataflow.sdk.transforms.ParDo;
 import com.google.cloud.dataflow.sdk.transforms.RemoveDuplicates;
 import com.google.cloud.dataflow.sdk.transforms.SerializableFunction;
+import com.google.cloud.dataflow.sdk.util.CoderUtils;
 import com.google.cloud.dataflow.sdk.values.PCollection;
+import com.google.cloud.dataflow.sdk.values.PCollectionList;
 
 import org.joda.time.Duration;
 import org.joda.time.Instant;
@@ -41,6 +50,8 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+
+import java.util.List;
 
 /**
  * Tests for {@link CountingInput}.
@@ -148,5 +159,226 @@ public class CountingInputTest {
     public Instant apply(Long input) {
       return new Instant(input);
     }
+  }
+
+  @Test
+  @Category(RunnableOnService.class)
+  public void testBoundedSource() {
+    Pipeline p = TestPipeline.create();
+    long numElements = 1000;
+    PCollection<Long> input =
+        p.apply(Read.from(new CountingInput.BoundedCountingSource(0L, numElements)));
+
+    addCountingAsserts(input, numElements);
+    p.run();
+  }
+
+  @Test
+  @Category(RunnableOnService.class)
+  public void testBoundedSourceSplits() throws Exception {
+    Pipeline p = TestPipeline.create();
+    long numElements = 1000;
+    long numSplits = 10;
+    long splitSizeBytes = numElements * 8 / numSplits; // 8 bytes per long element.
+
+    BoundedSource<Long> initial = new CountingInput.BoundedCountingSource(0L, numElements);
+    List<? extends BoundedSource<Long>> splits =
+        initial.splitIntoBundles(splitSizeBytes, p.getOptions());
+    assertEquals("Expected exact splitting", numSplits, splits.size());
+
+    // Assemble all the splits into one flattened PCollection, also verify their sizes.
+    PCollectionList<Long> pcollections = PCollectionList.empty(p);
+    for (int i = 0; i < splits.size(); ++i) {
+      BoundedSource<Long> split = splits.get(i);
+      pcollections = pcollections.and(p.apply("split" + i, Read.from(split)));
+      assertEquals(
+          "Expected even splitting", splitSizeBytes, split.getEstimatedSizeBytes(p.getOptions()));
+    }
+    PCollection<Long> input = pcollections.apply(Flatten.<Long>pCollections());
+
+    addCountingAsserts(input, numElements);
+    p.run();
+  }
+
+  @Test
+  @Category(RunnableOnService.class)
+  public void testUnboundedSource() {
+    Pipeline p = TestPipeline.create();
+    long numElements = 1000;
+
+    PCollection<Long> input =
+        p.apply(
+            Read.from(
+                    new CountingInput.UnboundedCountingSource(
+                        0L /* start */,
+                        1L /* stride */,
+                        1L /* elements per period */,
+                        Duration.ZERO /* period length - as fast as possible */,
+                        new CountingInput.NowTimestampFn()))
+                .withMaxNumRecords(numElements));
+
+    addCountingAsserts(input, numElements);
+    p.run();
+  }
+
+  @Test
+  @Category(RunnableOnService.class)
+  public void testUnboundedSourceTimestamps() {
+    Pipeline p = TestPipeline.create();
+    long numElements = 1000;
+
+    PCollection<Long> input =
+        p.apply(
+            Read.from(
+                    new CountingInput.UnboundedCountingSource(
+                        0L /* start */,
+                        1L /* stride */,
+                        1L /* elements per period */,
+                        Duration.ZERO /* period length - as fast as possible */,
+                        new ValueAsTimestampFn()))
+                .withMaxNumRecords(numElements));
+    addCountingAsserts(input, numElements);
+
+    PCollection<Long> diffs =
+        input
+            .apply("TimestampDiff", ParDo.of(new ElementValueDiff()))
+            .apply("RemoveDuplicateTimestamps", RemoveDuplicates.<Long>create());
+    // This assert also confirms that diffs only has one unique value.
+    DataflowAssert.thatSingleton(diffs).isEqualTo(0L);
+
+    p.run();
+  }
+
+  @Test
+  public void testUnboundedSourceWithRate() {
+    Pipeline p = TestPipeline.create();
+
+    Duration period = Duration.millis(5);
+    long numElements = 1000L;
+
+    PCollection<Long> input =
+        p.apply(
+            Read.from(
+                    new CountingInput.UnboundedCountingSource(
+                        0L /* start */,
+                        1L /* stride */,
+                        1L /* elements per period */,
+                        period,
+                        new ValueAsTimestampFn()))
+                .withMaxNumRecords(numElements));
+    addCountingAsserts(input, numElements);
+
+    PCollection<Long> diffs =
+        input
+            .apply("TimestampDiff", ParDo.of(new ElementValueDiff()))
+            .apply("RemoveDuplicateTimestamps", RemoveDuplicates.<Long>create());
+    // This assert also confirms that diffs only has one unique value.
+    DataflowAssert.thatSingleton(diffs).isEqualTo(0L);
+
+    Instant started = Instant.now();
+    p.run();
+    Instant finished = Instant.now();
+    Duration expectedDuration = period.multipliedBy((int) numElements);
+    assertThat(started.plus(expectedDuration).isBefore(finished), is(true));
+  }
+
+  @Test
+  @Category(RunnableOnService.class)
+  public void testUnboundedSourceSplits() throws Exception {
+    Pipeline p = TestPipeline.create();
+    long numElements = 1000;
+    int numSplits = 10;
+
+    UnboundedSource<Long, ?> initial =
+        new CountingInput.UnboundedCountingSource(
+            0L /* start */,
+            1L /* stride */,
+            1L /* elements per period */,
+            Duration.ZERO /* period length - as fast as possible */,
+            new CountingInput.NowTimestampFn());
+    List<? extends UnboundedSource<Long, ?>> splits =
+        initial.generateInitialSplits(numSplits, p.getOptions());
+    assertEquals("Expected exact splitting", numSplits, splits.size());
+
+    long elementsPerSplit = numElements / numSplits;
+    assertEquals("Expected even splits", numElements, elementsPerSplit * numSplits);
+    PCollectionList<Long> pcollections = PCollectionList.empty(p);
+    for (int i = 0; i < splits.size(); ++i) {
+      pcollections =
+          pcollections.and(
+              p.apply("split" + i, Read.from(splits.get(i)).withMaxNumRecords(elementsPerSplit)));
+    }
+    PCollection<Long> input = pcollections.apply(Flatten.<Long>pCollections());
+
+    addCountingAsserts(input, numElements);
+    p.run();
+  }
+
+  @Test
+  public void testUnboundedSourceRateSplits() throws Exception {
+    Pipeline p = TestPipeline.create();
+    int elementsPerPeriod = 10;
+    Duration period = Duration.millis(5);
+
+    long numElements = 1000;
+    int numSplits = 10;
+
+    UnboundedCountingSource initial =
+        new CountingInput.UnboundedCountingSource(
+            0L /* start */, 1L /* stride */, elementsPerPeriod, period, new ValueAsTimestampFn());
+    List<? extends UnboundedSource<Long, ?>> splits =
+        initial.generateInitialSplits(numSplits, p.getOptions());
+    assertEquals("Expected exact splitting", numSplits, splits.size());
+
+    long elementsPerSplit = numElements / numSplits;
+    assertEquals("Expected even splits", numElements, elementsPerSplit * numSplits);
+    PCollectionList<Long> pcollections = PCollectionList.empty(p);
+    for (int i = 0; i < splits.size(); ++i) {
+      pcollections =
+          pcollections.and(
+              p.apply("split" + i, Read.from(splits.get(i)).withMaxNumRecords(elementsPerSplit)));
+    }
+    PCollection<Long> input = pcollections.apply(Flatten.<Long>pCollections());
+
+    addCountingAsserts(input, numElements);
+    Instant startTime = Instant.now();
+    p.run();
+    Instant endTime = Instant.now();
+    // 500 ms if the readers are all initialized in parallel; 5000 ms if they are evaluated serially
+    long expectedMinimumMillis = (numElements * period.getMillis()) / elementsPerPeriod;
+    assertThat(expectedMinimumMillis, lessThan(endTime.getMillis() - startTime.getMillis()));
+  }
+
+  @Test
+  public void testUnboundedSourceCheckpointMark() throws Exception {
+    UnboundedSource<Long, CounterMark> source =
+        new CountingInput.UnboundedCountingSource(
+            0L /* start */,
+            1L /* stride */,
+            1L /* elements per period */,
+            Duration.ZERO /* period length - as fast as possible */,
+            new ValueAsTimestampFn());
+    UnboundedReader<Long> reader = source.createReader(null, null);
+    final long numToSkip = 3;
+    assertTrue(reader.start());
+
+    // Advance the source numToSkip elements and manually save state.
+    for (long l = 0; l < numToSkip; ++l) {
+      reader.advance();
+    }
+
+    // Confirm that we get the expected element in sequence before checkpointing.
+    assertEquals(numToSkip, (long) reader.getCurrent());
+    assertEquals(numToSkip, reader.getCurrentTimestamp().getMillis());
+
+    // Checkpoint and restart, and confirm that the source continues correctly.
+    CounterMark mark =
+        CoderUtils.clone(source.getCheckpointMarkCoder(), (CounterMark) reader.getCheckpointMark());
+    reader = source.createReader(null, mark);
+    assertTrue(reader.start());
+
+    // Confirm that we get the next element in sequence.
+    assertEquals(numToSkip + 1, (long) reader.getCurrent());
+    assertEquals(numToSkip + 1, reader.getCurrentTimestamp().getMillis());
   }
 }
