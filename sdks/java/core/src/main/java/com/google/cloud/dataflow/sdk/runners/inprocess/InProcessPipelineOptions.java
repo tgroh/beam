@@ -20,6 +20,7 @@ package com.google.cloud.dataflow.sdk.runners.inprocess;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.options.ApplicationNameOptions;
 import com.google.cloud.dataflow.sdk.options.Default;
+import com.google.cloud.dataflow.sdk.options.DefaultValueFactory;
 import com.google.cloud.dataflow.sdk.options.Description;
 import com.google.cloud.dataflow.sdk.options.Hidden;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
@@ -89,4 +90,20 @@ public interface InProcessPipelineOptions extends PipelineOptions, ApplicationNa
   boolean isBlockOnRun();
 
   void setBlockOnRun(boolean b);
+
+  @Default.InstanceFactory(DefaultTargetSplitsFactory.class)
+  @Description("The default number of splits to attempt to partition sources into.")
+  int getTargetSplits();
+  void setTargetSplits(int target);
+
+  /**
+   * A factory for providing the default number of target splits. Returns the result of
+   * {@link Runtime#availableProcessors()}.
+   */
+  public static class DefaultTargetSplitsFactory implements DefaultValueFactory<Integer> {
+    @Override
+    public Integer create(PipelineOptions options) {
+      return Runtime.getRuntime().availableProcessors();
+    }
+  }
 }

@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -41,6 +42,7 @@ import com.google.cloud.dataflow.sdk.transforms.windowing.BoundedWindow;
 import com.google.cloud.dataflow.sdk.util.WindowedValue;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 
 import org.joda.time.Instant;
 import org.junit.Before;
@@ -64,14 +66,20 @@ public class BoundedReadEvaluatorFactoryTest {
   private TransformEvaluatorFactory factory;
   @Mock private InProcessEvaluationContext context;
 
+  private TestPipeline pipeline;
+
   @Before
   public void setup() {
     source = CountingSource.upTo(10L);
-    TestPipeline p = TestPipeline.create();
-    longs = p.apply(Read.from(source));
+    pipeline = TestPipeline.create();
+    pipeline.getOptions().as(InProcessPipelineOptions.class).setTargetSplits(1);
+    longs = pipeline.apply(Read.from(source));
 
     factory = new BoundedReadEvaluatorFactory();
     context = mock(InProcessEvaluationContext.class);
+
+    when(context.getPipelineOptions())
+        .thenReturn(pipeline.getOptions().as(InProcessPipelineOptions.class));
   }
 
   @Test
@@ -161,6 +169,38 @@ public class BoundedReadEvaluatorFactoryTest {
         outputElements,
         containsInAnyOrder(
             gw(1L), gw(2L), gw(4L), gw(8L), gw(9L), gw(7L), gw(6L), gw(5L), gw(3L), gw(0L)));
+  }
+
+  @Test
+  public void boundedSourceEvaluatorSplitsSimultaneousEvaluations() throws Exception {
+    pipeline.getOptions().as(InProcessPipelineOptions.class).setTargetSplits(2);
+    UncommittedBundle<Long> output = InProcessBundle.unkeyed(longs);
+    UncommittedBundle<Long> secondOutput = InProcessBundle.unkeyed(longs);
+    when(context.createRootBundle(longs)).thenReturn(output).thenReturn(secondOutput);
+
+    // create both evaluators before finishing either.
+    TransformEvaluator<?> evaluator =
+        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+    TransformEvaluator<?> secondEvaluator =
+        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+
+    InProcessTransformResult secondResult = secondEvaluator.finishBundle();
+
+    assertThat(secondResult.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MIN_VALUE));
+    InProcessTransformResult result = evaluator.finishBundle();
+    assertThat(secondResult.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MIN_VALUE));
+    assertThat(result.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
+    Iterable<? extends WindowedValue<Long>> outputElements =
+        output.commit(BoundedWindow.TIMESTAMP_MAX_VALUE).getElements();
+    Iterable<WindowedValue<Long>> secondOutputElements =
+        secondOutput.commit(BoundedWindow.TIMESTAMP_MAX_VALUE).getElements();
+
+    assertThat(
+        Iterables.concat(outputElements, secondOutputElements),
+        containsInAnyOrder(
+            gw(1L), gw(2L), gw(4L), gw(3L), gw(0L), gw(8L), gw(9L), gw(7L), gw(6L), gw(5L)));
+    assertThat(outputElements, not(emptyIterable()));
+    assertThat(secondOutputElements, not(emptyIterable()));
   }
 
   @Test

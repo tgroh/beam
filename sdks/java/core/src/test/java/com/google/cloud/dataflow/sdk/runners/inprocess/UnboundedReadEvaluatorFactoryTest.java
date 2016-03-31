@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -29,7 +30,7 @@ import com.google.cloud.dataflow.sdk.coders.AtomicCoder;
 import com.google.cloud.dataflow.sdk.coders.BigEndianLongCoder;
 import com.google.cloud.dataflow.sdk.coders.Coder;
 import com.google.cloud.dataflow.sdk.coders.CoderException;
-import com.google.cloud.dataflow.sdk.io.CountingSource;
+import com.google.cloud.dataflow.sdk.io.CountingInput;
 import com.google.cloud.dataflow.sdk.io.Read;
 import com.google.cloud.dataflow.sdk.io.UnboundedSource;
 import com.google.cloud.dataflow.sdk.io.UnboundedSource.CheckpointMark;
@@ -44,6 +45,7 @@ import com.google.cloud.dataflow.sdk.transforms.windowing.GlobalWindow;
 import com.google.cloud.dataflow.sdk.util.WindowedValue;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
@@ -72,17 +74,21 @@ public class UnboundedReadEvaluatorFactoryTest {
   private InProcessEvaluationContext context;
   private UncommittedBundle<Long> output;
 
+  private TestPipeline pipeline;
+
   @Before
   public void setup() {
-    UnboundedSource<Long, ?> source =
-        CountingSource.unboundedWithTimestampFn(new LongToInstantFn());
-    TestPipeline p = TestPipeline.create();
-    longs = p.apply(Read.from(source));
+    pipeline = TestPipeline.create();
+    pipeline.getOptions().as(InProcessPipelineOptions.class).setTargetSplits(1);
+    longs = pipeline.apply(CountingInput.unbounded().withTimestampFn(new LongToInstantFn()));
 
     factory = new UnboundedReadEvaluatorFactory();
     context = mock(InProcessEvaluationContext.class);
     output = InProcessBundle.unkeyed(longs);
     when(context.createRootBundle(longs)).thenReturn(output);
+
+    when(context.getPipelineOptions())
+        .thenReturn(pipeline.getOptions().as(InProcessPipelineOptions.class));
   }
 
   @Test
@@ -167,14 +173,9 @@ public class UnboundedReadEvaluatorFactoryTest {
     assertThat(TestUnboundedSource.readerClosedCount, equalTo(1));
   }
 
-  // TODO: Once the source is split into multiple sources before evaluating, this test will have to
-  // be updated.
-  /**
-   * Demonstrate that only a single unfinished instance of TransformEvaluator can be created at a
-   * time, with other calls returning an empty evaluator.
-   */
   @Test
-  public void unboundedSourceWithMultipleSimultaneousEvaluatorsIndependent() throws Exception {
+  public void unboundedSourceWithSplitsIndependent() throws Exception {
+    pipeline.getOptions().as(InProcessPipelineOptions.class).setTargetSplits(2);
     UncommittedBundle<Long> secondOutput = InProcessBundle.unkeyed(longs);
 
     TransformEvaluator<?> evaluator =
@@ -183,19 +184,77 @@ public class UnboundedReadEvaluatorFactoryTest {
     TransformEvaluator<?> secondEvaluator =
         factory.forApplication(longs.getProducingTransformInternal(), null, context);
 
+    // override the default return to return a sequence of bundles
+    when(context.createRootBundle(longs)).thenReturn(secondOutput, output);
+
     InProcessTransformResult secondResult = secondEvaluator.finishBundle();
+    CommittedBundle<Long> committedSecond = secondOutput.commit(Instant.now());
+
     InProcessTransformResult result = evaluator.finishBundle();
+    CommittedBundle<Long> committedFirst = output.commit(Instant.now());
 
-    assertThat(
-        result.getWatermarkHold(), Matchers.<ReadableInstant>lessThan(DateTime.now().toInstant()));
-    assertThat(
-        output.commit(Instant.now()).getElements(),
-        containsInAnyOrder(
-            tgw(1L), tgw(2L), tgw(4L), tgw(8L), tgw(9L), tgw(7L), tgw(6L), tgw(5L), tgw(3L),
-            tgw(0L)));
+    @SuppressWarnings("unchecked")
+    WindowedValue<Long>[] expectedOutputs = new WindowedValue[20];
+    for (long i = 0; i < 20; i++) {
+      expectedOutputs[(int) i] = tgw(i);
+    }
 
-    assertThat(secondResult.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MIN_VALUE));
-    assertThat(secondOutput.commit(Instant.now()).getElements(), emptyIterable());
+    assertThat(result.getWatermarkHold(), Matchers.<ReadableInstant>lessThan(Instant.now()));
+    assertThat(secondResult.getWatermarkHold(), Matchers.<ReadableInstant>lessThan(Instant.now()));
+    assertThat(
+        Iterables.concat(committedFirst.getElements(), committedSecond.getElements()),
+        Matchers.containsInAnyOrder(expectedOutputs));
+    assertThat(committedFirst.getElements(), not(emptyIterable()));
+    assertThat(committedSecond.getElements(), not(emptyIterable()));
+  }
+
+  /**
+   * Demonstrate that only {@link InProcessPipelineOptions#getTargetSplits()} instances of
+   * UnboundedReadTransformEvaluator can be created at a time, with other calls returning an empty
+   * evaluator.
+   */
+  @Test
+  public void unboundedSourceWithMoreEvaluatorsThanSplitsExcessEmpty() throws Exception {
+    pipeline.getOptions().as(InProcessPipelineOptions.class).setTargetSplits(2);
+    UncommittedBundle<Long> secondOutput = InProcessBundle.unkeyed(longs);
+    UncommittedBundle<Long> thirdOutput = InProcessBundle.unkeyed(longs);
+
+    TransformEvaluator<?> evaluator =
+        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+
+    TransformEvaluator<?> secondEvaluator =
+        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+
+    TransformEvaluator<?> emptyEvaluator =
+        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+
+    // override the default return to return a sequence of bundles
+    when(context.createRootBundle(longs)).thenReturn(secondOutput, output, thirdOutput);
+
+    InProcessTransformResult secondResult = secondEvaluator.finishBundle();
+    CommittedBundle<Long> committedSecond = secondOutput.commit(Instant.now());
+
+    InProcessTransformResult thirdResult = emptyEvaluator.finishBundle();
+    CommittedBundle<Long> committedThird = thirdOutput.commit(Instant.now());
+
+    InProcessTransformResult result = evaluator.finishBundle();
+    CommittedBundle<Long> committedFirst = output.commit(Instant.now());
+
+    @SuppressWarnings("unchecked")
+    WindowedValue<Long>[] expectedOutputs = new WindowedValue[20];
+    for (long i = 0; i < 20; i++) {
+      expectedOutputs[(int) i] = tgw(i);
+    }
+
+    assertThat(result.getWatermarkHold(), Matchers.<ReadableInstant>lessThan(Instant.now()));
+    assertThat(secondResult.getWatermarkHold(), Matchers.<ReadableInstant>lessThan(Instant.now()));
+    assertThat(
+        Iterables.concat(committedFirst.getElements(), committedSecond.getElements()),
+        Matchers.containsInAnyOrder(expectedOutputs));
+    assertThat(committedFirst.getElements(), not(emptyIterable()));
+    assertThat(committedSecond.getElements(), not(emptyIterable()));
+    assertThat(thirdResult.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MIN_VALUE));
+    assertThat(committedThird.getElements(), emptyIterable());
   }
 
   /**

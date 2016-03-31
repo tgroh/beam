@@ -27,8 +27,10 @@ import com.google.cloud.dataflow.sdk.transforms.PTransform;
 import com.google.cloud.dataflow.sdk.transforms.windowing.BoundedWindow;
 import com.google.cloud.dataflow.sdk.util.WindowedValue;
 import com.google.cloud.dataflow.sdk.values.PCollection;
+import com.google.common.collect.ImmutableList;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -55,13 +57,14 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
       AppliedPTransform<?, ?, ?> application,
       @Nullable CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext)
-      throws IOException {
+      throws Exception {
     return getTransformEvaluator((AppliedPTransform) application, evaluationContext);
   }
 
   private <OutputT> TransformEvaluator<?> getTransformEvaluator(
       final AppliedPTransform<?, PCollection<OutputT>, Bounded<OutputT>> transform,
-      final InProcessEvaluationContext evaluationContext) {
+      final InProcessEvaluationContext evaluationContext)
+      throws Exception {
     BoundedReadEvaluator<?> evaluator =
         getTransformEvaluatorQueue(transform, evaluationContext).poll();
     if (evaluator == null) {
@@ -80,7 +83,8 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
   @SuppressWarnings("unchecked")
   private <OutputT> Queue<BoundedReadEvaluator<OutputT>> getTransformEvaluatorQueue(
       final AppliedPTransform<?, PCollection<OutputT>, Bounded<OutputT>> transform,
-      final InProcessEvaluationContext evaluationContext) {
+      final InProcessEvaluationContext evaluationContext)
+      throws Exception {
     // Key by the application and the context the evaluation is occurring in (which call to
     // Pipeline#run).
     EvaluatorKey key = new EvaluatorKey(transform, evaluationContext);
@@ -92,9 +96,24 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
         // If no queue existed in the evaluators, add an evaluator to initialize the evaluator
         // factory for this transform
         BoundedSource<OutputT> source = transform.getTransform().getSource();
-        BoundedReadEvaluator<OutputT> evaluator =
-            new BoundedReadEvaluator<OutputT>(transform, evaluationContext, source);
-        evaluatorQueue.offer(evaluator);
+        int targetSplits = evaluationContext.getPipelineOptions().getTargetSplits();
+        long estimatedSize = source.getEstimatedSizeBytes(evaluationContext.getPipelineOptions());
+
+        List<? extends BoundedSource<OutputT>> splitSources;
+        if (targetSplits >= 1 && estimatedSize > 0) {
+          splitSources =
+              source.splitIntoBundles(
+                  estimatedSize / targetSplits, evaluationContext.getPipelineOptions());
+        } else {
+          splitSources = ImmutableList.<BoundedSource<OutputT>>of(source);
+        }
+        SourceWatermarkTracker watermarkTracker = SourceWatermarkTracker.forSources(splitSources);
+        for (BoundedSource<OutputT> splitSource : splitSources) {
+          BoundedReadEvaluator<OutputT> evaluator =
+              new BoundedReadEvaluator<OutputT>(
+                  transform, evaluationContext, splitSource, watermarkTracker);
+          evaluatorQueue.offer(evaluator);
+        }
       } else {
         // otherwise return the existing Queue that arrived before us
         evaluatorQueue = (Queue<BoundedReadEvaluator<OutputT>>) sourceEvaluators.get(key);
@@ -120,14 +139,17 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
      * as the source derived from {@link #transform} due to splitting.
      */
     private BoundedSource<OutputT> source;
+    private final SourceWatermarkTracker watermarkTracker;
 
     public BoundedReadEvaluator(
         AppliedPTransform<?, PCollection<OutputT>, Bounded<OutputT>> transform,
         InProcessEvaluationContext evaluationContext,
-        BoundedSource<OutputT> source) {
+        BoundedSource<OutputT> source,
+        SourceWatermarkTracker watermarkTracker) {
       this.transform = transform;
       this.evaluationContext = evaluationContext;
       this.source = source;
+      this.watermarkTracker = watermarkTracker;
     }
 
     @Override
@@ -147,7 +169,8 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
           contentsRemaining = reader.advance();
         }
         reader.close();
-        return StepTransformResult.withHold(transform, BoundedWindow.TIMESTAMP_MAX_VALUE)
+        watermarkTracker.setWatermark(reader.getCurrentSource(), BoundedWindow.TIMESTAMP_MAX_VALUE);
+        return StepTransformResult.withHold(transform, watermarkTracker.getWatermark())
             .addOutput(output)
             .build();
       }

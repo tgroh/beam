@@ -30,6 +30,7 @@ import com.google.cloud.dataflow.sdk.util.WindowedValue;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -52,14 +53,18 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
 
   @SuppressWarnings({"unchecked", "rawtypes"})
   @Override
-  public <InputT> TransformEvaluator<InputT> forApplication(AppliedPTransform<?, ?, ?> application,
-      @Nullable CommittedBundle<?> inputBundle, InProcessEvaluationContext evaluationContext) {
+  public <InputT> TransformEvaluator<InputT> forApplication(
+      AppliedPTransform<?, ?, ?> application,
+      @Nullable CommittedBundle<?> inputBundle,
+      InProcessEvaluationContext evaluationContext)
+      throws Exception {
     return getTransformEvaluator((AppliedPTransform) application, evaluationContext);
   }
 
   private <OutputT> TransformEvaluator<?> getTransformEvaluator(
       final AppliedPTransform<?, PCollection<OutputT>, Unbounded<OutputT>> transform,
-      final InProcessEvaluationContext evaluationContext) {
+      final InProcessEvaluationContext evaluationContext)
+      throws Exception {
     UnboundedReadEvaluator<?> currentEvaluator =
         getTransformEvaluatorQueue(transform, evaluationContext).poll();
     if (currentEvaluator == null) {
@@ -78,7 +83,8 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
   @SuppressWarnings("unchecked")
   private <OutputT> Queue<UnboundedReadEvaluator<OutputT>> getTransformEvaluatorQueue(
       final AppliedPTransform<?, PCollection<OutputT>, Unbounded<OutputT>> transform,
-      final InProcessEvaluationContext evaluationContext) {
+      final InProcessEvaluationContext evaluationContext)
+      throws Exception {
     // Key by the application and the context the evaluation is occurring in (which call to
     // Pipeline#run).
     EvaluatorKey key = new EvaluatorKey(transform, evaluationContext);
@@ -90,11 +96,18 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
       if (sourceEvaluators.putIfAbsent(key, evaluatorQueue) == null) {
         // If no queue existed in the evaluators, add an evaluator to initialize the evaluator
         // factory for this transform
-        UnboundedSource<OutputT, ?> source = transform.getTransform().getSource();
-        UnboundedReadEvaluator<OutputT> evaluator =
-            new UnboundedReadEvaluator<OutputT>(
-                transform, evaluationContext, source, evaluatorQueue);
-        evaluatorQueue.offer(evaluator);
+        UnboundedSource<OutputT, ?> initialSource = transform.getTransform().getSource();
+        int targetSplits = evaluationContext.getPipelineOptions().getTargetSplits();
+        List<? extends UnboundedSource<OutputT, ?>> splits =
+            initialSource.generateInitialSplits(
+                targetSplits, evaluationContext.getPipelineOptions());
+        SourceWatermarkTracker watermarkTracker = SourceWatermarkTracker.forSources(splits);
+        for (UnboundedSource<OutputT, ?> split : splits) {
+          UnboundedReadEvaluator<OutputT> evaluator =
+              new UnboundedReadEvaluator<OutputT>(
+                  transform, evaluationContext, split, watermarkTracker, evaluatorQueue);
+          evaluatorQueue.offer(evaluator);
+        }
       } else {
         // otherwise return the existing Queue that arrived before us
         evaluatorQueue = (Queue<UnboundedReadEvaluator<OutputT>>) sourceEvaluators.get(key);
@@ -117,24 +130,29 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
     private static final int ARBITRARY_MAX_ELEMENTS = 10;
     private final AppliedPTransform<?, PCollection<OutputT>, Unbounded<OutputT>> transform;
     private final InProcessEvaluationContext evaluationContext;
-    private final Queue<UnboundedReadEvaluator<OutputT>> evaluatorQueue;
+
     /**
      * The source being read from by this {@link UnboundedReadEvaluator}. This may not be the same
      * source as derived from {@link #transform} due to splitting.
      */
     private final UnboundedSource<OutputT, ?> source;
+    private final SourceWatermarkTracker watermarkTracker;
     private CheckpointMark checkpointMark;
+
+    private final Queue<UnboundedReadEvaluator<OutputT>> evaluatorQueue;
 
     public UnboundedReadEvaluator(
         AppliedPTransform<?, PCollection<OutputT>, Unbounded<OutputT>> transform,
         InProcessEvaluationContext evaluationContext,
         UnboundedSource<OutputT, ?> source,
+        SourceWatermarkTracker watermarkTracker,
         Queue<UnboundedReadEvaluator<OutputT>> evaluatorQueue) {
       this.transform = transform;
       this.evaluationContext = evaluationContext;
-      this.evaluatorQueue = evaluatorQueue;
       this.source = source;
+      this.watermarkTracker = watermarkTracker;
       this.checkpointMark = null;
+      this.evaluatorQueue = evaluatorQueue;
     }
 
     @Override
@@ -156,10 +174,9 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
         }
         checkpointMark = reader.getCheckpointMark();
         checkpointMark.finalizeCheckpoint();
-        // TODO: When exercising create initial splits, make this the minimum watermark across all
-        // existing readers
+        watermarkTracker.setWatermark(source, reader.getWatermark());
         StepTransformResult result =
-            StepTransformResult.withHold(transform, reader.getWatermark())
+            StepTransformResult.withHold(transform, watermarkTracker.getWatermark())
                 .addOutput(output)
                 .build();
         evaluatorQueue.offer(this);
