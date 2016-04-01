@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -308,6 +309,7 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
         }
         boolean timersFired = fireTimers();
         addWorkIfNecessary(timersFired);
+        cleanupEmptyExecutors();
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         LOG.error("Monitor died due to being interrupted");
@@ -395,6 +397,16 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
       for (AppliedPTransform<?, ?, ?> root : rootNodes) {
         if (!evaluationContext.isDone(root)) {
           scheduleConsumption(root, null, defaultCompletionCallback);
+        }
+      }
+    }
+
+    private void cleanupEmptyExecutors() {
+      Iterator<TransformExecutorService> executors = currentEvaluations.values().iterator();
+      while (executors.hasNext()) {
+        TransformExecutorService executor = executors.next();
+        if (executor.isEmpty()) {
+          executors.remove();
         }
       }
     }
