@@ -120,8 +120,7 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
     private final Queue<UnboundedReadEvaluator<OutputT>> evaluatorQueue;
     /**
      * The source being read from by this {@link UnboundedReadEvaluator}. This may not be the same
-     * source as returned by {@link Unbounded#getSource()} within {@link #transform} due to
-     * splitting.
+     * source as derived from {@link #transform} due to splitting.
      */
     private final UnboundedSource<OutputT, ?> source;
     private CheckpointMark checkpointMark;

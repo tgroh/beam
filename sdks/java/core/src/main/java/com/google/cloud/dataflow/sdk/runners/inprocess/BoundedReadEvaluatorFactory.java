@@ -117,7 +117,7 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
     private final InProcessEvaluationContext evaluationContext;
     /**
      * The source being read from by this {@link BoundedReadEvaluator}. This may not be the same
-     * source as returned by {@link Bounded#getSource()} within {@link #transform} due to splitting.
+     * as the source derived from {@link #transform} due to splitting.
      */
     private BoundedSource<OutputT> source;
 
