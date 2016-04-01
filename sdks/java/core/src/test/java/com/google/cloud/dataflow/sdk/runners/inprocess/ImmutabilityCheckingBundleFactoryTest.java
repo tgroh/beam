@@ -52,6 +52,7 @@ public class ImmutabilityCheckingBundleFactoryTest {
   private ImmutabilityCheckingBundleFactory factory;
   private PCollection<byte[]> created;
   private PCollection<byte[]> transformed;
+
   @Before
   public void setup() {
     TestPipeline p = TestPipeline.create();

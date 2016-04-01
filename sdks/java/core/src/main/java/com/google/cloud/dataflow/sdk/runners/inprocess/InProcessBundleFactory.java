@@ -1,17 +1,19 @@
 /*
- * Copyright (C) 2016 Google Inc.
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy of
- * the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.google.cloud.dataflow.sdk.runners.inprocess;
 
@@ -22,7 +24,6 @@ import com.google.cloud.dataflow.sdk.runners.inprocess.InProcessPipelineRunner.U
 import com.google.cloud.dataflow.sdk.util.WindowedValue;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.common.base.MoreObjects;
-import com.google.common.base.MoreObjects.ToStringHelper;
 import com.google.common.collect.ImmutableList;
 
 import org.joda.time.Instant;
@@ -56,6 +57,7 @@ class InProcessBundleFactory implements BundleFactory {
       CommittedBundle<?> input, Object key, PCollection<T> output) {
     return InProcessBundle.keyed(output, key);
   }
+
   /**
    * A {@link UncommittedBundle} that buffers elements in memory.
    */
@@ -77,7 +79,7 @@ class InProcessBundleFactory implements BundleFactory {
      * Create a new {@link InProcessBundle} for the specified {@link PCollection} with the specified
      * key.
      *
-     * See {@link CommittedBundle#getKey()} and {@link CommittedBundle#isKeyed()} for more
+     * <p>See {@link CommittedBundle#getKey()} and {@link CommittedBundle#isKeyed()} for more
      * information.
      */
     public static <T> InProcessBundle<T> keyed(PCollection<T> pcollection, Object key) {
@@ -98,7 +100,11 @@ class InProcessBundleFactory implements BundleFactory {
 
     @Override
     public InProcessBundle<T> add(WindowedValue<T> element) {
-      checkState(!committed, "Can't add element %s to committed bundle %s", element, this);
+      checkState(
+          !committed,
+          "Can't add element %s to committed bundle in PCollection %s",
+          element,
+          pcollection);
       elements.add(element);
       return this;
     }
@@ -137,12 +143,12 @@ class InProcessBundleFactory implements BundleFactory {
 
         @Override
         public String toString() {
-          ToStringHelper toStringHelper =
-              MoreObjects.toStringHelper(this).add("pcollection", pcollection);
-          if (keyed) {
-            toStringHelper = toStringHelper.add("key", key);
-          }
-          return toStringHelper.add("elements", committedElements).toString();
+          return MoreObjects.toStringHelper(this)
+              .omitNullValues()
+              .add("pcollection", pcollection)
+              .add("key", key)
+              .add("elements", committedElements)
+              .toString();
         }
       };
     }
