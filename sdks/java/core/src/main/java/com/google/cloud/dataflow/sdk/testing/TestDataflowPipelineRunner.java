@@ -87,7 +87,8 @@ public class TestDataflowPipelineRunner extends PipelineRunner<DataflowPipelineJ
     try {
       job = runner.run(pipeline);
     } catch (DataflowJobExecutionException ex) {
-      throw new IllegalStateException("The dataflow failed.");
+      throw new Pipeline.PipelineExecutionException(
+          new IllegalStateException("The dataflow failed.", ex));
     }
 
     LOG.info("Running Dataflow job {} with {} expected assertions.",
