@@ -55,6 +55,12 @@ public class EncodabilityEnforcementFactoryTest {
 
   @Test
   public void encodeFailsThrows() {
+    TestPipeline p = TestPipeline.create();
+    PCollection<Record> unencodable =
+        p.apply(Create.<Record>of().withCoder(new RecordNoEncodeCoder()));
+    AppliedPTransform<?, ?, ?> consumer =
+        unencodable.apply(Count.<Record>globally()).getProducingTransformInternal();
+
     WindowedValue<Record> record = WindowedValue.valueInGlobalWindow(new Record());
 
     ModelEnforcement<Record> enforcement = createEnforcement(new RecordNoEncodeCoder(), record);

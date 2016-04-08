@@ -40,6 +40,6 @@ class FixedThreadPoolExecutorServiceFactory
 
   @Override
   public ExecutorService create() {
-    return Executors.newWorkStealingPool();
+    return Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
   }
 }
