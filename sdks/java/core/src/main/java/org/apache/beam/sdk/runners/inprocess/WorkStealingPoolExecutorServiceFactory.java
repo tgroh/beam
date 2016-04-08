@@ -25,7 +25,8 @@ import java.util.concurrent.Executors;
 
 /**
  * A {@link ExecutorServiceFactory} that produces work stealing thread pools via
- * {@link Executors#newWorkStealingPool()}.
+ * {@link Executors#newFixedThreadPool(int)}, with the number of threads equal to the available
+ * processors as provided by {@link Runtime#availableProcessors()}.
  */
 class WorkStealingPoolExecutorServiceFactory
     implements DefaultValueFactory<ExecutorServiceFactory>, ExecutorServiceFactory {
@@ -39,6 +40,6 @@ class WorkStealingPoolExecutorServiceFactory
 
   @Override
   public ExecutorService create() {
-    return Executors.newWorkStealingPool();
+    return Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
   }
 }
