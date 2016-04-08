@@ -159,6 +159,11 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
     if (bundle != null && isKeyed(bundle.getPCollection())) {
       final StepAndKey stepAndKey =
           StepAndKey.of(transform, bundle == null ? null : bundle.getKey());
+      // This executor will remain reachable until it has executed all scheduled transforms.
+      // The TransformExecutors keep a strong reference to the Executor, the ExecutorService keeps
+      // a reference to the scheduled TransformExecutor callable. Follow-up TransformExecutors
+      // (scheduled due to the completion of another TransformExecutor) are provided to the
+      // ExecutorService before the Earlier TransformExecutor callable completes.
       transformExecutor = executorServices.getUnchecked(stepAndKey);
     } else {
       transformExecutor = parallelExecutorService;
