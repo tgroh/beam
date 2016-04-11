@@ -19,13 +19,17 @@
 package org.apache.beam.runners.spark.translation;
 
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
+
 import org.apache.beam.runners.spark.SparkPipelineOptions;
+import org.apache.beam.runners.spark.SparkPipelineRunner;
 
 public final class SparkPipelineOptionsFactory {
   private SparkPipelineOptionsFactory() {
   }
 
   public static SparkPipelineOptions create() {
-    return PipelineOptionsFactory.as(SparkPipelineOptions.class);
+    SparkPipelineOptions options = PipelineOptionsFactory.as(SparkPipelineOptions.class);
+    options.setRunner(SparkPipelineRunner.class);
+    return options;
   }
 }
