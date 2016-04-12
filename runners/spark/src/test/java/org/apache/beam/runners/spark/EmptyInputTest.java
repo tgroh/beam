@@ -18,26 +18,28 @@
 
 package org.apache.beam.runners.spark;
 
+import static org.junit.Assert.assertEquals;
+
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.coders.StringUtf8Coder;
+import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.transforms.Combine;
 import com.google.cloud.dataflow.sdk.transforms.Create;
 import com.google.cloud.dataflow.sdk.transforms.SerializableFunction;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.common.collect.Iterables;
-import org.apache.beam.runners.spark.translation.SparkPipelineOptionsFactory;
+
 import org.junit.Test;
 
 import java.util.Collections;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-
 public class EmptyInputTest {
 
   @Test
   public void test() throws Exception {
-    SparkPipelineOptions options = SparkPipelineOptionsFactory.create();
+    SparkPipelineOptions options = PipelineOptionsFactory.as(SparkPipelineOptions.class);
+    options.setRunner(SparkPipelineRunner.class);
     Pipeline p = Pipeline.create(options);
     List<String> empty = Collections.emptyList();
     PCollection<String> inputWords = p.apply(Create.of(empty)).setCoder(StringUtf8Coder.of());

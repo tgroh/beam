@@ -21,6 +21,7 @@ package org.apache.beam.runners.spark;
 import com.google.cloud.dataflow.examples.complete.TfIdf;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.coders.StringDelegateCoder;
+import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.testing.PAssert;
 import com.google.cloud.dataflow.sdk.transforms.Create;
 import com.google.cloud.dataflow.sdk.transforms.Keys;
@@ -28,7 +29,6 @@ import com.google.cloud.dataflow.sdk.transforms.RemoveDuplicates;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 
-import org.apache.beam.runners.spark.translation.SparkPipelineOptionsFactory;
 import org.junit.Test;
 
 import java.net.URI;
@@ -41,7 +41,8 @@ public class TfIdfTest {
 
   @Test
   public void testTfIdf() throws Exception {
-    SparkPipelineOptions opts = SparkPipelineOptionsFactory.create();
+    SparkPipelineOptions opts = PipelineOptionsFactory.as(SparkPipelineOptions.class);
+    opts.setRunner(SparkPipelineRunner.class);
     Pipeline pipeline = Pipeline.create(opts);
 
     pipeline.getCoderRegistry().registerCoder(URI.class, StringDelegateCoder.of(URI.class));

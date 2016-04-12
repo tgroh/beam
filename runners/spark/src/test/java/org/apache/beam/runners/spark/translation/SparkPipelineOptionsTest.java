@@ -21,15 +21,20 @@ package org.apache.beam.runners.spark.translation;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 
 import org.apache.beam.runners.spark.SparkPipelineOptions;
-import org.apache.beam.runners.spark.SparkPipelineRunner;
+import org.junit.Assert;
+import org.junit.Test;
 
-public final class SparkPipelineOptionsFactory {
-  private SparkPipelineOptionsFactory() {
+public class SparkPipelineOptionsTest {
+  @Test
+  public void testDefaultCreateMethod() {
+    SparkPipelineOptions actualOptions = PipelineOptionsFactory.as(SparkPipelineOptions.class);
+    Assert.assertEquals("local[1]", actualOptions.getSparkMaster());
   }
 
-  public static SparkPipelineOptions create() {
-    SparkPipelineOptions options = PipelineOptionsFactory.as(SparkPipelineOptions.class);
-    options.setRunner(SparkPipelineRunner.class);
-    return options;
+  @Test
+  public void testSettingCustomOptions() {
+    SparkPipelineOptions actualOptions = PipelineOptionsFactory.as(SparkPipelineOptions.class);
+    actualOptions.setSparkMaster("spark://207.184.161.138:7077");
+    Assert.assertEquals("spark://207.184.161.138:7077", actualOptions.getSparkMaster());
   }
 }
