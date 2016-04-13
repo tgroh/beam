@@ -216,6 +216,12 @@ public interface PipelineOptions {
   <T extends PipelineOptions> T cloneAs(Class<T> kls);
 
   /**
+   * Commits the contents of this {@link PipelineOptions}. Future calls to property setter methods
+   * will fail after this method is called.
+   */
+  void commit();
+
+  /**
    * The pipeline runner that will be used to execute the pipeline.
    * For registered runners, the class name can be specified, otherwise the fully
    * qualified name needs to be specified.

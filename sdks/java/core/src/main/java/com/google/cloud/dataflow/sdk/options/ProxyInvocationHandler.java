@@ -17,6 +17,8 @@
  */
 package com.google.cloud.dataflow.sdk.options;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory.JsonIgnorePredicate;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory.Registration;
 import com.google.cloud.dataflow.sdk.util.InstanceBuilder;
@@ -88,6 +90,7 @@ class ProxyInvocationHandler implements InvocationHandler {
   private final Map<String, JsonNode> jsonOptions;
   private final Map<String, String> gettersToPropertyNames;
   private final Map<String, String> settersToPropertyNames;
+  private boolean committed = false;
 
   ProxyInvocationHandler(Map<String, Object> options) {
     this(options, Maps.<String, JsonNode>newHashMap());
@@ -118,6 +121,9 @@ class ProxyInvocationHandler implements InvocationHandler {
       @SuppressWarnings("unchecked")
       Class<? extends PipelineOptions> clazz = (Class<? extends PipelineOptions>) args[0];
       return cloneAs(proxy, clazz);
+    } else if (args == null && "commit".equals(method.getName())) {
+      commit();
+      return Void.TYPE;
     }
     String methodName = method.getName();
     synchronized (this) {
@@ -132,12 +138,18 @@ class ProxyInvocationHandler implements InvocationHandler {
         }
         return options.get(propertyName);
       } else if (settersToPropertyNames.containsKey(methodName)) {
+        checkState(
+            !committed, "Cannot modify a completed %s", PipelineOptions.class.getSimpleName());
         options.put(settersToPropertyNames.get(methodName), args[0]);
         return Void.TYPE;
       }
     }
     throw new RuntimeException("Unknown method [" + method + "] invoked with args ["
         + Arrays.toString(args) + "].");
+  }
+
+  private void commit() {
+    committed = true;
   }
 
   /**
