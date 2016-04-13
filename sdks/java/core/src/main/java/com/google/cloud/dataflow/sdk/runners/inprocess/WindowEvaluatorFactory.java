@@ -17,6 +17,8 @@
  */
 package com.google.cloud.dataflow.sdk.runners.inprocess;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import com.google.cloud.dataflow.sdk.runners.inprocess.InProcessPipelineRunner.CommittedBundle;
 import com.google.cloud.dataflow.sdk.runners.inprocess.InProcessPipelineRunner.UncommittedBundle;
 import com.google.cloud.dataflow.sdk.transforms.AppliedPTransform;
@@ -84,6 +86,12 @@ class WindowEvaluatorFactory implements TransformEvaluatorFactory {
     @Override
     public void processElement(WindowedValue<InputT> element) throws Exception {
       Collection<? extends BoundedWindow> windows = assignWindows(windowFn, element);
+      checkState(
+          !windows.isEmpty(),
+          "WindowFn %s assigned an element with timestamp %s to no windows. "
+              + "A WindowFn must assign all elements to at least one window.",
+          windowFn,
+          element.getTimestamp());
       outputBundle.add(
           WindowedValue.<InputT>of(
               element.getValue(), element.getTimestamp(), windows, PaneInfo.NO_FIRING));
