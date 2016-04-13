@@ -17,10 +17,12 @@
  */
 package com.google.cloud.dataflow.sdk.transforms.windowing;
 
-import org.apache.beam.sdk.annotations.Experimental;
-import org.apache.beam.sdk.annotations.Experimental.Kind;
+import static com.google.common.base.Preconditions.checkArgument;
+
 import com.google.cloud.dataflow.sdk.coders.Coder;
 
+import org.apache.beam.sdk.annotations.Experimental;
+import org.apache.beam.sdk.annotations.Experimental.Kind;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 
@@ -91,12 +93,18 @@ public class SlidingWindows extends NonMergingWindowFn<Object, IntervalWindow> {
   }
 
   private SlidingWindows(Duration period, Duration size, Duration offset) {
-    if (offset.isShorterThan(Duration.ZERO)
-        || !offset.isShorterThan(period)
-        || !size.isLongerThan(Duration.ZERO)) {
-      throw new IllegalArgumentException(
-          "SlidingWindows WindowingStrategies must have 0 <= offset < period and 0 < size");
-    }
+    checkArgument(
+        !offset.isShorterThan(Duration.ZERO),
+        "SlidingWindows WindowingStrategies must have 0 <= offset < period, got offset %s",
+        offset);
+    checkArgument(
+        offset.isShorterThan(period),
+        "SlidingWindows WindowingStrategies must have 0 <= offset < period, get offset %s",
+        offset);
+    checkArgument(
+        size.isLongerThan(Duration.ZERO),
+        "SlidingWindows WindowingStrategies must have size > 0, got %s",
+        size);
     this.period = period;
     this.size = size;
     this.offset = offset;
