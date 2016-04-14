@@ -27,14 +27,6 @@ import org.apache.beam.sdk.options.DirectPipelineOptions;
  */
 public class DirectPipeline extends Pipeline {
 
-  /**
-   * Creates and returns a new DirectPipeline instance for tests.
-   */
-  public static DirectPipeline createForTest() {
-    DirectPipelineRunner runner = DirectPipelineRunner.createForTest();
-    return new DirectPipeline(runner, runner.getPipelineOptions());
-  }
-
   private DirectPipeline(DirectPipelineRunner runner, DirectPipelineOptions options) {
     super(runner, options);
   }
