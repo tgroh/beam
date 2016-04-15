@@ -37,9 +37,9 @@ class ParDoMultiEvaluatorFactory implements TransformEvaluatorFactory {
       AppliedPTransform<?, ?, ?> application,
       CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext) {
-    @SuppressWarnings({"cast", "unchecked", "rawtypes"})
-    TransformEvaluator<T> evaluator = createMultiEvaluator(
-            (AppliedPTransform) application, inputBundle, evaluationContext);
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    TransformEvaluator<T> evaluator =
+        createMultiEvaluator((AppliedPTransform) application, inputBundle, evaluationContext);
     return evaluator;
   }
 

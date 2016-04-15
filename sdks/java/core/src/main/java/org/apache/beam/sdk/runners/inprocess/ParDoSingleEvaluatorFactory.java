@@ -38,9 +38,9 @@ class ParDoSingleEvaluatorFactory implements TransformEvaluatorFactory {
       final AppliedPTransform<?, ?, ?> application,
       CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext) {
-    @SuppressWarnings({"cast", "unchecked", "rawtypes"})
-    TransformEvaluator<T> evaluator = createSingleEvaluator(
-            (AppliedPTransform) application, inputBundle, evaluationContext);
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    TransformEvaluator<T> evaluator =
+        createSingleEvaluator((AppliedPTransform) application, inputBundle, evaluationContext);
     return evaluator;
   }
 
