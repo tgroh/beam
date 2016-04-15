@@ -44,4 +44,20 @@ public @interface Validation {
      */
     String[] groups() default {};
   }
+
+  /**
+   * This criteria specifies that the value returned must be a {@link CharSequence} that matches the
+   * regular expression provided. Note that this annotation should only be applied to methods that
+   * return objects that are of type {@link CharSequence}.
+   */
+  @Target(value = ElementType.METHOD)
+  @Retention(RetentionPolicy.RUNTIME)
+  @Documented
+  public @interface Matches {
+    /**
+     * The pattern the returned {@link CharSequence} must match. The default is ".*", which matches
+     * all strings.
+     */
+    String pattern() default ".*";
+  }
 }
