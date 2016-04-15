@@ -34,6 +34,10 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TupleTag;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -41,6 +45,23 @@ import java.util.List;
 import java.util.Map;
 
 class ParDoInProcessEvaluator<T> implements TransformEvaluator<T> {
+  // A ThreadLocal cache of DoFns
+  private static final LoadingCache<DoFn<?, ?>, ThreadLocal<DoFn<?, ?>>> dofnCache =
+      CacheBuilder.newBuilder()
+          .softValues()
+          .build(
+              new CacheLoader<DoFn<?, ?>, ThreadLocal<DoFn<?, ?>>>() {
+                @Override
+                public ThreadLocal<DoFn<?, ?>> load(final DoFn<?, ?> key) {
+                  return new ThreadLocal<DoFn<?, ?>>() {
+                    @Override
+                    protected DoFn<?, ?> initialValue() {
+                      return SerializableUtils.clone(key);
+                    }
+                  };
+                }
+              });
+
   public static <InputT, OutputT> ParDoInProcessEvaluator<InputT> create(
       InProcessEvaluationContext evaluationContext,
       CommittedBundle<InputT> inputBundle,
@@ -65,10 +86,14 @@ class ParDoInProcessEvaluator<T> implements TransformEvaluator<T> {
           evaluationContext.createBundle(inputBundle, outputEntry.getValue()));
     }
 
+    ThreadLocal<DoFn<?, ?>> fnThreadLocal = dofnCache.getUnchecked(fn);
+    // Instances are put
+    @SuppressWarnings("unchecked")
+    DoFn<InputT, OutputT> threadFn = (DoFn<InputT, OutputT>) fnThreadLocal.get();
     DoFnRunner<InputT, OutputT> runner =
         DoFnRunners.createDefault(
             evaluationContext.getPipelineOptions(),
-            SerializableUtils.clone(fn),
+            threadFn,
             evaluationContext.createSideInputReader(sideInputs),
             BundleOutputManager.create(outputBundles),
             mainOutputTag,
@@ -80,16 +105,18 @@ class ParDoInProcessEvaluator<T> implements TransformEvaluator<T> {
     try {
       runner.startBundle();
     } catch (Exception e) {
+      fnThreadLocal.remove();
       throw UserCodeException.wrap(e);
     }
 
     return new ParDoInProcessEvaluator<>(
-        runner, application, counters, outputBundles.values(), stepContext);
+        runner, fnThreadLocal, application, counters, outputBundles.values(), stepContext);
   }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
   private final DoFnRunner<T, ?> fnRunner;
+  private final ThreadLocal<DoFn<?, ?>> fnThreadLocal;
   private final AppliedPTransform<PCollection<T>, ?, ?> transform;
   private final CounterSet counters;
   private final Collection<UncommittedBundle<?>> outputBundles;
@@ -97,11 +124,13 @@ class ParDoInProcessEvaluator<T> implements TransformEvaluator<T> {
 
   private ParDoInProcessEvaluator(
       DoFnRunner<T, ?> fnRunner,
+      ThreadLocal<DoFn<?, ?>> fnThreadLocal,
       AppliedPTransform<PCollection<T>, ?, ?> transform,
       CounterSet counters,
       Collection<UncommittedBundle<?>> outputBundles,
       InProcessStepContext stepContext) {
     this.fnRunner = fnRunner;
+    this.fnThreadLocal = fnThreadLocal;
     this.transform = transform;
     this.counters = counters;
     this.outputBundles = outputBundles;
@@ -113,6 +142,7 @@ class ParDoInProcessEvaluator<T> implements TransformEvaluator<T> {
     try {
       fnRunner.processElement(element);
     } catch (Exception e) {
+      fnThreadLocal.remove();
       throw UserCodeException.wrap(e);
     }
   }
@@ -122,6 +152,7 @@ class ParDoInProcessEvaluator<T> implements TransformEvaluator<T> {
     try {
       fnRunner.finishBundle();
     } catch (Exception e) {
+      fnThreadLocal.remove();
       throw UserCodeException.wrap(e);
     }
     StepTransformResult.Builder resultBuilder;
