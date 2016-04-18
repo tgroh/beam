@@ -97,7 +97,7 @@ public class InProcessPipelineRunner
    *
    * @param <T> the type of elements that can be added to this bundle
    */
-  public static interface UncommittedBundle<T> {
+  static interface UncommittedBundle<T> {
     /**
      * Returns the PCollection that the elements of this {@link UncommittedBundle} belong to.
      */
@@ -124,11 +124,11 @@ public class InProcessPipelineRunner
   /**
    * Part of a {@link PCollection}. Elements are output to an {@link UncommittedBundle}, which will
    * eventually committed. Committed elements are executed by the {@link PTransform PTransforms}
-   * that consume the {@link PCollection} this bundle is
-   * a part of at a later point.
+   * that consume the {@link PCollection} this bundle is a part of at a later point.
+   *
    * @param <T> the type of elements contained within this bundle
    */
-  public static interface CommittedBundle<T> {
+  static interface CommittedBundle<T> {
     /**
      * Returns the PCollection that the elements of this bundle belong to.
      */
@@ -168,10 +168,11 @@ public class InProcessPipelineRunner
   /**
    * A {@link PCollectionViewWriter} is responsible for writing contents of a {@link PCollection} to
    * a storage mechanism that can be read from while constructing a {@link PCollectionView}.
+   *
    * @param <ElemT> the type of elements the input {@link PCollection} contains.
    * @param <ViewT> the type of the PCollectionView this writer writes to.
    */
-  public static interface PCollectionViewWriter<ElemT, ViewT> {
+  static interface PCollectionViewWriter<ElemT, ViewT> {
     void add(Iterable<WindowedValue<ElemT>> values);
   }
 

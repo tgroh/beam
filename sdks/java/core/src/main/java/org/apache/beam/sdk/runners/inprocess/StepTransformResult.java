@@ -38,7 +38,7 @@ import javax.annotation.Nullable;
 /**
  * An immutable {@link InProcessTransformResult}.
  */
-public class StepTransformResult implements InProcessTransformResult {
+class StepTransformResult implements InProcessTransformResult {
   private final AppliedPTransform<?, ?, ?> transform;
   private final Iterable<? extends UncommittedBundle<?>> bundles;
   @Nullable private final CopyOnAccessInMemoryStateInternals<?> state;

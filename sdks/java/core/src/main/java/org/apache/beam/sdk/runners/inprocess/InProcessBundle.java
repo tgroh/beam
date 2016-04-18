@@ -34,7 +34,7 @@ import javax.annotation.Nullable;
 /**
  * A {@link UncommittedBundle} that buffers elements in memory.
  */
-public final class InProcessBundle<T> implements UncommittedBundle<T> {
+final class InProcessBundle<T> implements UncommittedBundle<T> {
   private final PCollection<T> pcollection;
   private final boolean keyed;
   private final Object key;
