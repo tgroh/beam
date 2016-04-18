@@ -26,7 +26,7 @@ import org.apache.beam.sdk.values.PCollection;
 /**
  * A factory that creates {@link UncommittedBundle UncommittedBundles}.
  */
-public interface BundleFactory {
+interface BundleFactory {
   /**
    * Create an {@link UncommittedBundle} from an empty input. Elements added to the bundle belong to
    * the {@code output} {@link PCollection}.

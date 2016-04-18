@@ -72,7 +72,7 @@ import java.util.Map;
  * Tests for {@link InMemoryWatermarkManager}.
  */
 @RunWith(JUnit4.class)
-public class InMemoryWatermarkManagerTest implements Serializable {
+class InMemoryWatermarkManagerTest implements Serializable {
   private transient MockClock clock;
 
   private transient PCollection<Integer> createdInts;
