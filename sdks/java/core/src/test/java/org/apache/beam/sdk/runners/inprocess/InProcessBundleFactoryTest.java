@@ -18,6 +18,7 @@
 package org.apache.beam.sdk.runners.inprocess;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -36,6 +37,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.joda.time.DateTimeUtils;
 import org.joda.time.Instant;
 import org.junit.Before;
 import org.junit.Rule;
@@ -194,5 +196,81 @@ public class InProcessBundleFactoryTest {
             .commit(Instant.now());
     assertThat(keyedBundle.isKeyed(), is(true));
     assertThat(keyedBundle.getKey(), Matchers.<Object>equalTo("foo"));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void withElementsEmptyElements() {
+    DateTimeUtils.setCurrentMillisFixed(0L);
+    CommittedBundle<Integer> original =
+        bundleFactory
+            .createKeyedBundle(null, "foobar", created)
+            .add(WindowedValue.valueInGlobalWindow(3))
+            .commit(Instant.now());
+
+    DateTimeUtils.setCurrentMillisFixed(10L);
+
+    CommittedBundle<Integer> withElements =
+        original.withElements(ImmutableList.<WindowedValue<Integer>>of());
+    assertThat(original.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(3)));
+    assertThat(withElements.getElements(), emptyIterable());
+    assertThat(original.getPCollection(), equalTo(withElements.getPCollection()));
+    assertThat(original.getKey(), equalTo(withElements.getKey()));
+    assertThat(
+        original.getSynchronizedProcessingOutputWatermark(),
+        equalTo(withElements.getSynchronizedProcessingOutputWatermark()));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void withElementsOriginalElements() {
+    DateTimeUtils.setCurrentMillisFixed(0L);
+    CommittedBundle<Integer> original =
+        bundleFactory
+            .createRootBundle(created)
+            .add(WindowedValue.valueInGlobalWindow(3))
+            .commit(Instant.now());
+
+    DateTimeUtils.setCurrentMillisFixed(10L);
+
+    CommittedBundle<Integer> withElements =
+        original.withElements(ImmutableList.of(WindowedValue.valueInGlobalWindow(3)));
+    assertThat(original.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(3)));
+    assertThat(withElements.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(3)));
+    assertThat(original.getPCollection(), equalTo(withElements.getPCollection()));
+    assertThat(original.getKey(), equalTo(withElements.getKey()));
+    assertThat(
+        original.getSynchronizedProcessingOutputWatermark(),
+        equalTo(withElements.getSynchronizedProcessingOutputWatermark()));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void withElementsOtherElements() {
+    DateTimeUtils.setCurrentMillisFixed(0L);
+    CommittedBundle<Integer> original =
+        bundleFactory
+            .createKeyedBundle(null, "foobar", created)
+            .add(WindowedValue.valueInGlobalWindow(3))
+            .commit(Instant.now());
+
+    DateTimeUtils.setCurrentMillisFixed(10L);
+
+    CommittedBundle<Integer> withElements =
+        original.withElements(
+            ImmutableList.<WindowedValue<Integer>>of(
+                WindowedValue.valueInGlobalWindow(Integer.MIN_VALUE),
+                WindowedValue.valueInGlobalWindow(0)));
+    assertThat(original.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(3)));
+    assertThat(
+        withElements.getElements(),
+        containsInAnyOrder(
+            WindowedValue.valueInGlobalWindow(Integer.MIN_VALUE),
+            WindowedValue.valueInGlobalWindow(0)));
+    assertThat(original.getPCollection(), equalTo(withElements.getPCollection()));
+    assertThat(original.getKey(), equalTo(withElements.getKey()));
+    assertThat(
+        original.getSynchronizedProcessingOutputWatermark(),
+        equalTo(withElements.getSynchronizedProcessingOutputWatermark()));
   }
 }

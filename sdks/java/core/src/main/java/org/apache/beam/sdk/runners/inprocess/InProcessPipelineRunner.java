@@ -163,11 +163,18 @@ public class InProcessPipelineRunner
      * timers that fired to produce this bundle.
      */
     Instant getSynchronizedProcessingOutputWatermark();
+
+    /**
+     * Returns a bundle identical to this one, but with the provided elements. This bundle is
+     * unchanged.
+     */
+    CommittedBundle<T> withElements(Iterable<WindowedValue<T>> elements);
   }
 
   /**
    * A {@link PCollectionViewWriter} is responsible for writing contents of a {@link PCollection} to
    * a storage mechanism that can be read from while constructing a {@link PCollectionView}.
+   *
    * @param <ElemT> the type of elements the input {@link PCollection} contains.
    * @param <ViewT> the type of the PCollectionView this writer writes to.
    */

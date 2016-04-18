@@ -29,6 +29,8 @@ import com.google.common.collect.ImmutableList;
 
 import org.joda.time.Instant;
 
+import java.util.List;
+
 import javax.annotation.Nullable;
 
 /**
@@ -114,7 +116,13 @@ class InProcessBundleFactory implements BundleFactory {
     public CommittedBundle<T> commit(final Instant synchronizedCompletionTime) {
       checkState(!committed, "Can't commit already committed bundle %s", this);
       committed = true;
-      final Iterable<WindowedValue<T>> committedElements = elements.build();
+      final ImmutableList<WindowedValue<T>> committedElements = elements.build();
+      return createCommittedBundle(committedElements, synchronizedCompletionTime);
+    }
+
+    private CommittedBundle<T> createCommittedBundle(
+        List<WindowedValue<T>> elements, final Instant synchronizedCompletionTime) {
+      final List<WindowedValue<T>> committedElements = ImmutableList.copyOf(elements);
       return new CommittedBundle<T>() {
         @Override
         @Nullable
@@ -130,6 +138,11 @@ class InProcessBundleFactory implements BundleFactory {
         @Override
         public Iterable<WindowedValue<T>> getElements() {
           return committedElements;
+        }
+
+        @Override
+        public CommittedBundle<T> withElements(Iterable<WindowedValue<T>> elements) {
+          return createCommittedBundle(ImmutableList.copyOf(elements), synchronizedCompletionTime);
         }
 
         @Override
