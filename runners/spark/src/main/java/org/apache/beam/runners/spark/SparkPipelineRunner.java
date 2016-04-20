@@ -27,7 +27,7 @@ import org.apache.beam.runners.spark.translation.TransformTranslator;
 import org.apache.beam.runners.spark.translation.streaming.StreamingEvaluationContext;
 import org.apache.beam.runners.spark.translation.streaming.StreamingTransformTranslator;
 import org.apache.beam.runners.spark.translation.streaming.StreamingWindowPipelineDetector;
-import org.apache.beam.runners.spark.util.SinglePrimitiveOutputPTransform;
+import org.apache.beam.runners.spark.util.SparkCreate;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -128,7 +128,7 @@ public final class SparkPipelineRunner extends PipelineRunner<EvaluationResult> 
           new GroupByKeyViaGroupByKeyOnly((GroupByKey) transform));
     } else if (transform instanceof Create.Values) {
       return (OT) super.apply(
-        new SinglePrimitiveOutputPTransform((Create.Values) transform), input);
+        new SparkCreate((Create.Values) transform), input);
     } else {
       return super.apply(transform, input);
     }

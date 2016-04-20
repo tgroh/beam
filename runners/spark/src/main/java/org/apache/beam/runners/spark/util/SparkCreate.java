@@ -17,24 +17,34 @@
  */
 package org.apache.beam.runners.spark.util;
 
+import org.apache.beam.runners.spark.SparkPipelineRunner;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
+import org.apache.beam.sdk.io.Read.Bounded;
+import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollection.IsBounded;
 import org.apache.beam.sdk.values.PInput;
 
-public class SinglePrimitiveOutputPTransform<T> extends PTransform<PInput, PCollection<T>> {
+/**
+ * A Spark-specific override of the {@link Create} {@link PTransform}.
+ *
+ * <p>
+ * A stopgap until {@link Bounded} is supported by the {@link SparkPipelineRunner}.
+ */
+public class SparkCreate<T> extends PTransform<PInput, PCollection<T>> {
   private PTransform<PInput, PCollection<T>> transform;
 
-  public SinglePrimitiveOutputPTransform(PTransform<PInput, PCollection<T>> transform) {
+  public SparkCreate(Create.Values<T> transform) {
     this.transform = transform;
   }
 
   @Override
   public PCollection<T> apply(PInput input) {
     try {
-      PCollection<T> collection = PCollection.<T>createPrimitiveOutputInternal(
+      PCollection<T> collection =
+          PCollection.<T>createPrimitiveOutputInternal(
               input.getPipeline(), WindowingStrategy.globalDefault(), IsBounded.BOUNDED);
       collection.setCoder(transform.getDefaultOutputCoder(input, collection));
       return collection;
