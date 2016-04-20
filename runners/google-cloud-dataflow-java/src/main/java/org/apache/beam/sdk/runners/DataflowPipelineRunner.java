@@ -287,7 +287,7 @@ public class DataflowPipelineRunner extends PipelineRunner<DataflowPipelineJob> 
     }
 
     // Verify jobName according to service requirements, truncating converting to lowercase if
-    // necessary
+    // necessary.
     String jobName =
         dataflowOptions
             .getJobName()
@@ -300,10 +300,10 @@ public class DataflowPipelineRunner extends PipelineRunner<DataflowPipelineJob> 
             + "or number");
     if (!jobName.equals(dataflowOptions.getJobName())) {
       LOG.info(
-          "PipelineOptions.jobName did not match service requirements. "
-              + "Replacing original {} with {}.",
-          dataflowOptions.getJobName(),
-          jobName);
+          "PipelineOptions.jobName did not match the service requirements. "
+              + "Using {} instead of {}.",
+          jobName,
+          dataflowOptions.getJobName());
     }
     dataflowOptions.setJobName(jobName);
 
