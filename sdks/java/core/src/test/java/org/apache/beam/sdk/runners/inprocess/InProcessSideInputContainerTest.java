@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.KvCoder;
@@ -58,6 +59,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -140,6 +142,26 @@ public class InProcessSideInputContainerTest {
 
   @Test
   public void getAfterWriteReturnsPaneInWindow() throws Exception {
+    WindowedValue<KV<String, Integer>> one =
+        WindowedValue.of(
+            KV.of("one", 1), new Instant(1L), FIRST_WINDOW, PaneInfo.ON_TIME_AND_ONLY_FIRING);
+    WindowedValue<KV<String, Integer>> two =
+        WindowedValue.of(
+            KV.of("two", 2), new Instant(20L), FIRST_WINDOW, PaneInfo.ON_TIME_AND_ONLY_FIRING);
+    container.write(mapView, ImmutableList.<WindowedValue<?>>of(one, two));
+
+    Map<String, Integer> viewContents =
+        container
+            .createReaderForViews(ImmutableList.<PCollectionView<?>>of(mapView))
+            .get(mapView, FIRST_WINDOW);
+    assertThat(viewContents, hasEntry("one", 1));
+    assertThat(viewContents, hasEntry("two", 2));
+    assertThat(viewContents.size(), is(2));
+  }
+
+  @Test
+  public void getAfterWriteWithEmptyWritten() throws Exception {
+    immediatelyInvokeCallback(mapView, FIRST_WINDOW);
     WindowedValue<KV<String, Integer>> one =
         WindowedValue.of(
             KV.of("one", 1), new Instant(1L), FIRST_WINDOW, PaneInfo.ON_TIME_AND_ONLY_FIRING);
@@ -428,12 +450,14 @@ public class InProcessSideInputContainerTest {
   @Test
   public void allViewsReadyInWindowForEmptyWindowTrue() {
     immediatelyInvokeCallback(mapView, GlobalWindow.INSTANCE);
+    ArgumentCaptor<Runnable> singletonCallback =
+        captureCallback(singletonView, GlobalWindow.INSTANCE);
 
     ReadyCheckingSideInputReader reader =
         container.createReaderForViews(ImmutableList.of(mapView, singletonView));
     assertThat(reader.allViewsReadyInWindow(SECOND_WINDOW), is(false));
 
-    immediatelyInvokeCallback(singletonView, GlobalWindow.INSTANCE);
+    singletonCallback.getValue().run();
     assertThat(reader.allViewsReadyInWindow(SECOND_WINDOW), is(true));
   }
 
@@ -460,8 +484,22 @@ public class InProcessSideInputContainerTest {
             Mockito.any(Runnable.class));
   }
 
-  private <ValueT> Future<ValueT> getFutureOfView(final SideInputReader myReader,
-      final PCollectionView<ValueT> view, final BoundedWindow window) {
+  private ArgumentCaptor<Runnable> captureCallback(PCollectionView<?> view, BoundedWindow window) {
+    ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+    doNothing()
+        .when(context)
+        .scheduleAfterOutputWouldBeProduced(
+            Mockito.eq(view),
+            Mockito.eq(window),
+            Mockito.eq(view.getWindowingStrategyInternal()),
+            captor.capture());
+    return captor;
+  }
+
+  private <ValueT> Future<ValueT> getFutureOfView(
+      final SideInputReader myReader,
+      final PCollectionView<ValueT> view,
+      final BoundedWindow window) {
     Callable<ValueT> callable = new Callable<ValueT>() {
       @Override
       public ValueT call() throws Exception {

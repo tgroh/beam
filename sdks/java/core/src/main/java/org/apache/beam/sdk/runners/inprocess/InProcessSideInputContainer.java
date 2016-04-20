@@ -29,7 +29,6 @@ import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.PCollectionView;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Throwables;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -44,6 +43,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -55,7 +55,6 @@ import javax.annotation.Nullable;
  * available and writing to a {@link PCollectionView}.
  */
 class InProcessSideInputContainer {
-  private final InProcessEvaluationContext evaluationContext;
   private final Collection<PCollectionView<?>> containedViews;
   private final LoadingCache<PCollectionViewWindow<?>,
       SettableFuture<Iterable<? extends WindowedValue<?>>>> viewByWindows;
@@ -65,26 +64,37 @@ class InProcessSideInputContainer {
    * context.
    */
   public static InProcessSideInputContainer create(
-      InProcessEvaluationContext context, Collection<PCollectionView<?>> containedViews) {
-    CacheLoader<PCollectionViewWindow<?>, SettableFuture<Iterable<? extends WindowedValue<?>>>>
-        loader = new CacheLoader<PCollectionViewWindow<?>,
-            SettableFuture<Iterable<? extends WindowedValue<?>>>>() {
-          @Override
-          public SettableFuture<Iterable<? extends WindowedValue<?>>> load(
-              PCollectionViewWindow<?> view) {
-            return SettableFuture.create();
-          }
-        };
+      final InProcessEvaluationContext context, Collection<PCollectionView<?>> containedViews) {
     LoadingCache<PCollectionViewWindow<?>, SettableFuture<Iterable<? extends WindowedValue<?>>>>
-        viewByWindows = CacheBuilder.newBuilder().build(loader);
-    return new InProcessSideInputContainer(context, containedViews, viewByWindows);
+        viewByWindows = CacheBuilder.newBuilder().build(cacheLoader(context));
+    return new InProcessSideInputContainer(containedViews, viewByWindows);
   }
 
-  private InProcessSideInputContainer(InProcessEvaluationContext context,
+  private static CacheLoader<
+          PCollectionViewWindow<?>, SettableFuture<Iterable<? extends WindowedValue<?>>>>
+      cacheLoader(final InProcessEvaluationContext context) {
+    return new CacheLoader<
+        PCollectionViewWindow<?>, SettableFuture<Iterable<? extends WindowedValue<?>>>>() {
+      @Override
+      public SettableFuture<Iterable<? extends WindowedValue<?>>> load(
+          final PCollectionViewWindow<?> view) {
+        SettableFuture<Iterable<? extends WindowedValue<?>>> contentsFuture =
+            SettableFuture.create();
+        WindowingStrategy<?, ?> windowingStrategy = view.getView().getWindowingStrategyInternal();
+        context.scheduleAfterOutputWouldBeProduced(
+            view.getView(),
+            view.getWindow(),
+            windowingStrategy,
+            new WriteEmptyValues(contentsFuture, view));
+        return contentsFuture;
+      }
+    };
+  }
+
+  private InProcessSideInputContainer(
       Collection<PCollectionView<?>> containedViews,
       LoadingCache<PCollectionViewWindow<?>, SettableFuture<Iterable<? extends WindowedValue<?>>>>
-      viewByWindows) {
-    this.evaluationContext = context;
+          viewByWindows) {
     this.containedViews = ImmutableSet.copyOf(containedViews);
     this.viewByWindows = viewByWindows;
   }
@@ -150,30 +160,54 @@ class InProcessSideInputContainer {
   private void updatePCollectionViewWindowValues(
       PCollectionView<?> view, BoundedWindow window, Collection<WindowedValue<?>> windowValues) {
     PCollectionViewWindow<?> windowedView = PCollectionViewWindow.of(view, window);
-    SettableFuture<Iterable<? extends WindowedValue<?>>> future = null;
+    PaneInfo newPane = windowValues.iterator().next().getPane();
     try {
-      future = viewByWindows.get(windowedView);
-      if (future.isDone()) {
-        Iterator<? extends WindowedValue<?>> existingValues = future.get().iterator();
-        PaneInfo newPane = windowValues.iterator().next().getPane();
-        // The current value may have no elements, if no elements were produced for the window,
-        // but we are recieving late data.
-        if (!existingValues.hasNext()
-            || newPane.getIndex() > existingValues.next().getPane().getIndex()) {
-          viewByWindows.invalidate(windowedView);
-          viewByWindows.get(windowedView).set(windowValues);
-        }
-      } else {
-        future.set(windowValues);
+      // Set the existing future, if it is not done, to finish
+      viewByWindows.get(windowedView).set(windowValues);
+      // otherwise, while we're later than the existing value, invalidate that value and load our
+      // value (in a loop in case an earlier value is set between invalidating the existing pane
+      // and loading ours).
+      while (invalidate(windowedView, newPane)) {
+        viewByWindows.get(windowedView, new WriteKnownValues(windowValues));
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      if (future != null && !future.isDone()) {
-        future.set(Collections.<WindowedValue<?>>emptyList());
-      }
+      throw new RuntimeException(
+          String.format(
+              "Interrupted while writing PCollectionView Values for view %s in window %s",
+              view,
+              window),
+          e);
     } catch (ExecutionException e) {
-      Throwables.propagate(e.getCause());
+      throw new RuntimeException(
+          String.format(
+              "Interrupted while writing PCollectionView Values for view %s in window %s. "
+                  + "This should never happen.",
+              view,
+              window),
+          e.getCause());
     }
+  }
+
+  /**
+   * Invalidates the contents of the current value of the {@link PCollectionViewWindow}, if the
+   * provided pane is newer.
+   */
+  private boolean invalidate(PCollectionViewWindow<?> windowedView, PaneInfo pane)
+      throws ExecutionException, InterruptedException {
+    SettableFuture<Iterable<? extends WindowedValue<?>>> existing = viewByWindows.get(windowedView);
+    if (!existing.isDone()) {
+      viewByWindows.invalidate(windowedView);
+      return true;
+    }
+    Iterator<? extends WindowedValue<?>> existingValues = existing.get().iterator();
+    // The current value may have no elements, if no elements were produced for the window,
+    // but we are recieving late data.
+    if (!existingValues.hasNext() || pane.getIndex() > existingValues.next().getPane().getIndex()) {
+      viewByWindows.invalidate(windowedView);
+      return true;
+    }
+    return false;
   }
 
   private final class SideInputContainerSideInputReader implements ReadyCheckingSideInputReader {
@@ -225,35 +259,12 @@ class InProcessSideInputContainer {
       }
     }
 
-    /**
-     * Gets the future containing the contents of the provided {@link PCollectionView} in the
-     * provided {@link BoundedWindow}, setting up a callback to populate the future with empty
-     * contents if necessary.
-     */
     private <T> Future<Iterable<? extends WindowedValue<?>>> getViewFuture(
         final PCollectionView<T> view, final BoundedWindow window) throws ExecutionException {
       PCollectionViewWindow<T> windowedView = PCollectionViewWindow.of(view, window);
       final SettableFuture<Iterable<? extends WindowedValue<?>>> future =
           viewByWindows.get(windowedView);
 
-      WindowingStrategy<?, ?> windowingStrategy = view.getWindowingStrategyInternal();
-      evaluationContext.scheduleAfterOutputWouldBeProduced(
-          view, window, windowingStrategy, new Runnable() {
-            @Override
-            public void run() {
-              // The requested window has closed without producing elements, so reflect that in
-              // the PCollectionView. If set has already been called, will do nothing.
-              future.set(Collections.<WindowedValue<?>>emptyList());
-        }
-
-        @Override
-        public String toString() {
-          return MoreObjects.toStringHelper("InProcessSideInputContainerEmptyCallback")
-              .add("view", view)
-              .add("window", window)
-              .toString();
-        }
-      });
       return future;
     }
 
@@ -265,6 +276,54 @@ class InProcessSideInputContainer {
     @Override
     public boolean isEmpty() {
       return readerViews.isEmpty();
+    }
+  }
+
+  /**
+   * A callable that returns a {@link SettableFuture} with the contents of a
+   * {@link PCollectionViewWindow} written to it.
+   */
+  private static class WriteKnownValues
+      implements Callable<SettableFuture<Iterable<? extends WindowedValue<?>>>> {
+    private final Iterable<? extends WindowedValue<?>> windowValues;
+
+    public WriteKnownValues(Iterable<? extends WindowedValue<?>> windowValues) {
+      this.windowValues = windowValues;
+    }
+
+    @Override
+    public SettableFuture<Iterable<? extends WindowedValue<?>>> call() throws Exception {
+      SettableFuture<Iterable<? extends WindowedValue<?>>> pane = SettableFuture.create();
+      pane.set(windowValues);
+      return pane;
+    }
+  }
+
+  private static class WriteEmptyValues implements Runnable {
+    private final SettableFuture<Iterable<? extends WindowedValue<?>>> contentsFuture;
+    private final PCollectionViewWindow<?> view;
+
+    public WriteEmptyValues(
+        SettableFuture<Iterable<? extends WindowedValue<?>>> contentsFuture,
+        PCollectionViewWindow<?> view) {
+      this.contentsFuture = contentsFuture;
+      this.view = view;
+    }
+
+    @Override
+    public void run() {
+      // The requested window has closed without producing elements, so reflect
+      // that in the PCollectionView. If set has already been called, will do
+      // nothing.
+      contentsFuture.set(Collections.<WindowedValue<?>>emptyList());
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper("InProcessSideInputContainerEmptyCallback")
+          .add("view", view.getView())
+          .add("window", view.getWindow())
+          .toString();
     }
   }
 }
