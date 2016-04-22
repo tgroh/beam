@@ -17,6 +17,8 @@
  */
 package org.apache.beam.sdk.runners.inprocess;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasValue;
@@ -49,6 +51,10 @@ import org.mockito.MockitoAnnotations;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tests for {@link ParDoInProcessEvaluator}.
@@ -90,16 +96,7 @@ public class ParDoInProcessEvaluatorTest {
 
   @Test
   public void shouldExecuteCopyOfFn() {
-    DoFn<Integer, Void> original =
-        new DoFn<Integer, Void>() {
-          @Override
-          public void processElement(DoFn<Integer, Void>.ProcessContext c) throws Exception {
-            Integer previousValue = timesExecuted.putIfAbsent(this, 0);
-            if (previousValue != null) {
-              fail("Only expecting to process a single element in this instance.");
-            }
-          }
-        };
+    DoFn<Integer, Void> original = new CountNumInstanceExecutionsDoFn();
     ParDoInProcessEvaluator<Integer> evaluator = createEvaluator(original);
     evaluator.processElement(WindowedValue.valueInGlobalWindow(1));
     evaluator.finishBundle();
@@ -109,23 +106,92 @@ public class ParDoInProcessEvaluatorTest {
   }
 
   @Test
-  public void shouldExecuteSameFnInSameThreadWithSameInstance() {
-    DoFn<Integer, Void> original =
-        new DoFn<Integer, Void>() {
-          @Override
-          public void processElement(DoFn<Integer, Void>.ProcessContext c) throws Exception {
-            timesExecuted.putIfAbsent(this, 0);
-            timesExecuted.put(this, timesExecuted.get(this) + 1);
-          }
-        };
-    ParDoInProcessEvaluator<Integer> evaluator = createEvaluator(original);
-    evaluator.processElement(WindowedValue.valueInGlobalWindow(1));
-    evaluator.finishBundle();
-    assertThat(timesExecuted, hasValue(0));
+  public void shouldExecuteSameFnInSameThreadWithSameInstance() throws Exception {
+    DoFn<Integer, Void> original = new CountNumInstanceExecutionsDoFn();
+    final ParDoInProcessEvaluator<Integer> evaluator = createEvaluator(original);
+
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    executor.execute(getRunnable(evaluator, new CountDownLatch(0)));
+    executor.execute(getRunnable(evaluator, new CountDownLatch(0)));
+    executor.awaitTermination(500L, TimeUnit.MILLISECONDS);
+
+    assertThat(timesExecuted, hasValue(2));
     assertThat(timesExecuted.keySet(), hasSize(1));
     assertThat(timesExecuted, not(hasKey(original)));
   }
 
   @Test
-  public void shouldExecuteDifferentFnsInDifferentThreads() {}
+  public void shouldExecuteDifferentFnsInDifferentThreads() {
+    DoFn<Integer, Void> original = new CountNumInstanceExecutionsDoFn();
+    int numInstances = 5;
+    ExecutorService executor = Executors.newFixedThreadPool(numInstances);
+
+    runInstances(original, numInstances, executor);
+
+    // ran copies of the fn 5 times
+    assertThat(timesExecuted.values(), contains(1, 1, 1, 1, 1));
+    assertThat(timesExecuted, not(hasKey(original)));
+  }
+
+  @Test
+  public void shouldReuseFnCopies() {
+    DoFn<Integer, Void> original = new CountNumInstanceExecutionsDoFn();
+    int numInstances = 5;
+    ExecutorService executor = Executors.newFixedThreadPool(numInstances);
+
+    runInstances(original, numInstances, executor);
+
+    // ran the same fn 5 times
+    assertThat(timesExecuted.values(), contains(1, 1, 1, 1, 1));
+    assertThat(timesExecuted, not(hasKey(original)));
+
+    // 3 of the instances were reused, 2 were not, because they're using the same threads.
+    runInstances(original, 3, executor);
+    assertThat(timesExecuted.values(), containsInAnyOrder(2, 2, 2, 1, 1));
+  }
+
+  @Test
+  public void shouldDiscardAfterExceptionInStartBundle() {}
+
+  @Test
+  public void shouldDiscardAfterExceptionInProcessElement() {}
+
+  @Test
+  public void shouldDiscardAfterExceptionInFinishBundle() {}
+
+  private void runInstances(
+      DoFn<Integer, Void> original, int numInstances, ExecutorService executor) {
+    CountDownLatch startSignal = new CountDownLatch(1);
+    for (int i = 0; i < numInstances; i++) {
+      executor.submit(getRunnable(createEvaluator(original), startSignal));
+    }
+    startSignal.countDown();
+  }
+
+  private Runnable getRunnable(
+      final ParDoInProcessEvaluator<Integer> evaluator, final CountDownLatch startSignal) {
+    return new Runnable() {
+      @Override
+      public void run() {
+        try {
+          boolean ran = startSignal.await(1L, TimeUnit.SECONDS);
+          if (!ran) {
+            fail("Timed out waiting for start signal to run");
+          }
+        } catch (InterruptedException e) {
+          fail("Should not be interrupted");
+        }
+        evaluator.processElement(WindowedValue.valueInGlobalWindow(1));
+        evaluator.finishBundle();
+      }
+    };
+  }
+
+  private static class CountNumInstanceExecutionsDoFn extends          DoFn<Integer, Void> {
+    @Override
+    public void processElement(DoFn<Integer, Void>.ProcessContext c) throws Exception {
+      timesExecuted.putIfAbsent(this, 0);
+      timesExecuted.put(this, timesExecuted.get(this) + 1);
+    }
+  }
 }
