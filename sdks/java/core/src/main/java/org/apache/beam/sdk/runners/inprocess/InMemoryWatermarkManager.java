@@ -842,17 +842,18 @@ public class InMemoryWatermarkManager {
       AppliedPTransform<?, ?, ?> transform,
       TimerUpdate timerUpdate,
       Iterable<? extends CommittedBundle<?>> outputs) {
-    TransformWatermarks completedTransform = transformToWatermarks.get(transform);
-    completedTransform.updateTimers(timerUpdate);
-    if (input != null) {
-      completedTransform.removePending(input);
-    }
-
     for (CommittedBundle<?> bundle : outputs) {
       for (AppliedPTransform<?, ?, ?> consumer : consumers.get(bundle.getPCollection())) {
         TransformWatermarks watermarks = transformToWatermarks.get(consumer);
         watermarks.addPending(bundle);
       }
+    }
+
+    TransformWatermarks completedTransform = transformToWatermarks.get(transform);
+    completedTransform.updateTimers(timerUpdate);
+
+    if (input != null) {
+      completedTransform.removePending(input);
     }
   }
 
