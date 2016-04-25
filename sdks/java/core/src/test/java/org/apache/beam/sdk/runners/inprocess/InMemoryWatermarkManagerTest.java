@@ -500,6 +500,50 @@ public class InMemoryWatermarkManagerTest implements Serializable {
         TimerUpdate.empty(), Collections.<CommittedBundle<?>>singleton(lateKeyedBundle), null);
   }
 
+  /**
+   * Demonstrates that updateWatermarks in the presence of late data is monotonic.
+   */
+  @Test
+  public void updateWatermarkWithInputElementsInOutput() {
+    Instant sourceWatermark = new Instant(1_000_000L);
+    CommittedBundle<Integer> createdBundle =
+        timestampedBundle(
+            createdInts,
+            TimestampedValue.of(1, sourceWatermark),
+            TimestampedValue.of(2, new Instant(1234L)));
+
+    manager.updateWatermarks(
+        null,
+        createdInts.getProducingTransformInternal(),
+        TimerUpdate.empty(),
+        Collections.<CommittedBundle<?>>singleton(createdBundle),
+        sourceWatermark);
+
+    CommittedBundle<Integer> unprocessedBundle =
+        createdBundle.withElements(
+            Collections.singleton(
+                WindowedValue.timestampedValueInGlobalWindow(1, sourceWatermark)));
+
+    // complete the input, but with some elements unprocessed
+    manager.updateWatermarks(
+        createdBundle,
+        keyed.getProducingTransformInternal(),
+        TimerUpdate.empty(),
+        Collections.<CommittedBundle<?>>singleton(unprocessedBundle),
+        BoundedWindow.TIMESTAMP_MAX_VALUE);
+
+    manager.updateWatermarks(
+        null,
+        createdInts.getProducingTransformInternal(),
+        TimerUpdate.empty(),
+        Collections.<CommittedBundle<?>>emptyList(),
+        BoundedWindow.TIMESTAMP_MAX_VALUE);
+
+    TransformWatermarks keyedWms = manager.getWatermarks(keyed.getProducingTransformInternal());
+    // the input should be held to the still-pending value 1 at the initial WM
+    assertThat(keyedWms.getInputWatermark(), not(laterThan(sourceWatermark)));
+  }
+
   public void updateWatermarkWithDifferentWindowedValueInstances() {
     manager.updateWatermarks(
         null,
