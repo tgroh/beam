@@ -150,7 +150,7 @@ class InProcessEvaluationContext {
       Iterable<TimerData> completedTimers,
       InProcessTransformResult result) {
     Iterable<? extends CommittedBundle<?>> committedBundles =
-        commitBundles(result.getOutputBundles());
+        commitBundles(completedBundle, result);
     // Update watermarks and timers
     watermarkManager.updateWatermarks(
         completedBundle,
@@ -180,9 +180,15 @@ class InProcessEvaluationContext {
   }
 
   private Iterable<? extends CommittedBundle<?>> commitBundles(
-      Iterable<? extends UncommittedBundle<?>> bundles) {
-    ImmutableList.Builder<CommittedBundle<?>> completed = ImmutableList.builder();
-    for (UncommittedBundle<?> inProgress : bundles) {
+      @Nullable CommittedBundle<?> input, InProcessTransformResult result) {
+    ImmutableList.Builder<CommittedBundle<?>> outputs = ImmutableList.builder();
+    if (!Iterables.isEmpty(result.getUnprocessedElements())) {
+      // All of the unprocessed elements were initially part of the input bundle
+      CommittedBundle<?> unprocessed =
+          ((CommittedBundle) input).withElements(result.getUnprocessedElements());
+      outputs.add(unprocessed);
+    }
+    for (UncommittedBundle<?> inProgress : result.getOutputBundles()) {
       AppliedPTransform<?, ?, ?> producing =
           inProgress.getPCollection().getProducingTransformInternal();
       TransformWatermarks watermarks = watermarkManager.getWatermarks(producing);
@@ -191,10 +197,10 @@ class InProcessEvaluationContext {
       // Empty bundles don't impact watermarks and shouldn't trigger downstream execution, so
       // filter them out
       if (!Iterables.isEmpty(committed.getElements())) {
-        completed.add(committed);
+        outputs.add(committed);
       }
     }
-    return completed.build();
+    return outputs.build();
   }
 
   private void fireAllAvailableCallbacks() {
