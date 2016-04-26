@@ -29,23 +29,20 @@ import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.PCollectionView;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Throwables;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.SettableFuture;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nullable;
 
@@ -57,8 +54,9 @@ import javax.annotation.Nullable;
 class InProcessSideInputContainer {
   private final InProcessEvaluationContext evaluationContext;
   private final Collection<PCollectionView<?>> containedViews;
-  private final LoadingCache<PCollectionViewWindow<?>,
-      SettableFuture<Iterable<? extends WindowedValue<?>>>> viewByWindows;
+  private final LoadingCache<
+          PCollectionViewWindow<?>, AtomicReference<Iterable<? extends WindowedValue<?>>>>
+      viewByWindows;
 
   /**
    * Create a new {@link InProcessSideInputContainer} with the provided views and the provided
@@ -66,24 +64,26 @@ class InProcessSideInputContainer {
    */
   public static InProcessSideInputContainer create(
       InProcessEvaluationContext context, Collection<PCollectionView<?>> containedViews) {
-    CacheLoader<PCollectionViewWindow<?>, SettableFuture<Iterable<? extends WindowedValue<?>>>>
-        loader = new CacheLoader<PCollectionViewWindow<?>,
-            SettableFuture<Iterable<? extends WindowedValue<?>>>>() {
-          @Override
-          public SettableFuture<Iterable<? extends WindowedValue<?>>> load(
-              PCollectionViewWindow<?> view) {
-            return SettableFuture.create();
-          }
-        };
-    LoadingCache<PCollectionViewWindow<?>, SettableFuture<Iterable<? extends WindowedValue<?>>>>
+    CacheLoader<PCollectionViewWindow<?>, AtomicReference<Iterable<? extends WindowedValue<?>>>>
+        loader =
+            new CacheLoader<
+                PCollectionViewWindow<?>, AtomicReference<Iterable<? extends WindowedValue<?>>>>() {
+              @Override
+              public AtomicReference<Iterable<? extends WindowedValue<?>>> load(
+                  PCollectionViewWindow<?> view) {
+                return new AtomicReference<>(null);
+              }
+            };
+    LoadingCache<PCollectionViewWindow<?>, AtomicReference<Iterable<? extends WindowedValue<?>>>>
         viewByWindows = CacheBuilder.newBuilder().build(loader);
     return new InProcessSideInputContainer(context, containedViews, viewByWindows);
   }
 
-  private InProcessSideInputContainer(InProcessEvaluationContext context,
+  private InProcessSideInputContainer(
+      InProcessEvaluationContext context,
       Collection<PCollectionView<?>> containedViews,
-      LoadingCache<PCollectionViewWindow<?>, SettableFuture<Iterable<? extends WindowedValue<?>>>>
-      viewByWindows) {
+      LoadingCache<PCollectionViewWindow<?>, AtomicReference<Iterable<? extends WindowedValue<?>>>>
+          viewByWindows) {
     this.evaluationContext = context;
     this.containedViews = ImmutableSet.copyOf(containedViews);
     this.viewByWindows = viewByWindows;
@@ -150,30 +150,26 @@ class InProcessSideInputContainer {
   private void updatePCollectionViewWindowValues(
       PCollectionView<?> view, BoundedWindow window, Collection<WindowedValue<?>> windowValues) {
     PCollectionViewWindow<?> windowedView = PCollectionViewWindow.of(view, window);
-    SettableFuture<Iterable<? extends WindowedValue<?>>> future = null;
-    try {
-      future = viewByWindows.get(windowedView);
-      if (future.isDone()) {
-        Iterator<? extends WindowedValue<?>> existingValues = future.get().iterator();
-        PaneInfo newPane = windowValues.iterator().next().getPane();
-        // The current value may have no elements, if no elements were produced for the window,
-        // but we are recieving late data.
-        if (!existingValues.hasNext()
-            || newPane.getIndex() > existingValues.next().getPane().getIndex()) {
-          viewByWindows.invalidate(windowedView);
-          viewByWindows.get(windowedView).set(windowValues);
-        }
-      } else {
-        future.set(windowValues);
-      }
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      if (future != null && !future.isDone()) {
-        future.set(Collections.<WindowedValue<?>>emptyList());
-      }
-    } catch (ExecutionException e) {
-      Throwables.propagate(e.getCause());
+    AtomicReference<Iterable<? extends WindowedValue<?>>> future =
+        viewByWindows.getUnchecked(windowedView);
+    if (future.compareAndSet(null, windowValues)) {
+      // the value had never been set, so we set it and are done.
+      return;
     }
+    PaneInfo newPane = windowValues.iterator().next().getPane();
+
+    Iterable<? extends WindowedValue<?>> existingValues;
+    long existingPane;
+    do {
+      existingValues = future.get();
+      existingPane =
+          Iterables.isEmpty(existingValues)
+              ? -1L
+              : existingValues.iterator().next().getPane().getIndex();
+      // As long as the new value should be set, attempt to set it. This ensures that if this call
+      // is 'beaten' by an earlier pane, the latest pane is still eventually written.
+    } while (newPane.getIndex() > existingPane
+        && !future.compareAndSet(existingValues, windowValues));
   }
 
   private final class SideInputContainerSideInputReader implements ReadyCheckingSideInputReader {
@@ -191,7 +187,7 @@ class InProcessSideInputContainer {
               + "Contained views; %s",
           view,
           readerViews);
-      return getViewFuture(view, window).isDone();
+      return getView(view, window).get() != null;
     }
 
     @Override
@@ -199,18 +195,16 @@ class InProcessSideInputContainer {
     public <T> T get(final PCollectionView<T> view, final BoundedWindow window) {
       checkArgument(
           readerViews.contains(view), "calling get(PCollectionView) with unknown view: " + view);
-      try {
-        final Future<Iterable<? extends WindowedValue<?>>> future = getViewFuture(view, window);
-        // Safe covariant cast
-        @SuppressWarnings("unchecked")
-        Iterable<WindowedValue<?>> values = (Iterable<WindowedValue<?>>) future.get();
-        return view.fromIterableInternal(values);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        return null;
-      } catch (ExecutionException e) {
-        throw new RuntimeException(e);
-      }
+      checkArgument(
+          isReady(view, window),
+          "calling get() on a PCollectionView %s that is not ready in window %s",
+          view,
+          window);
+      final AtomicReference<Iterable<? extends WindowedValue<?>>> future = getView(view, window);
+      // Safe covariant cast
+      @SuppressWarnings("unchecked")
+      Iterable<WindowedValue<?>> values = (Iterable<WindowedValue<?>>) future.get();
+      return view.fromIterableInternal(values);
     }
 
     /**
@@ -218,10 +212,10 @@ class InProcessSideInputContainer {
      * provided {@link BoundedWindow}, setting up a callback to populate the future with empty
      * contents if necessary.
      */
-    private <T> Future<Iterable<? extends WindowedValue<?>>> getViewFuture(
-        final PCollectionView<T> view, final BoundedWindow window)  {
+    private <T> AtomicReference<Iterable<? extends WindowedValue<?>>> getView(
+        final PCollectionView<T> view, final BoundedWindow window) {
       PCollectionViewWindow<T> windowedView = PCollectionViewWindow.of(view, window);
-      final SettableFuture<Iterable<? extends WindowedValue<?>>> future =
+      final AtomicReference<Iterable<? extends WindowedValue<?>>> future =
           viewByWindows.getUnchecked(windowedView);
 
       WindowingStrategy<?, ?> windowingStrategy = view.getWindowingStrategyInternal();
@@ -244,10 +238,10 @@ class InProcessSideInputContainer {
   private static class WriteEmptyViewContents implements Runnable {
     private final PCollectionView<?> view;
     private final BoundedWindow window;
-    private final SettableFuture<Iterable<? extends WindowedValue<?>>> future;
+    private final AtomicReference<Iterable<? extends WindowedValue<?>>> future;
 
     private WriteEmptyViewContents(PCollectionView<?> view, BoundedWindow window,
-        SettableFuture<Iterable<? extends WindowedValue<?>>> future) {
+        AtomicReference<Iterable<? extends WindowedValue<?>>> future) {
       this.future = future;
       this.view = view;
       this.window = window;
