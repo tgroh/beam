@@ -24,13 +24,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * A {@link ExecutorServiceFactory} that produces cached thread pools via
- * {@link Executors#newCachedThreadPool()}.
+ * A {@link ExecutorServiceFactory} that produces work stealing thread pools via
+ * {@link Executors#newWorkStealingPool()}.
  */
-class CachedThreadPoolExecutorServiceFactory
+class WorkStealingPoolExecutorServiceFactory
     implements DefaultValueFactory<ExecutorServiceFactory>, ExecutorServiceFactory {
-  private static final CachedThreadPoolExecutorServiceFactory INSTANCE =
-      new CachedThreadPoolExecutorServiceFactory();
+  private static final WorkStealingPoolExecutorServiceFactory INSTANCE =
+      new WorkStealingPoolExecutorServiceFactory();
 
   @Override
   public ExecutorServiceFactory create(PipelineOptions options) {
@@ -39,6 +39,6 @@ class CachedThreadPoolExecutorServiceFactory
 
   @Override
   public ExecutorService create() {
-    return Executors.newCachedThreadPool();
+    return Executors.newWorkStealingPool();
   }
 }
