@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.runners.direct;
+package org.apache.beam.sdk.runners.inprocess;
 
 import org.apache.beam.sdk.options.DefaultValueFactory;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -24,13 +24,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * A {@link ExecutorServiceFactory} that produces cached thread pools via
- * {@link Executors#newCachedThreadPool()}.
+ * A {@link ExecutorServiceFactory} that produces fixed thread pools via
+ * {@link Executors#newFixedThreadPool(int)}, with the number of threads equal to the available
+ * processors as provided by {@link Runtime#availableProcessors()}.
  */
-class CachedThreadPoolExecutorServiceFactory
+class FixedThreadPoolExecutorServiceFactory
     implements DefaultValueFactory<ExecutorServiceFactory>, ExecutorServiceFactory {
-  private static final CachedThreadPoolExecutorServiceFactory INSTANCE =
-      new CachedThreadPoolExecutorServiceFactory();
+  private static final FixedThreadPoolExecutorServiceFactory INSTANCE =
+      new FixedThreadPoolExecutorServiceFactory();
 
   @Override
   public ExecutorServiceFactory create(PipelineOptions options) {
@@ -39,6 +40,6 @@ class CachedThreadPoolExecutorServiceFactory
 
   @Override
   public ExecutorService create() {
-    return Executors.newCachedThreadPool();
+    return Executors.newWorkStealingPool();
   }
 }
