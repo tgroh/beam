@@ -90,6 +90,7 @@ public class InProcessPipelineRunner
   /**
    * Part of a {@link PCollection}. Elements are output to a bundle, which will cause them to be
    * executed by {@link PTransform PTransforms} that consume the {@link PCollection} this bundle is
+   * executed by {@link PTransform PTransforms} that consume the {@link PCollection} this bundle is
    * a part of at a later point. This is an uncommitted bundle and can have elements added to it.
    *
    * @param <T> the type of elements that can be added to this bundle
@@ -239,7 +240,6 @@ public class InProcessPipelineRunner
     InProcessExecutor executor =
         ExecutorServiceParallelExecutor.create(
             executorService,
-            consumerTrackingVisitor.getValueToConsumers(),
             keyedPValueVisitor.getKeyedPValues(),
             TransformEvaluatorRegistry.defaultRegistry(),
             defaultModelEnforcements(options),
