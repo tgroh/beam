@@ -456,6 +456,8 @@ public class InProcessSideInputContainerTest {
     assertThat(reader.isReady(mapView, GlobalWindow.INSTANCE), is(true));
     assertThat(reader.isReady(singletonView, GlobalWindow.INSTANCE), is(false));
 
+    reader =
+        container.createReaderForViews(ImmutableList.of(mapView, singletonView));
     immediatelyInvokeCallback(singletonView, GlobalWindow.INSTANCE);
     assertThat(reader.isReady(singletonView, GlobalWindow.INSTANCE), is(true));
   }

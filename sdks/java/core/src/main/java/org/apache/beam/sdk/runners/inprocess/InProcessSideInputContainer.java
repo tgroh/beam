@@ -29,6 +29,7 @@ import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.PCollectionView;
 
 import com.google.common.base.MoreObjects;
+import com.google.common.base.Optional;
 import com.google.common.base.Throwables;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -178,9 +179,12 @@ class InProcessSideInputContainer {
 
   private final class SideInputContainerSideInputReader implements ReadyCheckingSideInputReader {
     private final Collection<PCollectionView<?>> readerViews;
+    private final Map<PCollectionViewWindow<?>, Optional<Iterable<? extends WindowedValue<?>>>>
+        viewContents;
 
     private SideInputContainerSideInputReader(Collection<PCollectionView<?>> readerViews) {
       this.readerViews = ImmutableSet.copyOf(readerViews);
+      this.viewContents = new HashMap<>();
     }
 
     @Override
@@ -191,7 +195,15 @@ class InProcessSideInputContainer {
               + "Contained views; %s",
           view,
           readerViews);
-      return getViewFuture(view, window).isDone();
+      try {
+        getViewFuture(view, window);
+      } catch (ExecutionException e) {
+        throw new RuntimeException(e);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(e);
+      }
+      return viewContents.get(PCollectionViewWindow.of(view, window)).isPresent();
     }
 
     @Override
@@ -199,34 +211,53 @@ class InProcessSideInputContainer {
     public <T> T get(final PCollectionView<T> view, final BoundedWindow window) {
       checkArgument(
           readerViews.contains(view), "calling get(PCollectionView) with unknown view: " + view);
-      try {
-        final Future<Iterable<? extends WindowedValue<?>>> future = getViewFuture(view, window);
-        // Safe covariant cast
-        @SuppressWarnings("unchecked")
-        Iterable<WindowedValue<?>> values = (Iterable<WindowedValue<?>>) future.get();
-        return view.fromIterableInternal(values);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        return null;
-      } catch (ExecutionException e) {
-        throw new RuntimeException(e);
+      // use the cached value, if it exists
+      Optional<Iterable<? extends WindowedValue<?>>> cached =
+          viewContents.get(PCollectionViewWindow.of(view, window));
+      Iterable<WindowedValue<?>> values;
+      if (cached != null && cached.isPresent()) {
+        values =
+            (Iterable<WindowedValue<?>>) viewContents.get(PCollectionViewWindow.of(view, window));
+      } else {
+        try {
+          final Future<Iterable<? extends WindowedValue<?>>> future = getViewFuture(view, window);
+          // Safe covariant cast
+          values = (Iterable<WindowedValue<?>>) future.get();
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+          throw new RuntimeException(e);
+        }
       }
+      return view.fromIterableInternal(values);
     }
 
     /**
      * Gets the future containing the contents of the provided {@link PCollectionView} in the
      * provided {@link BoundedWindow}, setting up a callback to populate the future with empty
      * contents if necessary.
+     *
+     * <p>If the future is done, place its contents into {@link #viewContents} so future calls to
+     * this {@link SideInputReader} return the same value.
      */
-    private <T> Future<Iterable<? extends WindowedValue<?>>> getViewFuture(
-        final PCollectionView<T> view, final BoundedWindow window)  {
+    private synchronized <T> Future<Iterable<? extends WindowedValue<?>>> getViewFuture(
+        final PCollectionView<T> view, final BoundedWindow window)
+        throws ExecutionException, InterruptedException {
       PCollectionViewWindow<T> windowedView = PCollectionViewWindow.of(view, window);
       final SettableFuture<Iterable<? extends WindowedValue<?>>> future =
           viewByWindows.getUnchecked(windowedView);
 
       WindowingStrategy<?, ?> windowingStrategy = view.getWindowingStrategyInternal();
-      evaluationContext.scheduleAfterOutputWouldBeProduced(
-          view, window, windowingStrategy, new WriteEmptyViewContents(view, window, future));
+      if (future.isDone()) {
+        viewContents.put(windowedView,
+            Optional.<Iterable<? extends WindowedValue<?>>>of(future.get()));
+      } else {
+        evaluationContext.scheduleAfterOutputWouldBeProduced(view,
+            window,
+            windowingStrategy,
+            new WriteEmptyViewContents(view, window, future));
+      }
       return future;
     }
 
