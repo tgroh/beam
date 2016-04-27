@@ -155,13 +155,13 @@ class InProcessEvaluationContext {
       Iterable<TimerData> completedTimers,
       InProcessTransformResult result) {
     Map<CommittedBundle<?>, Collection<AppliedPTransform<?, ?, ?>>> committedBundles =
-        commitBundles(result.getOutputBundles());
+        commitBundles(completedBundle, result);
     // Update watermarks and timers
     watermarkManager.updateWatermarks(
         completedBundle,
         result.getTransform(),
         result.getTimerUpdate().withCompletedTimers(completedTimers),
-        committedBundles.keySet(),
+        committedBundles,
         result.getWatermarkHold());
     fireAllAvailableCallbacks();
     // Update counters
@@ -185,10 +185,16 @@ class InProcessEvaluationContext {
   }
 
   private Map<CommittedBundle<?>, Collection<AppliedPTransform<?, ?, ?>>> commitBundles(
-        Iterable<? extends UncommittedBundle<?>> outputBundles) {
+      @Nullable CommittedBundle<?> input, InProcessTransformResult result) {
     ImmutableMap.Builder<CommittedBundle<?>, Collection<AppliedPTransform<?, ?, ?>>> outputs
         = ImmutableMap.builder();
-    for (UncommittedBundle<?> inProgress : outputBundles) {
+    if (!Iterables.isEmpty(result.getUnprocessedElements())) {
+      // All of the unprocessed elements were initially part of the input bundle
+      CommittedBundle<?> unprocessed =
+          ((CommittedBundle) input).withElements(result.getUnprocessedElements());
+      outputs.put(unprocessed, ImmutableList.<AppliedPTransform<?, ?, ?>>of(result.getTransform()));
+    }
+    for (UncommittedBundle<?> inProgress : result.getOutputBundles()) {
       AppliedPTransform<?, ?, ?> producing =
           inProgress.getPCollection().getProducingTransformInternal();
       TransformWatermarks watermarks = watermarkManager.getWatermarks(producing);
