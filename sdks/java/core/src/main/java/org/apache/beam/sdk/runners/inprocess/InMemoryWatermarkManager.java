@@ -469,15 +469,16 @@ public class InMemoryWatermarkManager {
     }
 
     private synchronized void updateTimers(TimerUpdate update) {
-      for (TimerData completedTimer : update.completedTimers) {
-        pendingTimers.remove(completedTimer);
-      }
       Map<TimeDomain, NavigableSet<TimerData>> timerMap = timerMap(update.key);
       for (TimerData addedTimer : update.setTimers) {
         NavigableSet<TimerData> timerQueue = timerMap.get(addedTimer.getDomain());
         if (timerQueue != null) {
           timerQueue.add(addedTimer);
         }
+      }
+
+      for (TimerData completedTimer : update.completedTimers) {
+        pendingTimers.remove(completedTimer);
       }
       for (TimerData deletedTimer : update.deletedTimers) {
         NavigableSet<TimerData> timerQueue = timerMap.get(deletedTimer.getDomain());
@@ -843,11 +844,6 @@ public class InMemoryWatermarkManager {
       TimerUpdate timerUpdate,
       Map<? extends CommittedBundle<?>, Collection<AppliedPTransform<?, ?, ?>>> outputs) {
     TransformWatermarks completedTransform = transformToWatermarks.get(transform);
-    completedTransform.updateTimers(timerUpdate);
-    if (input != null) {
-      completedTransform.removePending(input);
-    }
-
     for (Map.Entry<? extends CommittedBundle<?>, Collection<AppliedPTransform<?, ?, ?>>>
         outputEntry : outputs.entrySet()) {
       CommittedBundle<?> bundle = outputEntry.getKey();
@@ -856,6 +852,12 @@ public class InMemoryWatermarkManager {
         watermarks.addPending(bundle);
       }
     }
+
+    completedTransform.updateTimers(timerUpdate);
+    if (input != null) {
+      completedTransform.removePending(input);
+    }
+
   }
 
   /**
