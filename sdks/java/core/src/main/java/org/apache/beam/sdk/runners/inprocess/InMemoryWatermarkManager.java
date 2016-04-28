@@ -806,11 +806,11 @@ public class InMemoryWatermarkManager {
    */
   public void updateWatermarks(
       @Nullable CommittedBundle<?> completed,
-      AppliedPTransform<?, ?, ?> transform,
       TimerUpdate timerUpdate,
-      Iterable<? extends CommittedBundle<?>> outputs,
+      CommittedResult result,
       @Nullable Instant earliestHold) {
-    updatePending(completed, transform, timerUpdate, outputs);
+    AppliedPTransform<?, ?, ?> transform = result.getTransform();
+    updatePending(completed, timerUpdate, result);
     TransformWatermarks transformWms = transformToWatermarks.get(transform);
     transformWms.setEventTimeHold(completed == null ? null : completed.getKey(), earliestHold);
     refreshWatermarks(transform);
@@ -839,16 +839,15 @@ public class InMemoryWatermarkManager {
    */
   private void updatePending(
       CommittedBundle<?> input,
-      AppliedPTransform<?, ?, ?> transform,
       TimerUpdate timerUpdate,
-      Iterable<? extends CommittedBundle<?>> outputs) {
-    TransformWatermarks completedTransform = transformToWatermarks.get(transform);
+      CommittedResult result) {
+    TransformWatermarks completedTransform = transformToWatermarks.get(result.getTransform());
     completedTransform.updateTimers(timerUpdate);
     if (input != null) {
       completedTransform.removePending(input);
     }
 
-    for (CommittedBundle<?> bundle : outputs) {
+    for (CommittedBundle<?> bundle : result.getOutputs()) {
       for (AppliedPTransform<?, ?, ?> consumer : consumers.get(bundle.getPCollection())) {
         TransformWatermarks watermarks = transformToWatermarks.get(consumer);
         watermarks.addPending(bundle);
