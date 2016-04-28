@@ -341,14 +341,13 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
       try {
         ExecutorUpdate update = allUpdates.poll();
         // pull all of the pending work off of the queue
-        while (update != null) {
+        if (update != null) {
           LOG.debug("Executor Update: {}", update);
           if (update.getBundle().isPresent()) {
             scheduleConsumers(update.getBundle().get());
           } else if (update.getException().isPresent()) {
             visibleUpdates.offer(VisibleExecutorUpdate.fromThrowable(update.getException().get()));
           }
-          update = allUpdates.poll();
         }
         boolean timersFired = fireTimers();
         addWorkIfNecessary(timersFired);
