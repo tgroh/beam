@@ -48,8 +48,6 @@ import com.google.common.collect.Iterables;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 import javax.annotation.Nullable;
 
@@ -85,9 +83,7 @@ class InProcessEvaluationContext {
   /** Executes callbacks based on the progression of the watermark. */
   private final WatermarkCallbackExecutor callbackExecutor;
 
-  /** The stateInternals of the world, by applied PTransform and key. */
-  private final ConcurrentMap<StepAndKey, CopyOnAccessInMemoryStateInternals<?>>
-      applicationStateInternals;
+  private final StateManager states;
 
   private final InProcessSideInputContainer sideInputContainer;
 
@@ -124,7 +120,7 @@ class InProcessEvaluationContext {
             NanosOffsetClock.create(), rootTransforms, valueToConsumers);
     this.sideInputContainer = InProcessSideInputContainer.create(this, views);
 
-    this.applicationStateInternals = new ConcurrentHashMap<>();
+    states = StateManager.create();
     this.mergedCounters = new CounterSet();
 
     this.callbackExecutor = WatermarkCallbackExecutor.create();
@@ -166,15 +162,10 @@ class InProcessEvaluationContext {
     // Update state internals
     CopyOnAccessInMemoryStateInternals<?> theirState = result.getState();
     if (theirState != null) {
-      CopyOnAccessInMemoryStateInternals<?> committedState = theirState.commit();
       StepAndKey stepAndKey =
           StepAndKey.of(
               result.getTransform(), completedBundle == null ? null : completedBundle.getKey());
-      if (!committedState.isEmpty()) {
-        applicationStateInternals.put(stepAndKey, committedState);
-      } else {
-        applicationStateInternals.remove(stepAndKey);
-      }
+      states.commit(stepAndKey, theirState);
     }
     return committedBundles;
   }
@@ -301,7 +292,7 @@ class InProcessEvaluationContext {
     return new InProcessExecutionContext(
         options.getClock(),
         key,
-        (CopyOnAccessInMemoryStateInternals<Object>) applicationStateInternals.get(stepAndKey),
+        (CopyOnAccessInMemoryStateInternals<Object>) states.get(stepAndKey),
         watermarkManager.getWatermarks(application));
   }
 

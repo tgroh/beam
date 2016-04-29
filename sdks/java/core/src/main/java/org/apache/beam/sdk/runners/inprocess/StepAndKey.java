@@ -19,6 +19,7 @@ package org.apache.beam.sdk.runners.inprocess;
 
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 
+import com.google.auto.value.AutoValue;
 import com.google.common.base.MoreObjects;
 
 import java.util.Objects;
@@ -27,8 +28,9 @@ import java.util.Objects;
  * A (Step, Key) pair. This is useful as a map key or cache key for things that are available
  * per-step in a keyed manner (e.g. State).
  */
+@AutoValue
 final class StepAndKey {
-  private final AppliedPTransform<?, ?, ?> step;
+  private AppliedPTransform<?, ?, ?> step;
   private final Object key;
 
   /**
@@ -41,6 +43,10 @@ final class StepAndKey {
   private StepAndKey(AppliedPTransform<?, ?, ?> step, Object key) {
     this.step = step;
     this.key = key;
+  }
+
+  public Object getKey() {
+    return key;
   }
 
   @Override
