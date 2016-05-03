@@ -20,13 +20,23 @@ package org.apache.beam.runners.direct;
 import org.apache.beam.runners.direct.InProcessPipelineRunner.CommittedBundle;
 import org.apache.beam.sdk.util.WindowedValue;
 
+import javax.annotation.Nullable;
+
 /**
- * An evaluator of a specific application of a transform. Will be used for at least one
- * {@link CommittedBundle}.
+ * An evaluator of a specific application of a transform.
+ *
+ * <p>A {@link TransformEvaluator} will be used for an arbitrary number of bundles. The methods of
+ * {@link TransformEvaluator} will always be invoked by a single thread.
  *
  * @param <InputT> the type of elements that will be passed to {@link #processElement}
  */
 public interface TransformEvaluator<InputT> {
+  /**
+   *
+   * @param inputBundle
+   */
+  void startBundle(@Nullable CommittedBundle<InputT> inputBundle);
+
   /**
    * Process an element in the input {@link CommittedBundle}.
    *

@@ -70,14 +70,13 @@ public class FlattenEvaluatorFactoryTest {
 
     FlattenEvaluatorFactory factory = new FlattenEvaluatorFactory();
     TransformEvaluator<Integer> leftSideEvaluator =
-        factory.forApplication(flattened.getProducingTransformInternal(), leftBundle, context);
+        factory.create(flattened.getProducingTransformInternal(), context);
     TransformEvaluator<Integer> rightSideEvaluator =
-        factory.forApplication(
-            flattened.getProducingTransformInternal(),
-            rightBundle,
-            context);
+        factory.create(flattened.getProducingTransformInternal(), context);
 
+    leftSideEvaluator.startBundle(leftBundle);
     leftSideEvaluator.processElement(WindowedValue.valueInGlobalWindow(1));
+    rightSideEvaluator.startBundle(rightBundle);
     rightSideEvaluator.processElement(WindowedValue.valueInGlobalWindow(-1));
     leftSideEvaluator.processElement(
         WindowedValue.timestampedValueInGlobalWindow(2, new Instant(1024)));
@@ -128,8 +127,9 @@ public class FlattenEvaluatorFactoryTest {
 
     FlattenEvaluatorFactory factory = new FlattenEvaluatorFactory();
     TransformEvaluator<Integer> emptyEvaluator =
-        factory.forApplication(flattened.getProducingTransformInternal(), null, context);
+        factory.create(flattened.getProducingTransformInternal(), context);
 
+    emptyEvaluator.startBundle(null);
     InProcessTransformResult leftSideResult = emptyEvaluator.finishBundle();
 
     assertThat(leftSideResult.getOutputBundles(), emptyIterable());

@@ -25,7 +25,6 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.util.DoFnRunner;
 import org.apache.beam.sdk.util.DoFnRunners;
 import org.apache.beam.sdk.util.DoFnRunners.OutputManager;
-import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.util.UserCodeException;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.common.CounterSet;
@@ -35,81 +34,97 @@ import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TupleTag;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class ParDoInProcessEvaluator<T> implements TransformEvaluator<T> {
-  public static <InputT, OutputT> ParDoInProcessEvaluator<InputT> create(
+import javax.annotation.Nullable;
+
+class ParDoInProcessEvaluator<InputT, OutputT> implements TransformEvaluator<InputT> {
+  public static <InputT, OutputT> ParDoInProcessEvaluator<InputT, OutputT> create(
       InProcessEvaluationContext evaluationContext,
-      CommittedBundle<InputT> inputBundle,
       AppliedPTransform<PCollection<InputT>, ?, ?> application,
       DoFn<InputT, OutputT> fn,
       List<PCollectionView<?>> sideInputs,
       TupleTag<OutputT> mainOutputTag,
       List<TupleTag<?>> sideOutputTags,
       Map<TupleTag<?>, PCollection<?>> outputs) {
+    return new ParDoInProcessEvaluator<>(evaluationContext,
+        application,
+        fn,
+        sideInputs,
+        mainOutputTag,
+        sideOutputTags,
+        outputs);
+  }
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+  private final InProcessEvaluationContext evaluationContext;
+  private final AppliedPTransform<PCollection<InputT>, ?, ?> application;
+  private final DoFn<InputT, OutputT> fn;
+  private final List<PCollectionView<?>> sideInputs;
+  private final TupleTag<OutputT> mainOutputTag;
+  private final List<TupleTag<?>> sideOuputTags;
+  private final Map<TupleTag<?>, PCollection<?>> outputs;
+
+  private DoFnRunner<InputT, OutputT> fnRunner;
+  private CounterSet counters;
+  private InProcessStepContext stepContext;
+  private Map<TupleTag<?>, UncommittedBundle<?>> outputBundles;
+
+  public ParDoInProcessEvaluator(
+      InProcessEvaluationContext evaluationContext,
+      AppliedPTransform<PCollection<InputT>, ?, ?> application,
+      DoFn<InputT, OutputT> fn,
+      List<PCollectionView<?>> sideInputs,
+      TupleTag<OutputT> mainOutputTag,
+      List<TupleTag<?>> sideOutputTags,
+      Map<TupleTag<?>, PCollection<?>> outputs) {
+    this.evaluationContext = evaluationContext;
+    this.application = application;
+    this.fn = fn;
+    this.sideInputs = sideInputs;
+    this.mainOutputTag = mainOutputTag;
+    this.sideOuputTags = sideOutputTags;
+    this.outputs = outputs;
+  }
+
+  @Override
+  public void startBundle(@Nullable CommittedBundle<InputT> inputBundle) {
     InProcessExecutionContext executionContext =
         evaluationContext.getExecutionContext(application, inputBundle.getKey());
     String stepName = evaluationContext.getStepName(application);
-    InProcessStepContext stepContext =
-        executionContext.getOrCreateStepContext(stepName, stepName);
+    stepContext = executionContext.getOrCreateStepContext(stepName, stepName);
 
-    CounterSet counters = evaluationContext.createCounterSet();
+    counters = evaluationContext.createCounterSet();
 
-    Map<TupleTag<?>, UncommittedBundle<?>> outputBundles = new HashMap<>();
+    outputBundles = new HashMap<>();
     for (Map.Entry<TupleTag<?>, PCollection<?>> outputEntry : outputs.entrySet()) {
       outputBundles.put(
           outputEntry.getKey(),
           evaluationContext.createBundle(inputBundle, outputEntry.getValue()));
     }
 
-    DoFnRunner<InputT, OutputT> runner =
-        DoFnRunners.createDefault(
-            evaluationContext.getPipelineOptions(),
-            SerializableUtils.clone(fn),
-            evaluationContext.createSideInputReader(sideInputs),
-            BundleOutputManager.create(outputBundles),
-            mainOutputTag,
-            sideOutputTags,
-            stepContext,
-            counters.getAddCounterMutator(),
-            application.getInput().getWindowingStrategy());
+    fnRunner = DoFnRunners.createDefault(evaluationContext.getPipelineOptions(),
+        fn,
+        evaluationContext.createSideInputReader(sideInputs),
+        BundleOutputManager.create(outputBundles),
+        mainOutputTag,
+        sideOuputTags,
+        stepContext,
+        counters.getAddCounterMutator(),
+        application.getInput().getWindowingStrategy());
 
     try {
-      runner.startBundle();
+      fnRunner.startBundle();
     } catch (Exception e) {
       throw UserCodeException.wrap(e);
     }
 
-    return new ParDoInProcessEvaluator<>(
-        runner, application, counters, outputBundles.values(), stepContext);
-  }
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////
-
-  private final DoFnRunner<T, ?> fnRunner;
-  private final AppliedPTransform<PCollection<T>, ?, ?> transform;
-  private final CounterSet counters;
-  private final Collection<UncommittedBundle<?>> outputBundles;
-  private final InProcessStepContext stepContext;
-
-  private ParDoInProcessEvaluator(
-      DoFnRunner<T, ?> fnRunner,
-      AppliedPTransform<PCollection<T>, ?, ?> transform,
-      CounterSet counters,
-      Collection<UncommittedBundle<?>> outputBundles,
-      InProcessStepContext stepContext) {
-    this.fnRunner = fnRunner;
-    this.transform = transform;
-    this.counters = counters;
-    this.outputBundles = outputBundles;
-    this.stepContext = stepContext;
   }
 
   @Override
-  public void processElement(WindowedValue<T> element) {
+  public void processElement(WindowedValue<InputT> element) {
     try {
       fnRunner.processElement(element);
     } catch (Exception e) {
@@ -128,13 +143,13 @@ class ParDoInProcessEvaluator<T> implements TransformEvaluator<T> {
     CopyOnAccessInMemoryStateInternals<?> state = stepContext.commitState();
     if (state != null) {
       resultBuilder =
-          StepTransformResult.withHold(transform, state.getEarliestWatermarkHold())
+          StepTransformResult.withHold(application, state.getEarliestWatermarkHold())
               .withState(state);
     } else {
-      resultBuilder = StepTransformResult.withoutHold(transform);
+      resultBuilder = StepTransformResult.withoutHold(application);
     }
     return resultBuilder
-        .addOutput(outputBundles)
+        .addOutput(outputBundles.values())
         .withTimerUpdate(stepContext.getTimerUpdate())
         .withCounters(counters)
         .build();

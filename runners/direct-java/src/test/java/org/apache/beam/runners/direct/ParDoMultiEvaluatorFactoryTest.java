@@ -121,8 +121,9 @@ public class ParDoMultiEvaluatorFactoryTest implements Serializable {
 
     TransformEvaluator<String> evaluator =
         new ParDoMultiEvaluatorFactory()
-            .forApplication(
-                mainOutput.getProducingTransformInternal(), inputBundle, evaluationContext);
+            .create(
+                mainOutput.getProducingTransformInternal(), evaluationContext);
+    evaluator.startBundle(inputBundle);
 
     evaluator.processElement(WindowedValue.valueInGlobalWindow("foo"));
     evaluator.processElement(
@@ -206,8 +207,9 @@ public class ParDoMultiEvaluatorFactoryTest implements Serializable {
 
     TransformEvaluator<String> evaluator =
         new ParDoMultiEvaluatorFactory()
-            .forApplication(
-                mainOutput.getProducingTransformInternal(), inputBundle, evaluationContext);
+            .create(
+                mainOutput.getProducingTransformInternal(), evaluationContext);
+    evaluator.startBundle(inputBundle);
 
     evaluator.processElement(WindowedValue.valueInGlobalWindow("foo"));
     evaluator.processElement(
@@ -296,8 +298,9 @@ public class ParDoMultiEvaluatorFactoryTest implements Serializable {
 
     TransformEvaluator<String> evaluator =
         new ParDoMultiEvaluatorFactory()
-            .forApplication(
-                mainOutput.getProducingTransformInternal(), inputBundle, evaluationContext);
+            .create(
+                mainOutput.getProducingTransformInternal(), evaluationContext);
+    evaluator.startBundle(inputBundle);
 
     evaluator.processElement(WindowedValue.valueInGlobalWindow("foo"));
     evaluator.processElement(
@@ -406,8 +409,9 @@ public class ParDoMultiEvaluatorFactoryTest implements Serializable {
 
     TransformEvaluator<String> evaluator =
         new ParDoMultiEvaluatorFactory()
-            .forApplication(
-                mainOutput.getProducingTransformInternal(), inputBundle, evaluationContext);
+            .create(
+                mainOutput.getProducingTransformInternal(), evaluationContext);
+    evaluator.startBundle(inputBundle);
 
     evaluator.processElement(WindowedValue.valueInGlobalWindow("foo"));
     evaluator.processElement(

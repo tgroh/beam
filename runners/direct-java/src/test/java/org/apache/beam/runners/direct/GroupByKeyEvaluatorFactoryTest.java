@@ -90,9 +90,10 @@ public class GroupByKeyEvaluatorFactoryTest {
         ((KvCoder<String, WindowedValue<Integer>>) kvs.getCoder()).getKeyCoder();
     TransformEvaluator<KV<String, WindowedValue<Integer>>> evaluator =
         new GroupByKeyEvaluatorFactory()
-            .forApplication(
-                groupedKvs.getProducingTransformInternal(), inputBundle, evaluationContext);
+            .create(
+                groupedKvs.getProducingTransformInternal(), evaluationContext);
 
+    evaluator.startBundle(inputBundle);
     evaluator.processElement(WindowedValue.valueInEmptyWindows(gwValue(firstFoo)));
     evaluator.processElement(WindowedValue.valueInEmptyWindows(gwValue(secondFoo)));
     evaluator.processElement(WindowedValue.valueInEmptyWindows(gwValue(thirdFoo)));

@@ -51,9 +51,8 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
 
   @SuppressWarnings({"unchecked", "rawtypes"})
   @Override
-  public <InputT> TransformEvaluator<InputT> forApplication(
+  public <InputT> TransformEvaluator<InputT> create(
       AppliedPTransform<?, ?, ?> application,
-      @Nullable CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext)
       throws IOException {
     return getTransformEvaluator((AppliedPTransform) application, evaluationContext);
@@ -129,6 +128,9 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
       this.evaluationContext = evaluationContext;
       this.source = source;
     }
+
+    @Override
+    public void startBundle(@Nullable CommittedBundle<Object> inputBundle) {}
 
     @Override
     public void processElement(WindowedValue<Object> element) {}

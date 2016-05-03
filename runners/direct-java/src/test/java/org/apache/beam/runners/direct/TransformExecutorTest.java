@@ -63,6 +63,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.annotation.Nullable;
+
 /**
  * Tests for {@link TransformExecutor}.
  */
@@ -107,6 +109,10 @@ public class TransformExecutorTest {
     TransformEvaluator<Object> evaluator =
         new TransformEvaluator<Object>() {
           @Override
+          public void startBundle(@Nullable CommittedBundle<Object> inputBundle) {
+          }
+
+          @Override
           public void processElement(WindowedValue<Object> element) throws Exception {
             throw new IllegalArgumentException("Shouldn't be called");
           }
@@ -118,7 +124,7 @@ public class TransformExecutorTest {
           }
         };
 
-    when(registry.forApplication(created.getProducingTransformInternal(), null, evaluationContext))
+    when(registry.create(created.getProducingTransformInternal(), evaluationContext))
         .thenReturn(evaluator);
 
     TransformExecutor<Object> executor =
@@ -146,6 +152,10 @@ public class TransformExecutorTest {
     TransformEvaluator<String> evaluator =
         new TransformEvaluator<String>() {
           @Override
+          public void startBundle(@Nullable CommittedBundle<String> inputBundle) {
+          }
+
+          @Override
           public void processElement(WindowedValue<String> element) throws Exception {
             elementsProcessed.add(element);
             return;
@@ -163,8 +173,8 @@ public class TransformExecutorTest {
     CommittedBundle<String> inputBundle =
         bundleFactory.createRootBundle(created).add(foo).add(spam).add(third).commit(Instant.now());
     when(
-            registry.<String>forApplication(
-                downstream.getProducingTransformInternal(), inputBundle, evaluationContext))
+            registry.<String>create(
+                downstream.getProducingTransformInternal(), evaluationContext))
         .thenReturn(evaluator);
 
     TransformExecutor<String> executor =
@@ -195,6 +205,10 @@ public class TransformExecutorTest {
     TransformEvaluator<String> evaluator =
         new TransformEvaluator<String>() {
           @Override
+          public void startBundle(@Nullable CommittedBundle<String> inputBundle) {
+          }
+
+          @Override
           public void processElement(WindowedValue<String> element) throws Exception {
             throw exception;
           }
@@ -209,8 +223,8 @@ public class TransformExecutorTest {
     CommittedBundle<String> inputBundle =
         bundleFactory.createRootBundle(created).add(foo).commit(Instant.now());
     when(
-            registry.<String>forApplication(
-                downstream.getProducingTransformInternal(), inputBundle, evaluationContext))
+            registry.<String>create(
+                downstream.getProducingTransformInternal(), evaluationContext))
         .thenReturn(evaluator);
 
     TransformExecutor<String> executor =
@@ -237,6 +251,10 @@ public class TransformExecutorTest {
     TransformEvaluator<String> evaluator =
         new TransformEvaluator<String>() {
           @Override
+          public void startBundle(@Nullable CommittedBundle<String> inputBundle) {
+          }
+
+          @Override
           public void processElement(WindowedValue<String> element) throws Exception {}
 
           @Override
@@ -248,8 +266,8 @@ public class TransformExecutorTest {
     CommittedBundle<String> inputBundle =
         bundleFactory.createRootBundle(created).commit(Instant.now());
     when(
-            registry.<String>forApplication(
-                downstream.getProducingTransformInternal(), inputBundle, evaluationContext))
+            registry.<String>create(
+                downstream.getProducingTransformInternal(), evaluationContext))
         .thenReturn(evaluator);
 
     TransformExecutor<String> executor =
@@ -279,6 +297,10 @@ public class TransformExecutorTest {
     TransformEvaluator<Object> evaluator =
         new TransformEvaluator<Object>() {
           @Override
+          public void startBundle(@Nullable CommittedBundle<Object> inputBundle) {
+          }
+
+          @Override
           public void processElement(WindowedValue<Object> element) throws Exception {
             throw new IllegalArgumentException("Shouldn't be called");
           }
@@ -291,7 +313,7 @@ public class TransformExecutorTest {
           }
         };
 
-    when(registry.forApplication(created.getProducingTransformInternal(), null, evaluationContext))
+    when(registry.create(created.getProducingTransformInternal(), evaluationContext))
         .thenReturn(evaluator);
 
     TransformExecutor<String> executor =
@@ -320,6 +342,10 @@ public class TransformExecutorTest {
     TransformEvaluator<Object> evaluator =
         new TransformEvaluator<Object>() {
           @Override
+          public void startBundle(@Nullable CommittedBundle<Object> inputBundle) {
+          }
+
+          @Override
           public void processElement(WindowedValue<Object> element) throws Exception {
           }
 
@@ -334,8 +360,8 @@ public class TransformExecutorTest {
     CommittedBundle<String> inputBundle =
         bundleFactory.createRootBundle(created).add(fooElem).add(barElem).commit(Instant.now());
     when(
-            registry.forApplication(
-                downstream.getProducingTransformInternal(), inputBundle, evaluationContext))
+            registry.create(
+                downstream.getProducingTransformInternal(), evaluationContext))
         .thenReturn(evaluator);
 
     TestEnforcementFactory enforcement = new TestEnforcementFactory();
@@ -381,6 +407,10 @@ public class TransformExecutorTest {
     TransformEvaluator<Object> evaluator =
         new TransformEvaluator<Object>() {
           @Override
+          public void startBundle(@Nullable CommittedBundle<Object> inputBundle) {
+          }
+
+          @Override
           public void processElement(WindowedValue<Object> element) throws Exception {}
 
           @Override
@@ -395,8 +425,8 @@ public class TransformExecutorTest {
     CommittedBundle<byte[]> inputBundle =
         bundleFactory.createRootBundle(pcBytes).add(fooBytes).commit(Instant.now());
     when(
-            registry.forApplication(
-                pcBytes.getProducingTransformInternal(), inputBundle, evaluationContext))
+            registry.create(
+                pcBytes.getProducingTransformInternal(), evaluationContext))
         .thenReturn(evaluator);
 
     TransformExecutor<byte[]> executor =
@@ -439,6 +469,10 @@ public class TransformExecutorTest {
     TransformEvaluator<Object> evaluator =
         new TransformEvaluator<Object>() {
           @Override
+          public void startBundle(@Nullable CommittedBundle<Object> inputBundle) {
+          }
+
+          @Override
           public void processElement(WindowedValue<Object> element) throws Exception {
             testLatch.countDown();
             evaluatorLatch.await();
@@ -454,8 +488,8 @@ public class TransformExecutorTest {
     CommittedBundle<byte[]> inputBundle =
         bundleFactory.createRootBundle(pcBytes).add(fooBytes).commit(Instant.now());
     when(
-            registry.forApplication(
-                pcBytes.getProducingTransformInternal(), inputBundle, evaluationContext))
+            registry.create(
+                pcBytes.getProducingTransformInternal(), evaluationContext))
         .thenReturn(evaluator);
 
     TransformExecutor<byte[]> executor =

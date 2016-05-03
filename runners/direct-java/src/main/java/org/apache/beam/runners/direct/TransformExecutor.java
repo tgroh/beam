@@ -109,7 +109,9 @@ class TransformExecutor<T> implements Callable<InProcessTransformResult> {
         enforcements.add(enforcement);
       }
       TransformEvaluator<T> evaluator =
-          evaluatorFactory.forApplication(transform, inputBundle, evaluationContext);
+          evaluatorFactory.create(transform, evaluationContext);
+
+      evaluator.startBundle(inputBundle);
 
       processElements(evaluator, enforcements);
 

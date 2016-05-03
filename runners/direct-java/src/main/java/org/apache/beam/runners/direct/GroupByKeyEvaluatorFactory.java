@@ -53,19 +53,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.Nullable;
+
 /**
  * The {@link InProcessPipelineRunner} {@link TransformEvaluatorFactory} for the {@link GroupByKey}
  * {@link PTransform}.
  */
 class GroupByKeyEvaluatorFactory implements TransformEvaluatorFactory {
   @Override
-  public <InputT> TransformEvaluator<InputT> forApplication(
+  public <InputT> TransformEvaluator<InputT> create(
       AppliedPTransform<?, ?, ?> application,
-      CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext) {
     @SuppressWarnings({"cast", "unchecked", "rawtypes"})
     TransformEvaluator<InputT> evaluator = createEvaluator(
-            (AppliedPTransform) application, (CommittedBundle) inputBundle, evaluationContext);
+            (AppliedPTransform) application, evaluationContext);
     return evaluator;
   }
 
@@ -74,37 +75,33 @@ class GroupByKeyEvaluatorFactory implements TransformEvaluatorFactory {
               PCollection<KV<K, WindowedValue<V>>>, PCollection<KeyedWorkItem<K, V>>,
               InProcessGroupByKeyOnly<K, V>>
           application,
-      final CommittedBundle<KV<K, V>> inputBundle,
       final InProcessEvaluationContext evaluationContext) {
-    return new GroupByKeyEvaluator<K, V>(evaluationContext, inputBundle, application);
+    return new GroupByKeyEvaluator<K, V>(evaluationContext, application);
   }
 
   private static class GroupByKeyEvaluator<K, V>
       implements TransformEvaluator<KV<K, WindowedValue<V>>> {
     private final InProcessEvaluationContext evaluationContext;
-
-    private final CommittedBundle<KV<K, V>> inputBundle;
     private final AppliedPTransform<
             PCollection<KV<K, WindowedValue<V>>>, PCollection<KeyedWorkItem<K, V>>,
             InProcessGroupByKeyOnly<K, V>>
         application;
     private final Coder<K> keyCoder;
+
+    private CommittedBundle<KV<K, WindowedValue<V>>> inputBundle;
     private Map<GroupingKey<K>, List<WindowedValue<V>>> groupingMap;
 
     public GroupByKeyEvaluator(
         InProcessEvaluationContext evaluationContext,
-        CommittedBundle<KV<K, V>> inputBundle,
         AppliedPTransform<
                 PCollection<KV<K, WindowedValue<V>>>, PCollection<KeyedWorkItem<K, V>>,
                 InProcessGroupByKeyOnly<K, V>>
             application) {
       this.evaluationContext = evaluationContext;
-      this.inputBundle = inputBundle;
       this.application = application;
 
       PCollection<KV<K, WindowedValue<V>>> input = application.getInput();
       keyCoder = getKeyCoder(input.getCoder());
-      groupingMap = new HashMap<>();
     }
 
     private Coder<K> getKeyCoder(Coder<KV<K, WindowedValue<V>>> coder) {
@@ -114,6 +111,12 @@ class GroupByKeyEvaluatorFactory implements TransformEvaluatorFactory {
       @SuppressWarnings("unchecked")
       Coder<K> keyCoder = ((KvCoder<K, WindowedValue<V>>) coder).getKeyCoder();
       return keyCoder;
+    }
+
+    @Override
+    public void startBundle(@Nullable CommittedBundle<KV<K, WindowedValue<V>>> inputBundle) {
+      this.inputBundle = inputBundle;
+      groupingMap = new HashMap<>();
     }
 
     @Override

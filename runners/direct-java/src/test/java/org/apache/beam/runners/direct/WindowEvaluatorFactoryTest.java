@@ -208,11 +208,11 @@ public class WindowEvaluatorFactoryTest {
       Window.Bound<Long> windowTransform /* Required while Window.Bound is a composite */)
       throws Exception {
     TransformEvaluator<Long> evaluator =
-        factory.forApplication(
+        factory.create(
             AppliedPTransform.of("Window", input, windowed, windowTransform),
-            inputBundle,
             evaluationContext);
 
+    evaluator.startBundle(inputBundle);
     evaluator.processElement(first);
     evaluator.processElement(second);
     evaluator.processElement(third);

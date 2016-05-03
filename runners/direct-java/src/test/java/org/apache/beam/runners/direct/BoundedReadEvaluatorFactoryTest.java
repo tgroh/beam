@@ -83,7 +83,8 @@ public class BoundedReadEvaluatorFactoryTest {
     when(context.createRootBundle(longs)).thenReturn(output);
 
     TransformEvaluator<?> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+        factory.create(longs.getProducingTransformInternal(), context);
+    evaluator.startBundle(null);
     InProcessTransformResult result = evaluator.finishBundle();
     assertThat(result.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
     assertThat(
@@ -103,7 +104,8 @@ public class BoundedReadEvaluatorFactoryTest {
     when(context.createRootBundle(longs)).thenReturn(output);
 
     TransformEvaluator<?> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+        factory.create(longs.getProducingTransformInternal(), context);
+    evaluator.startBundle(null);
     InProcessTransformResult result = evaluator.finishBundle();
     assertThat(result.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
     Iterable<? extends WindowedValue<Long>> outputElements =
@@ -116,7 +118,8 @@ public class BoundedReadEvaluatorFactoryTest {
     UncommittedBundle<Long> secondOutput = bundleFactory.createRootBundle(longs);
     when(context.createRootBundle(longs)).thenReturn(secondOutput);
     TransformEvaluator<?> secondEvaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+        factory.create(longs.getProducingTransformInternal(), context);
+    evaluator.startBundle(null);
     InProcessTransformResult secondResult = secondEvaluator.finishBundle();
     assertThat(secondResult.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MIN_VALUE));
     assertThat(secondResult.getOutputBundles(), emptyIterable());
@@ -140,9 +143,11 @@ public class BoundedReadEvaluatorFactoryTest {
 
     // create both evaluators before finishing either.
     TransformEvaluator<?> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+        factory.create(longs.getProducingTransformInternal(), context);
+    evaluator.startBundle(null);
     TransformEvaluator<?> secondEvaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+        factory.create(longs.getProducingTransformInternal(), context);
+    secondEvaluator.startBundle(null);
 
     InProcessTransformResult secondResult = secondEvaluator.finishBundle();
 
@@ -176,7 +181,8 @@ public class BoundedReadEvaluatorFactoryTest {
     UncommittedBundle<Long> output = bundleFactory.createRootBundle(pcollection);
     when(context.createRootBundle(pcollection)).thenReturn(output);
 
-    TransformEvaluator<?> evaluator = factory.forApplication(sourceTransform, null, context);
+    TransformEvaluator<?> evaluator = factory.create(sourceTransform, context);
+    evaluator.startBundle(null);
     evaluator.finishBundle();
     CommittedBundle<Long> committed = output.commit(Instant.now());
     assertThat(committed.getElements(), containsInAnyOrder(gw(2L), gw(3L), gw(1L)));
@@ -194,7 +200,8 @@ public class BoundedReadEvaluatorFactoryTest {
     UncommittedBundle<Long> output = bundleFactory.createRootBundle(pcollection);
     when(context.createRootBundle(pcollection)).thenReturn(output);
 
-    TransformEvaluator<?> evaluator = factory.forApplication(sourceTransform, null, context);
+    TransformEvaluator<?> evaluator = factory.create(sourceTransform, context);
+    evaluator.startBundle(null);
     evaluator.finishBundle();
     CommittedBundle<Long> committed = output.commit(Instant.now());
     assertThat(committed.getElements(), emptyIterable());

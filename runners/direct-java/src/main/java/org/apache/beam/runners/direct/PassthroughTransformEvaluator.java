@@ -20,20 +20,32 @@ package org.apache.beam.runners.direct;
 import org.apache.beam.runners.direct.InProcessPipelineRunner.UncommittedBundle;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.PCollection;
+
+import javax.annotation.Nullable;
 
 class PassthroughTransformEvaluator<InputT> implements TransformEvaluator<InputT> {
   public static <InputT> PassthroughTransformEvaluator<InputT> create(
-      AppliedPTransform<?, ?, ?> transform, UncommittedBundle<InputT> output) {
-    return new PassthroughTransformEvaluator<>(transform, output);
+      InProcessEvaluationContext evaluationContext,
+      AppliedPTransform<PCollection<InputT>, PCollection<InputT>, ?> transform) {
+    return new PassthroughTransformEvaluator<>(evaluationContext, transform);
   }
 
-  private final AppliedPTransform<?, ?, ?> transform;
-  private final UncommittedBundle<InputT> output;
+  private final InProcessEvaluationContext evaluationContext;
+  private final AppliedPTransform<PCollection<InputT>, PCollection<InputT>, ?> transform;
+
+  private UncommittedBundle<InputT> output;
 
   private PassthroughTransformEvaluator(
-      AppliedPTransform<?, ?, ?> transform, UncommittedBundle<InputT> output) {
+      InProcessEvaluationContext evaluationContext,
+      AppliedPTransform<PCollection<InputT>, PCollection<InputT>, ?> transform) {
+    this.evaluationContext = evaluationContext;
     this.transform = transform;
-    this.output = output;
+  }
+
+  @Override
+  public void startBundle(@Nullable InProcessPipelineRunner.CommittedBundle<InputT> inputBundle) {
+    this.output = evaluationContext.createBundle(inputBundle, transform.getOutput());
   }
 
   @Override

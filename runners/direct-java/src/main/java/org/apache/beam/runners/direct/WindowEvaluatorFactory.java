@@ -42,43 +42,45 @@ import javax.annotation.Nullable;
 class WindowEvaluatorFactory implements TransformEvaluatorFactory {
 
   @Override
-  public <InputT> TransformEvaluator<InputT> forApplication(
+  public <InputT> TransformEvaluator<InputT> create(
       AppliedPTransform<?, ?, ?> application,
-      @Nullable CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext)
       throws Exception {
     return createTransformEvaluator(
-        (AppliedPTransform) application, inputBundle, evaluationContext);
+        (AppliedPTransform) application, evaluationContext);
   }
 
   private <InputT> TransformEvaluator<InputT> createTransformEvaluator(
       AppliedPTransform<PCollection<InputT>, PCollection<InputT>, Window.Bound<InputT>> transform,
-      CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext) {
     WindowFn<? super InputT, ?> fn = transform.getTransform().getWindowFn();
-    UncommittedBundle<InputT> outputBundle =
-        evaluationContext.createBundle(inputBundle, transform.getOutput());
     if (fn == null) {
-      return PassthroughTransformEvaluator.create(transform, outputBundle);
+      return PassthroughTransformEvaluator.create(evaluationContext, transform);
     }
-    return new WindowIntoEvaluator<>(transform, fn, outputBundle);
+    return new WindowIntoEvaluator<>(evaluationContext, transform, fn);
   }
 
   private static class WindowIntoEvaluator<InputT> implements TransformEvaluator<InputT> {
+    private final InProcessEvaluationContext evaluationContext;
     private final AppliedPTransform<PCollection<InputT>, PCollection<InputT>, Window.Bound<InputT>>
         transform;
     private final WindowFn<InputT, ?> windowFn;
-    private final UncommittedBundle<InputT> outputBundle;
+    private UncommittedBundle<InputT> outputBundle;
 
     @SuppressWarnings("unchecked")
     public WindowIntoEvaluator(
+        InProcessEvaluationContext evaluationContext,
         AppliedPTransform<PCollection<InputT>, PCollection<InputT>, Window.Bound<InputT>> transform,
-        WindowFn<? super InputT, ?> windowFn,
-        UncommittedBundle<InputT> outputBundle) {
-      this.outputBundle = outputBundle;
+        WindowFn<? super InputT, ?> windowFn) {
+      this.evaluationContext = evaluationContext;
       this.transform = transform;
       // Safe contravariant cast
       this.windowFn = (WindowFn<InputT, ?>) windowFn;
+    }
+
+    @Override
+    public void startBundle(@Nullable CommittedBundle<InputT> inputBundle) {
+      outputBundle = evaluationContext.createBundle(inputBundle, transform.getOutput());
     }
 
     @Override

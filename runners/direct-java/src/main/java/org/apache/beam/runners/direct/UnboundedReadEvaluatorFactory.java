@@ -58,8 +58,8 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
 
   @SuppressWarnings({"unchecked", "rawtypes"})
   @Override
-  public <InputT> TransformEvaluator<InputT> forApplication(AppliedPTransform<?, ?, ?> application,
-      @Nullable CommittedBundle<?> inputBundle, InProcessEvaluationContext evaluationContext) {
+  public <InputT> TransformEvaluator<InputT> create(AppliedPTransform<?, ?, ?> application,
+      InProcessEvaluationContext evaluationContext) {
     return getTransformEvaluator((AppliedPTransform) application, evaluationContext);
   }
 
@@ -142,6 +142,10 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
       this.evaluatorQueue = evaluatorQueue;
       this.source = source;
       this.checkpointMark = null;
+    }
+
+    @Override
+    public void startBundle(@Nullable CommittedBundle<Object> inputBundle) {
     }
 
     @Override

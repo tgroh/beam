@@ -17,12 +17,9 @@
  */
 package org.apache.beam.runners.direct;
 
-import org.apache.beam.runners.direct.InProcessPipelineRunner.CommittedBundle;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
-
-import javax.annotation.Nullable;
 
 /**
  * A factory for creating instances of {@link TransformEvaluator} for the application of a
@@ -38,7 +35,7 @@ public interface TransformEvaluatorFactory {
    *
    * @throws Exception whenever constructing the underlying evaluator throws an exception
    */
-  <InputT> TransformEvaluator<InputT> forApplication(
-      AppliedPTransform<?, ?, ?> application, @Nullable CommittedBundle<?> inputBundle,
-      InProcessEvaluationContext evaluationContext) throws Exception;
+  <InputT> TransformEvaluator<InputT> create(
+      AppliedPTransform<?, ?, ?> application, InProcessEvaluationContext evaluationContext)
+      throws Exception;
 }

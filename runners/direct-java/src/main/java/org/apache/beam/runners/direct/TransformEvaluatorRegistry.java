@@ -17,7 +17,6 @@
  */
 package org.apache.beam.runners.direct;
 
-import org.apache.beam.runners.direct.InProcessPipelineRunner.CommittedBundle;
 import org.apache.beam.sdk.io.Read;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.Flatten.FlattenPCollectionList;
@@ -28,8 +27,6 @@ import org.apache.beam.sdk.transforms.windowing.Window;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.Map;
-
-import javax.annotation.Nullable;
 
 /**
  * A {@link TransformEvaluatorFactory} that delegates to primitive {@link TransformEvaluatorFactory}
@@ -66,12 +63,11 @@ class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
   }
 
   @Override
-  public <InputT> TransformEvaluator<InputT> forApplication(
+  public <InputT> TransformEvaluator<InputT> create(
       AppliedPTransform<?, ?, ?> application,
-      @Nullable CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext)
       throws Exception {
     TransformEvaluatorFactory factory = factories.get(application.getTransform().getClass());
-    return factory.forApplication(application, inputBundle, evaluationContext);
+    return factory.create(application, evaluationContext);
   }
 }

@@ -91,7 +91,8 @@ public class UnboundedReadEvaluatorFactoryTest {
   @Test
   public void unboundedSourceInMemoryTransformEvaluatorProducesElements() throws Exception {
     TransformEvaluator<?> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+        factory.create(longs.getProducingTransformInternal(), context);
+    evaluator.startBundle(null);
 
     InProcessTransformResult result = evaluator.finishBundle();
     assertThat(
@@ -110,7 +111,8 @@ public class UnboundedReadEvaluatorFactoryTest {
   @Test
   public void unboundedSourceInMemoryTransformEvaluatorMultipleSequentialCalls() throws Exception {
     TransformEvaluator<?> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+        factory.create(longs.getProducingTransformInternal(), context);
+    evaluator.startBundle(null);
 
     InProcessTransformResult result = evaluator.finishBundle();
     assertThat(
@@ -124,7 +126,8 @@ public class UnboundedReadEvaluatorFactoryTest {
     UncommittedBundle<Long> secondOutput = bundleFactory.createRootBundle(longs);
     when(context.createRootBundle(longs)).thenReturn(secondOutput);
     TransformEvaluator<?> secondEvaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+        factory.create(longs.getProducingTransformInternal(), context);
+    evaluator.startBundle(null);
     InProcessTransformResult secondResult = secondEvaluator.finishBundle();
     assertThat(
         secondResult.getWatermarkHold(),
@@ -147,7 +150,8 @@ public class UnboundedReadEvaluatorFactoryTest {
     UncommittedBundle<Long> output = bundleFactory.createRootBundle(pcollection);
     when(context.createRootBundle(pcollection)).thenReturn(output);
 
-    TransformEvaluator<?> evaluator = factory.forApplication(sourceTransform, null, context);
+    TransformEvaluator<?> evaluator = factory.create(sourceTransform, context);
+    evaluator.startBundle(null);
     evaluator.finishBundle();
     CommittedBundle<Long> committed = output.commit(Instant.now());
     assertThat(ImmutableList.copyOf(committed.getElements()), hasSize(3));
@@ -165,7 +169,8 @@ public class UnboundedReadEvaluatorFactoryTest {
     UncommittedBundle<Long> output = bundleFactory.createRootBundle(pcollection);
     when(context.createRootBundle(pcollection)).thenReturn(output);
 
-    TransformEvaluator<?> evaluator = factory.forApplication(sourceTransform, null, context);
+    TransformEvaluator<?> evaluator = factory.create(sourceTransform, context);
+    evaluator.startBundle(null);
     evaluator.finishBundle();
     CommittedBundle<Long> committed = output.commit(Instant.now());
     assertThat(committed.getElements(), emptyIterable());
@@ -183,10 +188,12 @@ public class UnboundedReadEvaluatorFactoryTest {
     UncommittedBundle<Long> secondOutput = bundleFactory.createRootBundle(longs);
 
     TransformEvaluator<?> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+        factory.create(longs.getProducingTransformInternal(), context);
+    evaluator.startBundle(null);
 
     TransformEvaluator<?> secondEvaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null, context);
+        factory.create(longs.getProducingTransformInternal(), context);
+    evaluator.startBundle(null);
 
     InProcessTransformResult secondResult = secondEvaluator.finishBundle();
     InProcessTransformResult result = evaluator.finishBundle();

@@ -17,7 +17,6 @@
  */
 package org.apache.beam.runners.direct;
 
-import org.apache.beam.runners.direct.InProcessPipelineRunner.CommittedBundle;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo.Bound;
@@ -34,25 +33,23 @@ import java.util.Collections;
  */
 class ParDoSingleEvaluatorFactory implements TransformEvaluatorFactory {
   @Override
-  public <T> TransformEvaluator<T> forApplication(
+  public <T> TransformEvaluator<T> create(
       final AppliedPTransform<?, ?, ?> application,
-      CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext) {
     @SuppressWarnings({"unchecked", "rawtypes"})
     TransformEvaluator<T> evaluator =
-        createSingleEvaluator((AppliedPTransform) application, inputBundle, evaluationContext);
+        createSingleEvaluator((AppliedPTransform) application, evaluationContext);
     return evaluator;
   }
 
-  private static <InputT, OutputT> ParDoInProcessEvaluator<InputT> createSingleEvaluator(
-      @SuppressWarnings("rawtypes") AppliedPTransform<PCollection<InputT>, PCollection<OutputT>,
-          Bound<InputT, OutputT>> application,
-      CommittedBundle<InputT> inputBundle, InProcessEvaluationContext evaluationContext) {
+  private static <InputT, OutputT> ParDoInProcessEvaluator<InputT, OutputT> createSingleEvaluator(
+      @SuppressWarnings("rawtypes") AppliedPTransform<
+          PCollection<InputT>, PCollection<OutputT>, Bound<InputT, OutputT>> application,
+      InProcessEvaluationContext evaluationContext) {
     TupleTag<OutputT> mainOutputTag = new TupleTag<>("out");
 
     return ParDoInProcessEvaluator.create(
         evaluationContext,
-        inputBundle,
         application,
         application.getTransform().getFn(),
         application.getTransform().getSideInputs(),

@@ -17,7 +17,6 @@
  */
 package org.apache.beam.runners.direct;
 
-import org.apache.beam.runners.direct.InProcessPipelineRunner.CommittedBundle;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -34,26 +33,23 @@ import java.util.Map;
  */
 class ParDoMultiEvaluatorFactory implements TransformEvaluatorFactory {
   @Override
-  public <T> TransformEvaluator<T> forApplication(
+  public <T> TransformEvaluator<T> create(
       AppliedPTransform<?, ?, ?> application,
-      CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext) {
     @SuppressWarnings({"unchecked", "rawtypes"})
     TransformEvaluator<T> evaluator =
-        createMultiEvaluator((AppliedPTransform) application, inputBundle, evaluationContext);
+        createMultiEvaluator((AppliedPTransform) application, evaluationContext);
     return evaluator;
   }
 
-  private static <InT, OuT> ParDoInProcessEvaluator<InT> createMultiEvaluator(
+  private static <InT, OuT> ParDoInProcessEvaluator<InT, OuT> createMultiEvaluator(
       AppliedPTransform<PCollection<InT>, PCollectionTuple, BoundMulti<InT, OuT>> application,
-      CommittedBundle<InT> inputBundle,
       InProcessEvaluationContext evaluationContext) {
     Map<TupleTag<?>, PCollection<?>> outputs = application.getOutput().getAll();
     DoFn<InT, OuT> fn = application.getTransform().getFn();
 
     return ParDoInProcessEvaluator.create(
         evaluationContext,
-        inputBundle,
         application,
         fn,
         application.getTransform().getSideInputs(),

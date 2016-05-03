@@ -35,6 +35,8 @@ import org.apache.beam.sdk.values.POutput;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 /**
  * The {@link InProcessPipelineRunner} {@link TransformEvaluatorFactory} for the
  * {@link CreatePCollectionView} primitive {@link PTransform}.
@@ -47,9 +49,8 @@ import java.util.List;
  */
 class ViewEvaluatorFactory implements TransformEvaluatorFactory {
   @Override
-  public <T> TransformEvaluator<T> forApplication(
+  public <T> TransformEvaluator<T> create(
       AppliedPTransform<?, ?, ?> application,
-      InProcessPipelineRunner.CommittedBundle<?> inputBundle,
       InProcessEvaluationContext evaluationContext) {
     @SuppressWarnings({"cast", "unchecked", "rawtypes"})
     TransformEvaluator<T> evaluator = createEvaluator(
@@ -66,6 +67,11 @@ class ViewEvaluatorFactory implements TransformEvaluatorFactory {
         context.createPCollectionViewWriter(input, application.getOutput());
     return new TransformEvaluator<Iterable<InT>>() {
       private final List<WindowedValue<InT>> elements = new ArrayList<>();
+
+      @Override
+      public void startBundle(@Nullable InProcessPipelineRunner.CommittedBundle<Iterable<InT>>
+          inputBundle) {
+      }
 
       @Override
       public void processElement(WindowedValue<Iterable<InT>> element) {

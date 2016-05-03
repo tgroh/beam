@@ -17,9 +17,12 @@
  */
 package org.apache.beam.runners.direct;
 
+import org.apache.beam.runners.direct.InProcessPipelineRunner.CommittedBundle;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.util.WindowedValue;
+
+import javax.annotation.Nullable;
 
 /**
  * A {@link TransformEvaluator} that ignores all input and produces no output. The result of
@@ -38,6 +41,9 @@ final class EmptyTransformEvaluator<T> implements TransformEvaluator<T> {
   private EmptyTransformEvaluator(AppliedPTransform<?, ?, ?> transform) {
     this.transform = transform;
   }
+
+  @Override
+  public void startBundle(@Nullable CommittedBundle<T> inputBundle) {}
 
   @Override
   public void processElement(WindowedValue<T> element) throws Exception {}

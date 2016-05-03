@@ -97,8 +97,9 @@ public class ParDoSingleEvaluatorFactoryTest implements Serializable {
 
     org.apache.beam.runners.direct.TransformEvaluator<String> evaluator =
         new ParDoSingleEvaluatorFactory()
-            .forApplication(
-                collection.getProducingTransformInternal(), inputBundle, evaluationContext);
+            .create(
+                collection.getProducingTransformInternal(), evaluationContext);
+    evaluator.startBundle(inputBundle);
 
     evaluator.processElement(WindowedValue.valueInGlobalWindow("foo"));
     evaluator.processElement(
@@ -149,8 +150,9 @@ public class ParDoSingleEvaluatorFactoryTest implements Serializable {
 
     TransformEvaluator<String> evaluator =
         new ParDoSingleEvaluatorFactory()
-            .forApplication(
-                collection.getProducingTransformInternal(), inputBundle, evaluationContext);
+            .create(
+                collection.getProducingTransformInternal(), evaluationContext);
+    evaluator.startBundle(inputBundle);
 
     evaluator.processElement(WindowedValue.valueInGlobalWindow("foo"));
     evaluator.processElement(
@@ -213,8 +215,9 @@ public class ParDoSingleEvaluatorFactoryTest implements Serializable {
 
     org.apache.beam.runners.direct.TransformEvaluator<String> evaluator =
         new ParDoSingleEvaluatorFactory()
-            .forApplication(
-                mainOutput.getProducingTransformInternal(), inputBundle, evaluationContext);
+            .create(
+                mainOutput.getProducingTransformInternal(), evaluationContext);
+    evaluator.startBundle(inputBundle);
 
     evaluator.processElement(WindowedValue.valueInGlobalWindow("foo"));
     evaluator.processElement(
@@ -310,8 +313,9 @@ public class ParDoSingleEvaluatorFactoryTest implements Serializable {
 
     TransformEvaluator<String> evaluator =
         new ParDoSingleEvaluatorFactory()
-            .forApplication(
-                mainOutput.getProducingTransformInternal(), inputBundle, evaluationContext);
+            .create(
+                mainOutput.getProducingTransformInternal(), evaluationContext);
+    evaluator.startBundle(inputBundle);
 
     evaluator.processElement(WindowedValue.valueInGlobalWindow("foo"));
 
