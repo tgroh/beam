@@ -17,6 +17,8 @@
  */
 package org.apache.beam.runners.direct;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import org.apache.beam.runners.direct.InMemoryWatermarkManager.FiredTimers;
 import org.apache.beam.runners.direct.InProcessPipelineRunner.CommittedBundle;
 import org.apache.beam.sdk.Pipeline;
@@ -36,6 +38,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 
 import org.joda.time.Instant;
 import org.slf4j.Logger;
@@ -191,9 +194,14 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
     return keyedPValues.contains(pvalue);
   }
 
-  private void scheduleConsumers(CommittedBundle<?> bundle) {
-    for (AppliedPTransform<?, ?, ?> consumer : valueToConsumers.get(bundle.getPCollection())) {
-      scheduleConsumption(consumer, bundle, defaultCompletionCallback);
+  private void scheduleConsumers(ExecutorUpdate update) {
+    CommittedBundle<?> bundle = update.getBundle().get();
+    if (update.getConsumer().isPresent()) {
+      scheduleConsumption(update.getConsumer().get(), bundle, defaultCompletionCallback);
+    } else {
+      for (AppliedPTransform<?, ?, ?> consumer : valueToConsumers.get(bundle.getPCollection())) {
+        scheduleConsumption(consumer, bundle, defaultCompletionCallback);
+      }
     }
   }
 
@@ -226,6 +234,11 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
       CommittedResult committedResult = getCommittedResult(inputBundle, result);
       for (CommittedBundle<?> outputBundle : committedResult.getOutputs()) {
         allUpdates.offer(ExecutorUpdate.fromBundle(outputBundle));
+      }
+      CommittedBundle<?> unprocessedInputs = committedResult.getUnprocessedInputs();
+      if (unprocessedInputs != null && !Iterables.isEmpty(unprocessedInputs.getElements())) {
+        allUpdates.offer(ExecutorUpdate.reprocess(committedResult.getTransform(),
+            unprocessedInputs));
       }
       return committedResult;
     }
@@ -278,23 +291,44 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
    */
   private static class ExecutorUpdate {
     private final Optional<? extends CommittedBundle<?>> bundle;
+    /**
+     * The transform to process this bundle. Requires bundle to be non-null. If not specified, and
+     * {@link #bundle} is present, all {@link AppliedPTransform AppliedPTransforms} that consume the
+     * {@link PCollection} of the bundle should be scheduled to consume the bundle.
+     */
+    private final Optional<? extends AppliedPTransform<?, ?, ?>> transform;
     private final Optional<? extends Throwable> throwable;
 
     public static ExecutorUpdate fromBundle(CommittedBundle<?> bundle) {
-      return new ExecutorUpdate(bundle, null);
+      return new ExecutorUpdate(bundle, null, null);
     }
 
     public static ExecutorUpdate fromThrowable(Throwable t) {
-      return new ExecutorUpdate(null, t);
+      return new ExecutorUpdate(null, null, t);
     }
 
-    private ExecutorUpdate(CommittedBundle<?> producedBundle, Throwable throwable) {
+    public static ExecutorUpdate reprocess(
+        AppliedPTransform<?, ?, ?> transform, CommittedBundle<?> unprocessedInputs) {
+      return new ExecutorUpdate(unprocessedInputs, transform, null);
+    }
+
+    private ExecutorUpdate(
+        @Nullable CommittedBundle<?> producedBundle,
+        @Nullable AppliedPTransform<?, ?, ?> transform,
+        @Nullable Throwable throwable) {
+      checkArgument(transform == null || producedBundle != null,
+          "Bundle may not be null if transform is non-null");
       this.bundle = Optional.fromNullable(producedBundle);
+      this.transform = Optional.fromNullable(transform);
       this.throwable = Optional.fromNullable(throwable);
     }
 
     public Optional<? extends CommittedBundle<?>> getBundle() {
       return bundle;
+    }
+
+    public Optional<? extends AppliedPTransform<?, ?, ?>> getConsumer() {
+      return transform;
     }
 
     public Optional<? extends Throwable> getException() {
@@ -353,7 +387,7 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
         while (update != null) {
           LOG.debug("Executor Update: {}", update);
           if (update.getBundle().isPresent()) {
-            scheduleConsumers(update.getBundle().get());
+            scheduleConsumers(update);
           } else if (update.getException().isPresent()) {
             visibleUpdates.offer(VisibleExecutorUpdate.fromThrowable(update.getException().get()));
           }
