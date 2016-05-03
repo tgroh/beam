@@ -55,6 +55,7 @@ public class CommittedResultTest implements Serializable {
   public void getTransformExtractsFromResult() {
     CommittedResult result =
         CommittedResult.create(StepTransformResult.withoutHold(transform).build(),
+            completedBundle.withElements((Iterable) result.getUnprocessedElements()),
             Collections.<InProcessPipelineRunner.CommittedBundle<?>>emptyList());
 
     assertThat(result.getTransform(), Matchers.<AppliedPTransform<?, ?, ?>>equalTo(transform));
@@ -70,7 +71,9 @@ public class CommittedResultTest implements Serializable {
                 WindowingStrategy.globalDefault(),
                 PCollection.IsBounded.UNBOUNDED)).commit(Instant.now()));
     CommittedResult result =
-        CommittedResult.create(StepTransformResult.withoutHold(transform).build(), outputs);
+        CommittedResult.create(StepTransformResult.withoutHold(transform).build(),
+            completedBundle.withElements((Iterable) result.getUnprocessedElements()),
+            outputs);
 
     assertThat(result.getOutputs(), Matchers.containsInAnyOrder(outputs.toArray()));
   }

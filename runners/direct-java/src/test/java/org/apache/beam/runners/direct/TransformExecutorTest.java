@@ -491,7 +491,9 @@ public class TransformExecutorTest {
         CommittedBundle<?> inputBundle, InProcessTransformResult result) {
       handledResult = result;
       onMethod.countDown();
-      return CommittedResult.create(result, Collections.<CommittedBundle<?>>emptyList());
+      return CommittedResult.create(result,
+          completedBundle.withElements((Iterable) result.getUnprocessedElements()),
+          Collections.<CommittedBundle<?>>emptyList());
     }
 
     @Override
