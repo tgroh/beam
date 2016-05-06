@@ -17,8 +17,6 @@
  */
 package org.apache.beam.runners.direct;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 import org.apache.beam.runners.direct.InMemoryWatermarkManager.FiredTimers;
 import org.apache.beam.runners.direct.InProcessPipelineRunner.CommittedBundle;
 import org.apache.beam.sdk.Pipeline;
@@ -32,6 +30,7 @@ import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PValue;
 
+import com.google.auto.value.AutoValue;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Optional;
 import com.google.common.cache.CacheBuilder;
@@ -196,12 +195,8 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
 
   private void scheduleConsumers(ExecutorUpdate update) {
     CommittedBundle<?> bundle = update.getBundle().get();
-    if (update.getConsumer().isPresent()) {
-      scheduleConsumption(update.getConsumer().get(), bundle, defaultCompletionCallback);
-    } else {
-      for (AppliedPTransform<?, ?, ?> consumer : valueToConsumers.get(bundle.getPCollection())) {
-        scheduleConsumption(consumer, bundle, defaultCompletionCallback);
-      }
+    for (AppliedPTransform<?, ?, ?> consumer : update.getConsumers()) {
+      scheduleConsumption(consumer, bundle, defaultCompletionCallback);
     }
   }
 
@@ -233,12 +228,13 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
         CommittedBundle<?> inputBundle, InProcessTransformResult result) {
       CommittedResult committedResult = getCommittedResult(inputBundle, result);
       for (CommittedBundle<?> outputBundle : committedResult.getOutputs()) {
-        allUpdates.offer(ExecutorUpdate.fromBundle(outputBundle));
+        allUpdates.offer(ExecutorUpdate.fromBundle(outputBundle,
+            valueToConsumers.get(outputBundle.getPCollection())));
       }
       CommittedBundle<?> unprocessedInputs = committedResult.getUnprocessedInputs();
       if (unprocessedInputs != null && !Iterables.isEmpty(unprocessedInputs.getElements())) {
-        allUpdates.offer(ExecutorUpdate.reprocess(committedResult.getTransform(),
-            unprocessedInputs));
+        allUpdates.offer(ExecutorUpdate.fromBundle(unprocessedInputs,
+            Collections.<AppliedPTransform<?, ?, ?>>singleton(committedResult.getTransform())));
       }
       return committedResult;
     }
@@ -289,59 +285,36 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
    *
    * Used to signal when the executor should be shut down (due to an exception).
    */
-  private static class ExecutorUpdate {
-    private final Optional<? extends CommittedBundle<?>> bundle;
-    /**
-     * The transform to process this bundle. Requires bundle to be non-null. If not specified, and
-     * {@link #bundle} is present, all {@link AppliedPTransform AppliedPTransforms} that consume the
-     * {@link PCollection} of the bundle should be scheduled to consume the bundle.
-     */
-    private final Optional<? extends AppliedPTransform<?, ?, ?>> transform;
-    private final Optional<? extends Throwable> throwable;
-
-    public static ExecutorUpdate fromBundle(CommittedBundle<?> bundle) {
-      return new ExecutorUpdate(bundle, null, null);
+  @AutoValue
+  abstract static class ExecutorUpdate {
+    public static ExecutorUpdate fromBundle(
+        CommittedBundle<?> bundle,
+        Collection<AppliedPTransform<?, ?, ?>> consumers) {
+      return new AutoValue_ExecutorServiceParallelExecutor_ExecutorUpdate(
+          Optional.of(bundle),
+          consumers,
+          Optional.<Throwable>absent());
     }
 
     public static ExecutorUpdate fromThrowable(Throwable t) {
-      return new ExecutorUpdate(null, null, t);
+      return new AutoValue_ExecutorServiceParallelExecutor_ExecutorUpdate(
+          Optional.<CommittedBundle<?>>absent(),
+          Collections.<AppliedPTransform<?, ?, ?>>emptyList(),
+          Optional.of(t));
     }
 
-    public static ExecutorUpdate reprocess(
-        AppliedPTransform<?, ?, ?> transform, CommittedBundle<?> unprocessedInputs) {
-      return new ExecutorUpdate(unprocessedInputs, transform, null);
-    }
+    /**
+     * Returns the bundle that produced this update.
+     */
+    public abstract Optional<? extends CommittedBundle<?>> getBundle();
 
-    private ExecutorUpdate(
-        @Nullable CommittedBundle<?> producedBundle,
-        @Nullable AppliedPTransform<?, ?, ?> transform,
-        @Nullable Throwable throwable) {
-      checkArgument(transform == null || producedBundle != null,
-          "Bundle may not be null if transform is non-null");
-      this.bundle = Optional.fromNullable(producedBundle);
-      this.transform = Optional.fromNullable(transform);
-      this.throwable = Optional.fromNullable(throwable);
-    }
+    /**
+     * Returns the transforms to process the bundle. If nonempty, {@link #getBundle()} will return
+     * a present {@link Optional}.
+     */
+    public abstract Collection<AppliedPTransform<?, ?, ?>> getConsumers();
 
-    public Optional<? extends CommittedBundle<?>> getBundle() {
-      return bundle;
-    }
-
-    public Optional<? extends AppliedPTransform<?, ?, ?>> getConsumer() {
-      return transform;
-    }
-
-    public Optional<? extends Throwable> getException() {
-      return throwable;
-    }
-
-    @Override
-    public String toString() {
-      return MoreObjects.toStringHelper(ExecutorUpdate.class)
-          .add("bundle", bundle)
-          .add("exception", throwable)
-          .toString();
-    }
+    public abstract Optional<? extends Throwable> getException();
   }
 
   /**
