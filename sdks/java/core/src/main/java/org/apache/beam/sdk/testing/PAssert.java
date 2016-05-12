@@ -39,16 +39,26 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.transforms.Sum;
 import org.apache.beam.sdk.transforms.View;
+import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
+import org.apache.beam.sdk.transforms.windowing.NonMergingWindowFn;
+import org.apache.beam.sdk.transforms.windowing.PaneInfo;
 import org.apache.beam.sdk.transforms.windowing.Window;
+import org.apache.beam.sdk.transforms.windowing.WindowFn;
 import org.apache.beam.sdk.util.CoderUtils;
+import org.apache.beam.sdk.util.GatherAllPanes;
+import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.PDone;
 
+import com.google.common.base.Function;
 import com.google.common.base.Optional;
+import com.google.common.base.Predicate;
+import com.google.common.collect.FluentIterable;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
@@ -62,6 +72,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+
+import javax.annotation.Nullable;
 
 /**
  * An assertion on the contents of a {@link PCollection}
@@ -711,6 +723,90 @@ public class PAssert {
     }
   }
 
+  static class ActualsAssert<ActualT, ExpectedT> extends PTransform<PCollection<ActualT>, PDone> {
+    private final PTransform<PBegin, PCollectionView<ExpectedT>> createExpected;
+    private final AssertRelation<Iterable<WindowedValue<ActualT>>, ExpectedT> relation;
+
+    public ActualsAssert(
+        PTransform<PBegin, PCollectionView<ExpectedT>> createExpected,
+        AssertRelation<Iterable<WindowedValue<ActualT>>, ExpectedT> relation) {
+      this.createExpected = createExpected;
+      this.relation = relation;
+    }
+
+    @Override
+    public PDone apply(PCollection<ActualT> actual) {
+      PCollectionView<ExpectedT> expected = actual.getPipeline().apply(createExpected);
+      // EntireWindows will contain exactly one element per window containing each pane in that
+      // window.
+      PCollection<Iterable<WindowedValue<ActualT>>> entireWindows =
+          actual.apply(GatherAllPanes.<ActualT>globally());
+
+      SameWindowFn<Iterable<WindowedValue<ActualT>>> sameWindows =
+          new SameWindowFn<Iterable<WindowedValue<ActualT>>>(
+              (Coder<BoundedWindow>)
+                  entireWindows.getWindowingStrategy().getWindowFn().windowCoder());
+
+      entireWindows
+          .apply(Window.into(sameWindows))
+          .apply(
+              ParDo.withSideInputs(expected)
+                  .of(new ActualsCheckerDoFn<ActualT, ExpectedT>(expected, relation)));
+      return PDone.in(actual.getPipeline());
+    }
+  }
+
+  private static final class ActualsCheckerDoFn<ActualT, ExpectedT>
+      extends DoFn<Iterable<WindowedValue<ActualT>>, Void> {
+    private final PCollectionView<ExpectedT> expected;
+    private final AssertRelation<Iterable<WindowedValue<ActualT>>, ExpectedT> relation;
+
+    public ActualsCheckerDoFn(
+        PCollectionView<ExpectedT> expected,
+        AssertRelation<Iterable<WindowedValue<ActualT>>, ExpectedT> relation) {
+      this.expected = expected;
+      this.relation = relation;
+    }
+
+    @Override
+    public void processElement(DoFn<Iterable<WindowedValue<ActualT>>, Void>.ProcessContext c)
+        throws Exception {
+      ExpectedT windowExpected = c.sideInput(expected);
+      SerializableFunction<Iterable<WindowedValue<ActualT>>, Void> assertFor =
+          relation.assertFor(windowExpected);
+      assertFor.apply(c.element());
+    }
+  }
+
+  private static final class SameWindowFn<T> extends NonMergingWindowFn<T, BoundedWindow> {
+    private final Coder<BoundedWindow> windowCoder;
+
+    private SameWindowFn(Coder<BoundedWindow> windowCoder) {
+      this.windowCoder = windowCoder;
+    }
+
+    @Override
+    public Collection<BoundedWindow> assignWindows(WindowFn<T, BoundedWindow>.AssignContext c)
+        throws Exception {
+      return (Collection<BoundedWindow>) c.windows();
+    }
+
+    @Override
+    public boolean isCompatible(WindowFn<?, ?> other) {
+      return other instanceof SameWindowFn;
+    }
+
+    @Override
+    public Coder<BoundedWindow> windowCoder() {
+      return windowCoder;
+    }
+
+    @Override
+    public BoundedWindow getSideInputWindow(BoundedWindow window) {
+      return window;
+    }
+  }
+
   /////////////////////////////////////////////////////////////////////////////
 
   /**
@@ -778,6 +874,49 @@ public class PAssert {
     }
   }
 
+  private static class AssertConcatenationStatisfies<T>
+      implements SerializableFunction<Iterable<Iterable<T>>, Void> {
+    private final SerializableFunction<Iterable<T>, Void> relation;
+
+    public AssertConcatenationStatisfies(SerializableFunction<Iterable<T>, Void> relation) {
+      this.relation = relation;
+    }
+
+    @Override
+    public Void apply(Iterable<Iterable<T>> input) {
+      return relation.apply(Iterables.concat(input));
+    }
+  }
+
+  private static class AssertUnionSatisfies<T>
+      implements SerializableFunction<Iterable<WindowedValue<T>>, Void> {
+    private final SerializableFunction<Iterable<T>, Void> relation;
+    private final Predicate<? super WindowedValue<?>> windowPredicate;
+
+    public AssertUnionSatisfies(
+        SerializableFunction<Iterable<T>, Void> relation,
+        Predicate<? super WindowedValue<?>> windowPredicate) {
+      this.relation = relation;
+      this.windowPredicate = windowPredicate;
+    }
+
+    @Override
+    public Void apply(Iterable<WindowedValue<T>> input) {
+      @SuppressWarnings("unchecked")
+      Iterable<T> catenated =
+          FluentIterable.from(input)
+              .filter(windowPredicate)
+              .transform(
+                  new Function<WindowedValue<T>, T>() {
+                    @Override
+                    public T apply(WindowedValue<T> input) {
+                      return input.getValue();
+                    }
+                  });
+      return relation.apply(catenated);
+    }
+  }
+
   ////////////////////////////////////////////////////////////
 
   /**
@@ -821,6 +960,81 @@ public class PAssert {
     @Override
     public SerializableFunction<Iterable<T>, Void> assertFor(Iterable<T> expectedElements) {
       return new AssertContainsInAnyOrder<T>(expectedElements);
+    }
+  }
+
+  private static class AssertPaneConcatentationRelation<ActualT, ExpectedT>
+      implements AssertRelation<Iterable<WindowedValue<ActualT>>, Iterable<ExpectedT>> {
+    private final AssertRelation<Iterable<ActualT>, Iterable<ExpectedT>> afterConcatenationRelation;
+    private final Predicate<? super WindowedValue<?>> windowedValueFilter;
+
+    public AssertPaneConcatentationRelation(
+        AssertRelation<Iterable<ActualT>, Iterable<ExpectedT>> afterConcatenationRelation,
+        Predicate<? super WindowedValue<?>> windowedValueFilter) {
+      this.afterConcatenationRelation = afterConcatenationRelation;
+      this.windowedValueFilter = windowedValueFilter;
+    }
+
+    @Override
+    public SerializableFunction<Iterable<WindowedValue<ActualT>>, Void> assertFor(
+        Iterable<ExpectedT> input) {
+      return new AssertUnionSatisfies<ActualT>(
+          afterConcatenationRelation.assertFor(input), windowedValueFilter);
+    }
+  }
+
+  private interface PaneFilter<T>
+      extends SerializableFunction<Iterable<WindowedValue<T>>, Iterable<WindowedValue<T>>> {}
+
+  private static class OnTimePane<T> implements PaneFilter<T> {
+    @Override
+    public Iterable<WindowedValue<T>> apply(Iterable<WindowedValue<T>> input) {
+      for (WindowedValue<T> fullPane : input) {
+        if (PaneInfo.Timing.ON_TIME.equals(fullPane.getPane().getTiming())) {
+          return ImmutableList.of(fullPane);
+        }
+      }
+      throw new AssertionError("There was no on time pane. ");
+    }
+  }
+
+  private static class LastPane<T> implements PaneFilter<T> {
+    @Override
+    public Iterable<WindowedValue<T>> apply(Iterable<WindowedValue<T>> input) {
+      WindowedValue<T> lastSoFar = null;
+      for (WindowedValue<T> fullPane : input) {
+        if (fullPane.getPane().isLast()) {
+          return ImmutableList.of(fullPane);
+        }
+        if (lastSoFar == null) {
+          lastSoFar = fullPane;
+        } else if (fullPane.getPane().getIndex() > lastSoFar.getPane().getIndex()) {
+          lastSoFar = fullPane;
+        }
+      }
+      return ImmutableList.of(lastSoFar);
+    }
+  }
+
+  private static class NonLatePanes<T> implements PaneFilter<T> {
+    @Override
+    public Iterable<WindowedValue<T>> apply(Iterable<WindowedValue<T>> input) {
+      return Iterables.filter(
+          input,
+          new Predicate<WindowedValue<T>>() {
+            @Override
+            public boolean apply(@Nullable WindowedValue<T> input) {
+              return !PaneInfo.Timing.LATE.equals(input.getPane().getTiming());
+            }
+          });
+    }
+  }
+
+  private static class AllPanes<T> implements PaneFilter<T> {
+
+    @Override
+    public Iterable<WindowedValue<T>> apply(Iterable<WindowedValue<T>> input) {
+      return input;
     }
   }
 }
