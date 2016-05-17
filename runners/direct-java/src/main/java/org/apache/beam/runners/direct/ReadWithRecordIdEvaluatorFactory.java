@@ -26,7 +26,9 @@ import org.apache.beam.sdk.io.UnboundedSource.UnboundedReader;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.util.UnboundedReadAndDeduplicate.ReadWithIds;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 
 import java.io.IOException;
@@ -41,7 +43,7 @@ import javax.annotation.Nullable;
  * A {@link TransformEvaluatorFactory} that produces {@link TransformEvaluator TransformEvaluators}
  * for the {@link Unbounded Read.Unbounded} primitive {@link PTransform}.
  */
-class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
+class ReadWithRecordIdEvaluatorFactory implements TransformEvaluatorFactory {
   /*
    * An evaluator for a Source is stateful, to ensure the CheckpointMark is properly persisted.
    * Evaluators are cached here to ensure that the checkpoint mark is appropriately reused
@@ -65,7 +67,8 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
   }
 
   private <OutputT> TransformEvaluator<?> getTransformEvaluator(
-      final AppliedPTransform<?, PCollection<OutputT>, Unbounded<OutputT>> transform,
+      final AppliedPTransform<
+          ?, PCollection<KV<byte[], OutputT>>, ReadWithIds<OutputT>> transform,
       final InProcessEvaluationContext evaluationContext) {
     return getTransformEvaluatorQueue(transform, evaluationContext).poll();
   }
@@ -79,7 +82,8 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
    */
   @SuppressWarnings("unchecked")
   private <OutputT> Queue<UnboundedReadEvaluator<OutputT>> getTransformEvaluatorQueue(
-      final AppliedPTransform<?, PCollection<OutputT>, Unbounded<OutputT>> transform,
+      final AppliedPTransform<
+          ?, PCollection<KV<byte[], OutputT>>, ReadWithIds<OutputT>> transform,
       final InProcessEvaluationContext evaluationContext) {
     // Key by the application and the context the evaluation is occurring in (which call to
     // Pipeline#run).
@@ -118,7 +122,8 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
    */
   private static class UnboundedReadEvaluator<OutputT> implements TransformEvaluator<Object> {
     private static final int ARBITRARY_MAX_ELEMENTS = 10;
-    private final AppliedPTransform<?, PCollection<OutputT>, Unbounded<OutputT>> transform;
+    private final AppliedPTransform<?, PCollection<KV<byte[], OutputT>>, ReadWithIds<OutputT>>
+        transform;
     private final InProcessEvaluationContext evaluationContext;
     private final ConcurrentLinkedQueue<UnboundedReadEvaluator<OutputT>> evaluatorQueue;
     /**
@@ -129,7 +134,7 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
     private CheckpointMark checkpointMark;
 
     public UnboundedReadEvaluator(
-        AppliedPTransform<?, PCollection<OutputT>, Unbounded<OutputT>> transform,
+        AppliedPTransform<?, PCollection<KV<byte[], OutputT>>, ReadWithIds<OutputT>> transform,
         InProcessEvaluationContext evaluationContext,
         UnboundedSource<OutputT, ?> source,
         ConcurrentLinkedQueue<UnboundedReadEvaluator<OutputT>> evaluatorQueue) {
@@ -145,15 +150,17 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
 
     @Override
     public InProcessTransformResult finishBundle() throws IOException {
-      UncommittedBundle<OutputT> output = evaluationContext.createRootBundle(transform.getOutput());
-      try (UnboundedReader<OutputT> reader =
-              createReader(source, evaluationContext.getPipelineOptions());) {
+      UncommittedBundle<KV<byte[], OutputT>> output =
+          evaluationContext.createRootBundle(transform.getOutput());
+      try (UnboundedReader<OutputT> reader = createReader(source,
+          evaluationContext.getPipelineOptions());) {
         int numElements = 0;
         if (reader.start()) {
           do {
+            KV<byte[], OutputT> record = KV.of(reader.getCurrentRecordId(), reader.getCurrent());
             output.add(
                 WindowedValue.timestampedValueInGlobalWindow(
-                    reader.getCurrent(), reader.getCurrentTimestamp()));
+                    record, reader.getCurrentTimestamp()));
             numElements++;
           } while (numElements < ARBITRARY_MAX_ELEMENTS && reader.advance());
         }

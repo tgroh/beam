@@ -25,6 +25,7 @@ import org.apache.beam.sdk.Pipeline.PipelineExecutionException;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.io.AvroIO;
+import org.apache.beam.sdk.io.Read;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.runners.AggregatorPipelineExtractor;
@@ -82,6 +83,7 @@ public class InProcessPipelineRunner
           ImmutableMap.<Class<? extends PTransform>, PTransformOverrideFactory>builder()
               .put(GroupByKey.class, new InProcessGroupByKeyOverrideFactory())
               .put(CreatePCollectionView.class, new InProcessViewOverrideFactory())
+              .put(Read.Unbounded.class, new UnboundedReadWithRecordIdFactory())
               .put(AvroIO.Write.Bound.class, new AvroIOShardedWriteFactory())
               .put(TextIO.Write.Bound.class, new TextIOShardedWriteFactory())
               .build();

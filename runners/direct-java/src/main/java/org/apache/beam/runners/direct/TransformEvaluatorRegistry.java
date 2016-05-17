@@ -24,6 +24,7 @@ import org.apache.beam.sdk.transforms.Flatten.FlattenPCollectionList;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.windowing.Window;
+import org.apache.beam.sdk.util.UnboundedReadAndDeduplicate.ReadWithIds;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -41,7 +42,7 @@ class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
     ImmutableMap<Class<? extends PTransform>, TransformEvaluatorFactory> primitives =
         ImmutableMap.<Class<? extends PTransform>, TransformEvaluatorFactory>builder()
             .put(Read.Bounded.class, new BoundedReadEvaluatorFactory())
-            .put(Read.Unbounded.class, new UnboundedReadEvaluatorFactory())
+            .put(ReadWithIds.class, new ReadWithRecordIdEvaluatorFactory())
             .put(ParDo.Bound.class, new ParDoSingleEvaluatorFactory())
             .put(ParDo.BoundMulti.class, new ParDoMultiEvaluatorFactory())
             .put(

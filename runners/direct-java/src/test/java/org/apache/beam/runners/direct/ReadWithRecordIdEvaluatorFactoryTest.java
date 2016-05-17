@@ -64,10 +64,10 @@ import java.util.NoSuchElementException;
 
 import javax.annotation.Nullable;
 /**
- * Tests for {@link UnboundedReadEvaluatorFactory}.
+ * Tests for {@link ReadWithRecordIdEvaluatorFactory}.
  */
 @RunWith(JUnit4.class)
-public class UnboundedReadEvaluatorFactoryTest {
+public class ReadWithRecordIdEvaluatorFactoryTest {
   private PCollection<Long> longs;
   private TransformEvaluatorFactory factory;
   private InProcessEvaluationContext context;
@@ -82,7 +82,7 @@ public class UnboundedReadEvaluatorFactoryTest {
     TestPipeline p = TestPipeline.create();
     longs = p.apply(Read.from(source));
 
-    factory = new UnboundedReadEvaluatorFactory();
+    factory = new ReadWithRecordIdEvaluatorFactory();
     context = mock(InProcessEvaluationContext.class);
     output = bundleFactory.createRootBundle(longs);
     when(context.createRootBundle(longs)).thenReturn(output);
