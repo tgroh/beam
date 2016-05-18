@@ -17,23 +17,22 @@
  */
 package org.apache.beam.sdk.options;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import org.apache.beam.sdk.runners.DirectPipelineRunner;
+import org.apache.beam.sdk.testing.NeedsRunner;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -85,9 +84,27 @@ public class PipelineOptionsTest {
     assertNotNull(options);
   }
 
+  /**
+   * Tests that the default runner is set if the DirectRunner is on the classpath.
+   *
+   * <p>See {@link #testDefaultRunnerNotOnClasspath()} for the case where the default runner is
+   * not available.
+   */
   @Test
+  @Category(NeedsRunner.class)
   public void testDefaultRunnerIsSet() {
-    assertEquals(DirectPipelineRunner.class, PipelineOptionsFactory.create().getRunner());
+    PipelineOptionsFactory.create().getRunner();
+  }
+
+  @Test
+  public void testDefaultRunnerNotOnClasspath() {
+    expectedException.expect(IllegalArgumentException.class);
+    expectedException.expectMessage("No runner was specified");
+    expectedException.expectMessage("DirectRunner");
+    expectedException.expectMessage("Specify a runner on the command line");
+    expectedException.expectMessage("using the '--runner' property");
+    expectedException.expectMessage("Add the DirectRunner to the classpath");
+    PipelineOptionsFactory.create().getRunner();
   }
 
   @Test

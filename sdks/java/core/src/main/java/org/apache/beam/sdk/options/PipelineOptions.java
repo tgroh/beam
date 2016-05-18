@@ -21,13 +21,12 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.GoogleApiDebugOptions.GoogleApiTracer;
 import org.apache.beam.sdk.options.ProxyInvocationHandler.Deserializer;
 import org.apache.beam.sdk.options.ProxyInvocationHandler.Serializer;
-import org.apache.beam.sdk.runners.DirectPipelineRunner;
 import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.DoFn.Context;
 import org.apache.beam.sdk.transforms.display.HasDisplayData;
-import com.google.auto.service.AutoService;
 
+import com.google.auto.service.AutoService;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -225,7 +224,7 @@ public interface PipelineOptions extends HasDisplayData {
   @Description("The pipeline runner that will be used to execute the pipeline. "
       + "For registered runners, the class name can be specified, otherwise the fully "
       + "qualified name needs to be specified.")
-  @Default.Class(DirectPipelineRunner.class)
+  @Default.InstanceFactory(DirectRunner.class)
   Class<? extends PipelineRunner<?>> getRunner();
   void setRunner(Class<? extends PipelineRunner<?>> kls);
 
@@ -262,4 +261,29 @@ public interface PipelineOptions extends HasDisplayData {
   @Description("A pipeline level default location for storing temporary files.")
   String getTempLocation();
   void setTempLocation(String value);
+
+  /**
+   * A factory that constructs instances of the DirectRunner by loading it from the classpath, if
+   * it exists. If it does not, throws an {@link IllegalArgumentException}.
+   */
+  class DirectRunner implements DefaultValueFactory<Class<? extends PipelineRunner>> {
+    @Override
+    public Class<? extends PipelineRunner> create(PipelineOptions options) {
+      try {
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Class<? extends PipelineRunner> direct = (Class<? extends PipelineRunner>) Class.forName(
+            "org.apache.beam.runners.direct.InProcessPipelineRunner");
+        return direct;
+      } catch (ClassNotFoundException e) {
+        throw new IllegalArgumentException(
+            "No runner was specified, and the DirectRunner was not found on the classpath. "
+                + "Either:\n"
+                + "  Specify a runner on the command line by using the '--runner' property"
+                + "(recommended)"
+                + "  Specify a runner using the setRunner(PipelineRunner.class)"
+                + "  Add the DirectRunner to the classpath (org.apache.beam:direct-runner)",
+            e);
+      }
+    }
+  }
 }
