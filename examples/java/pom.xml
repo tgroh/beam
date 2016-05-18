@@ -219,8 +219,7 @@
 
     <dependency>
       <groupId>org.apache.beam</groupId>
-      <artifactId>google-cloud-dataflow-java-runner</artifactId>
->>>>>>> Declare test dependencies on the Direct Runner
+      <artifactId>beam-runners-direct-java</artifactId>
       <version>${project.version}</version>
     </dependency>
 
