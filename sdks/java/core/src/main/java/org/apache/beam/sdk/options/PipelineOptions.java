@@ -17,23 +17,26 @@
  */
 package org.apache.beam.sdk.options;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.GoogleApiDebugOptions.GoogleApiTracer;
 import org.apache.beam.sdk.options.ProxyInvocationHandler.Deserializer;
 import org.apache.beam.sdk.options.ProxyInvocationHandler.Serializer;
-import org.apache.beam.sdk.runners.DirectPipelineRunner;
 import org.apache.beam.sdk.runners.PipelineRunner;
+import org.apache.beam.sdk.runners.PipelineRunnerRegistrar;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.DoFn.Context;
 import org.apache.beam.sdk.transforms.display.HasDisplayData;
-import com.google.auto.service.AutoService;
 
+import com.google.auto.service.AutoService;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 import java.lang.reflect.Proxy;
+import java.util.Iterator;
 import java.util.ServiceLoader;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -225,7 +228,7 @@ public interface PipelineOptions extends HasDisplayData {
   @Description("The pipeline runner that will be used to execute the pipeline. "
       + "For registered runners, the class name can be specified, otherwise the fully "
       + "qualified name needs to be specified.")
-  @Default.Class(DirectPipelineRunner.class)
+  @Default.InstanceFactory(DirectRunnerFactory.class)
   Class<? extends PipelineRunner<?>> getRunner();
   void setRunner(Class<? extends PipelineRunner<?>> kls);
 
@@ -262,4 +265,38 @@ public interface PipelineOptions extends HasDisplayData {
   @Description("A pipeline level default location for storing temporary files.")
   String getTempLocation();
   void setTempLocation(String value);
+
+  class DirectRunnerFactory implements DefaultValueFactory<Class<? extends PipelineRunner>> {
+    @Override
+    public Class<? extends PipelineRunner> create(PipelineOptions options) {
+      try {
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Class<? extends PipelineRunner> direct = (Class<? extends PipelineRunner>) Class.forName(
+            "org.apache.beam.sdk.runner.direct.InProcessPipelineRunner");
+        return direct;
+      } catch (ClassNotFoundException e) {
+        // TODO: Should we do this inference? Running a pipeline may be expensive
+        // If there is only one registered runner (via PipelineRunnerRegistrar), use that runner
+        Iterator<PipelineRunnerRegistrar> registrars =
+            ServiceLoader.load(PipelineRunnerRegistrar.class).iterator();
+        checkArgument(registrars.hasNext(),
+            "No Runner was specified and no Registered Pipeline Runner was found");
+        PipelineRunnerRegistrar registrar = registrars.next();
+        checkArgument(!registrars.hasNext(),
+            "No Runner was specified and more than one Registered Pipeline Runner was found");
+        Iterator<Class<? extends PipelineRunner<?>>> runners =
+            registrar.getPipelineRunners().iterator();
+        checkArgument(runners.hasNext(),
+            "No Runner was specified and no "
+                + "Registered Pipeline Runner was found in Registrar %s",
+            registrar);
+        Class<? extends PipelineRunner<?>> runner = runners.next();
+        checkArgument(!runners.hasNext(),
+            "No Runner was specified and more than one "
+                + "Registered Pipeline Runner was found in Registrar %s",
+            registrar);
+        return runner;
+      }
+    }
+  }
 }
