@@ -131,6 +131,12 @@
   <packaging>pom</packaging>
 
   <modules>
+    <!-- Construct the Core SDK and Direct Runner before the remaing SDK modules, so non-core-sdk tests
+      can execute pipelines during tests -->
+    <module>sdks/java/build-tools</module>
+    <module>sdks/java/core</module>
+    <module>runners/core-java</module>
+    <module>runners/direct-java</module>
     <module>sdks</module>
     <!-- Expose Dataflow runner as top level module to satisfy dependencies in sdks/java/maven-archetypes 
       and examples/java. Until these are refactored out, we need to modify the build order. -->

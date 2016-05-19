@@ -35,8 +35,6 @@
   <name>Apache Beam :: Runners</name>
 
   <modules>
-    <module>core-java</module>
-    <module>direct-java</module>
     <module>flink</module>
     <module>spark</module>
   </modules>
