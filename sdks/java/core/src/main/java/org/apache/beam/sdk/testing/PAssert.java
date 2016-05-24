@@ -39,6 +39,7 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.transforms.Sum;
 import org.apache.beam.sdk.transforms.View;
+import org.apache.beam.sdk.transforms.windowing.DefaultTrigger;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
 import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.transforms.windowing.WindowFn;
@@ -53,6 +54,7 @@ import com.google.common.base.Optional;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
+import org.joda.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -506,9 +508,24 @@ public class PAssert {
   }
 
   ////////////////////////////////////////////////////////////////////////
+  private interface CreateActualView<ActualT> {
+    /**
+     * Returns a CreateActualView like this one, but rewindowed into the {@link GlobalWindow} if
+     * possible.
+     *
+     * <p>Not all {@link CreateActualView} can rewindow into the global window. Implementations that
+     * do not support this method should return themselves.
+     */
+    CreateActualView<ActualT> rewindowIntoGlobalWindow();
+
+    /**
+     * Return the actual view.
+     */
+    PCollectionView<ActualT> apply(PBegin input);
+  }
 
   private static class CreateActual<T, ActualT>
-      extends PTransform<PBegin, PCollectionView<ActualT>> {
+      extends PTransform<PBegin, PCollectionView<ActualT>> implements CreateActualView<ActualT> {
 
     private final transient PCollection<T> actual;
     private final transient PTransform<PCollection<T>, PCollectionView<ActualT>> actualView;
@@ -517,6 +534,16 @@ public class PAssert {
         PTransform<PCollection<T>, PCollectionView<ActualT>> actualView) {
       this.actual = actual;
       this.actualView = actualView;
+    }
+
+    @Override
+    public CreateActualView<ActualT> rewindowIntoGlobalWindow() {
+      return new CreateActual<>(
+          actual.apply(Window.<T>into(new GlobalWindows())
+                             .triggering(DefaultTrigger.of())
+                             .withAllowedLateness(Duration.ZERO)
+                             .discardingFiredPanes()),
+          actualView);
     }
 
     @Override
@@ -560,12 +587,21 @@ public class PAssert {
     }
   }
 
-  private static class PreExisting<T> extends PTransform<PBegin, PCollectionView<T>> {
+
+  private static class PreExisting<T> extends PTransform<PBegin, PCollectionView<T>>
+      implements CreateActualView<T> {
 
     private final PCollectionView<T> view;
 
     private PreExisting(PCollectionView<T> view) {
       this.view = view;
+    }
+
+    @Override
+    public CreateActualView<T> rewindowIntoGlobalWindow() {
+      // The view can't be rewindowed; just return it. To use the preexisting style of assert the
+      // user has to window appropriately before applying the PAssert.
+      return this;
     }
 
     @Override
