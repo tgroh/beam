@@ -41,6 +41,7 @@ import org.apache.beam.sdk.transforms.Sum;
 import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
 import org.apache.beam.sdk.transforms.windowing.Window;
+import org.apache.beam.sdk.transforms.windowing.WindowFn;
 import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PBegin;
@@ -246,7 +247,7 @@ public class PAssert {
     public IterableAssert<T> satisfies(SerializableFunction<Iterable<T>, Void> checkerFn) {
       pipeline.apply(
           "PAssert$" + (assertCount++),
-          new OneSideInputAssert<Iterable<T>>(createActual, checkerFn));
+          new OneSideInputAssert<Iterable<T>>(createActual, new GlobalWindows(), checkerFn));
       return this;
     }
 
@@ -258,11 +259,15 @@ public class PAssert {
     public IterableAssert<T> satisfies(
         AssertRelation<Iterable<T>, Iterable<T>> relation,
         final Iterable<T> expectedElements) {
+      WindowFn<Object, ?> windowFn = new GlobalWindows();
       pipeline.apply(
           "PAssert$" + (assertCount++),
-          new TwoSideInputAssert<Iterable<T>, Iterable<T>>(
-              createActual,
-              new CreateExpected<T, Iterable<T>>(expectedElements, coder, View.<T>asIterable()),
+          new TwoSideInputAssert<Iterable<T>, Iterable<T>>(createActual,
+              new CreateExpected<T, Iterable<T>>(expectedElements,
+                  coder,
+                  (WindowFn<T, ?>) windowFn,
+                  View.<T>asIterable()),
+              windowFn,
               relation));
 
       return this;
@@ -281,7 +286,7 @@ public class PAssert {
         (SerializableFunction) new MatcherCheckerFn<>(matcher);
       pipeline.apply(
           "PAssert$" + (assertCount++),
-          new OneSideInputAssert<Iterable<T>>(createActual, checkerFn));
+          new OneSideInputAssert<Iterable<T>>(createActual, new GlobalWindows(), checkerFn));
       return this;
     }
 
@@ -439,8 +444,8 @@ public class PAssert {
      * <p>Returns this {@code SingletonAssert}.
      */
     public SingletonAssert<T> satisfies(SerializableFunction<T, Void> checkerFn) {
-      pipeline.apply(
-          "PAssert$" + (assertCount++), new OneSideInputAssert<T>(createActual, checkerFn));
+      pipeline.apply("PAssert$" + (assertCount++),
+          new OneSideInputAssert<T>(createActual, new GlobalWindows(), checkerFn));
       return this;
     }
 
@@ -453,11 +458,15 @@ public class PAssert {
     public SingletonAssert<T> satisfies(
         AssertRelation<T, T> relation,
         final T expectedValue) {
+      WindowFn<Object, ?> windowFn = new GlobalWindows();
       pipeline.apply(
           "PAssert$" + (assertCount++),
-          new TwoSideInputAssert<T, T>(
-              createActual,
-              new CreateExpected<T, T>(Arrays.asList(expectedValue), coder, View.<T>asSingleton()),
+          new TwoSideInputAssert<T, T>(createActual,
+              new CreateExpected<T, T>(Arrays.asList(expectedValue),
+                  coder,
+                  (WindowFn<T, ?>) windowFn,
+                  View.<T>asSingleton()),
+              windowFn,
               relation));
 
       return this;
@@ -530,12 +539,14 @@ public class PAssert {
 
     private final Iterable<T> elements;
     private final Optional<Coder<T>> coder;
+    private final transient WindowFn<T, ?> windowFn;
     private final transient PTransform<PCollection<T>, PCollectionView<ExpectedT>> view;
 
-    private CreateExpected(Iterable<T> elements, Optional<Coder<T>> coder,
+    private CreateExpected(Iterable<T> elements, Optional<Coder<T>> coder, WindowFn<T, ?> windowFn,
         PTransform<PCollection<T>, PCollectionView<ExpectedT>> view) {
       this.elements = elements;
       this.coder = coder;
+      this.windowFn = windowFn;
       this.view = view;
     }
 
@@ -545,7 +556,7 @@ public class PAssert {
       if (coder.isPresent()) {
         createTransform = createTransform.withCoder(coder.get());
       }
-      return input.apply(createTransform).apply(view);
+      return input.apply(createTransform).apply(Window.into(windowFn)).apply(view);
     }
   }
 
@@ -579,12 +590,15 @@ public class PAssert {
   public static class OneSideInputAssert<ActualT>
       extends PTransform<PBegin, PDone> implements Serializable {
     private final transient PTransform<PBegin, PCollectionView<ActualT>> createActual;
+    private final WindowFn<Object, ?> windowFn;
     private final SerializableFunction<ActualT, Void> checkerFn;
 
     public OneSideInputAssert(
         PTransform<PBegin, PCollectionView<ActualT>> createActual,
+        WindowFn<Object, ?> windowFn,
         SerializableFunction<ActualT, Void> checkerFn) {
       this.createActual = createActual;
+      this.windowFn = windowFn;
       this.checkerFn = checkerFn;
     }
 
@@ -592,8 +606,11 @@ public class PAssert {
     public PDone apply(PBegin input) {
       final PCollectionView<ActualT> actual = input.apply("CreateActual", createActual);
 
+      @SuppressWarnings({"unchecked", "rawtypes"})
+      WindowFn<Integer, ?> windows = (WindowFn) windowFn;
       input
           .apply(Create.of(0).withCoder(VarIntCoder.of()))
+          .apply(Window.into(windows))
           .apply(ParDo.named("RunChecks").withSideInputs(actual)
               .of(new CheckerDoFn<>(checkerFn, actual)));
 
@@ -655,14 +672,17 @@ public class PAssert {
 
     private final transient PTransform<PBegin, PCollectionView<ActualT>> createActual;
     private final transient PTransform<PBegin, PCollectionView<ExpectedT>> createExpected;
+    private final transient WindowFn<Object, ?> windowFn;
     private final AssertRelation<ActualT, ExpectedT> relation;
 
     protected TwoSideInputAssert(
         PTransform<PBegin, PCollectionView<ActualT>> createActual,
         PTransform<PBegin, PCollectionView<ExpectedT>> createExpected,
+        WindowFn<Object, ?> windowFn,
         AssertRelation<ActualT, ExpectedT> relation) {
       this.createActual = createActual;
       this.createExpected = createExpected;
+      this.windowFn = windowFn;
       this.relation = relation;
     }
 
@@ -671,8 +691,11 @@ public class PAssert {
       final PCollectionView<ActualT> actual = input.apply("CreateActual", createActual);
       final PCollectionView<ExpectedT> expected = input.apply("CreateExpected", createExpected);
 
+      @SuppressWarnings({"unchecked", "rawtypes"})
+      WindowFn<Integer, ?> windows = (WindowFn) this.windowFn;
       input
           .apply(Create.of(0).withCoder(VarIntCoder.of()))
+          .apply(Window.into(windows))
           .apply("RunChecks", ParDo.withSideInputs(actual, expected)
               .of(new CheckerDoFn<>(relation, actual, expected)));
 
