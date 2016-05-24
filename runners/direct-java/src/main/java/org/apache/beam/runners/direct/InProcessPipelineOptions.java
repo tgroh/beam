@@ -20,6 +20,7 @@ package org.apache.beam.runners.direct;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.ApplicationNameOptions;
 import org.apache.beam.sdk.options.Default;
+import org.apache.beam.sdk.options.DefaultValueFactory;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.Hidden;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -53,6 +54,10 @@ public interface InProcessPipelineOptions extends PipelineOptions, ApplicationNa
   ExecutorServiceFactory getExecutorServiceFactory();
 
   void setExecutorServiceFactory(ExecutorServiceFactory executorService);
+
+  @Default.InstanceFactory(AvailableProcessorsFactory.class)
+  int getParallelism();
+  void setParallelism(int parallelism);
 
   /**
    * Gets the {@link Clock} used by this pipeline. The clock is used in place of accessing the
@@ -98,4 +103,15 @@ public interface InProcessPipelineOptions extends PipelineOptions, ApplicationNa
   boolean isTestImmutability();
 
   void setTestImmutability(boolean test);
+
+  /**
+   * A {@link DefaultValueFactory} that returns the number of available processors, as specified by
+   * {@link Runtime#availableProcessors()}.
+   */
+  class AvailableProcessorsFactory implements DefaultValueFactory<Integer> {
+    @Override
+    public Integer create(PipelineOptions options) {
+      return Runtime.getRuntime().availableProcessors();
+    }
+  }
 }

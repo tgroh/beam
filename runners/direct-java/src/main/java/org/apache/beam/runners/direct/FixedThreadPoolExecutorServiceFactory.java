@@ -30,16 +30,16 @@ import java.util.concurrent.Executors;
  */
 class FixedThreadPoolExecutorServiceFactory
     implements DefaultValueFactory<ExecutorServiceFactory>, ExecutorServiceFactory {
-  private static final FixedThreadPoolExecutorServiceFactory INSTANCE =
-      new FixedThreadPoolExecutorServiceFactory();
+  private int targetParallelism;
 
   @Override
   public ExecutorServiceFactory create(PipelineOptions options) {
-    return INSTANCE;
+    targetParallelism = options.as(InProcessPipelineOptions.class).getParallelism();
+    return this;
   }
 
   @Override
   public ExecutorService create() {
-    return Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    return Executors.newFixedThreadPool(targetParallelism);
   }
 }
