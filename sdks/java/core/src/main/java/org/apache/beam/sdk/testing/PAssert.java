@@ -17,6 +17,8 @@
  */
 package org.apache.beam.sdk.testing;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -39,6 +41,7 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.transforms.Sum;
 import org.apache.beam.sdk.transforms.View;
+import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.DefaultTrigger;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
 import org.apache.beam.sdk.transforms.windowing.Window;
@@ -65,6 +68,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+
+import javax.annotation.Nullable;
 
 /**
  * An assertion on the contents of a {@link PCollection}
@@ -115,8 +120,9 @@ public class PAssert {
    */
   public static <T> IterableAssert<T> that(PCollection<T> actual) {
     return new IterableAssert<>(
-        new CreateActual<T, Iterable<T>>(actual, View.<T>asIterable()),
-         actual.getPipeline())
+        new CreateActualFromPCollection<>(actual, View.<T>asIterable()),
+        null,
+        actual.getPipeline())
          .setCoder(actual.getCoder());
   }
 
@@ -145,8 +151,9 @@ public class PAssert {
     PCollection<Iterable<T>> actualIterables = (PCollection<Iterable<T>>) actual;
 
     return new IterableAssert<>(
-        new CreateActual<Iterable<T>, Iterable<T>>(
+        new CreateActualFromPCollection<Iterable<T>, Iterable<T>>(
             actualIterables, View.<Iterable<T>>asSingleton()),
+        null,
         actual.getPipeline())
         .setCoder(tCoder);
   }
@@ -156,7 +163,9 @@ public class PAssert {
    * {@code PCollectionView PCollectionView<Iterable<T>>}.
    */
   public static <T> IterableAssert<T> thatIterable(PCollectionView<Iterable<T>> actual) {
-    return new IterableAssert<>(new PreExisting<Iterable<T>>(actual), actual.getPipeline());
+    return new IterableAssert<>(new PreExisting<Iterable<T>>(actual),
+        null,
+        actual.getPipeline());
   }
 
   /**
@@ -165,8 +174,9 @@ public class PAssert {
    */
   public static <T> SingletonAssert<T> thatSingleton(PCollection<T> actual) {
     return new SingletonAssert<>(
-        new CreateActual<T, T>(actual, View.<T>asSingleton()), actual.getPipeline())
-        .setCoder(actual.getCoder());
+          new CreateActualFromPCollection<T, T>(actual, View.<T>asSingleton()),
+          null,
+          actual.getPipeline()).setCoder(actual.getCoder());
   }
 
   /**
@@ -180,8 +190,9 @@ public class PAssert {
     @SuppressWarnings("unchecked")
     KvCoder<K, V> kvCoder = (KvCoder<K, V>) actual.getCoder();
 
-    return new SingletonAssert<>(
-        new CreateActual<>(actual, View.<K, V>asMultimap()), actual.getPipeline())
+    return new SingletonAssert<>(new CreateActualFromPCollection<>(actual, View.<K, V>asMultimap()),
+        null,
+        actual.getPipeline())
         .setCoder(MapCoder.of(kvCoder.getKeyCoder(), IterableCoder.of(kvCoder.getValueCoder())));
   }
 
@@ -196,8 +207,9 @@ public class PAssert {
     @SuppressWarnings("unchecked")
     KvCoder<K, V> kvCoder = (KvCoder<K, V>) actual.getCoder();
 
-    return new SingletonAssert<>(
-        new CreateActual<>(actual, View.<K, V>asMap()), actual.getPipeline())
+    return new SingletonAssert<>(new CreateActualFromPCollection<>(actual, View.<K, V>asMap()),
+        null,
+        actual.getPipeline())
         .setCoder(MapCoder.of(kvCoder.getKeyCoder(), kvCoder.getValueCoder()));
   }
 
@@ -208,12 +220,16 @@ public class PAssert {
    */
   public static class IterableAssert<T> implements Serializable {
     private final Pipeline pipeline;
-    private final PTransform<PBegin, PCollectionView<Iterable<T>>> createActual;
+    private final CreateActual<Iterable<T>> createActual;
+    private final Optional<WindowFn<Object, ?>> windowFn;
     private Optional<Coder<T>> coder;
 
     protected IterableAssert(
-        PTransform<PBegin, PCollectionView<Iterable<T>>> createActual, Pipeline pipeline) {
+        CreateActual<Iterable<T>> createActual,
+        @Nullable WindowFn<Object, ?> windowFn,
+        Pipeline pipeline) {
       this.createActual = createActual;
+      this.windowFn = Optional.<WindowFn<Object, ?>>fromNullable(windowFn);
       this.pipeline = pipeline;
       this.coder = Optional.absent();
     }
@@ -242,14 +258,30 @@ public class PAssert {
     }
 
     /**
+     * Return an {@link IterableAssert} like this one, but only inspecting the provided
+     * {@link BoundedWindow}.
+     *
+     * <p>Note that this window must be assignable from the {@link WindowFn} of the input
+     * {@link PCollection}.
+     */
+    public IterableAssert<T> inWindow(BoundedWindow window) {
+      return new IterableAssert<>(createActual,
+          StaticWindowFn.of(createActual.getWindowCoder(), window),
+          pipeline).setCoder(coder.orNull());
+    }
+
+    /**
      * Applies a {@link SerializableFunction} to check the elements of the {@code Iterable}.
      *
      * <p>Returns this {@code IterableAssert}.
      */
     public IterableAssert<T> satisfies(SerializableFunction<Iterable<T>, Void> checkerFn) {
-      pipeline.apply(
-          "PAssert$" + (assertCount++),
-          new OneSideInputAssert<Iterable<T>>(createActual, new GlobalWindows(), checkerFn));
+      pipeline.apply("PAssert$" + (assertCount++),
+          new OneSideInputAssert<Iterable<T>>(windowFn.isPresent()
+              ? createActual
+              : createActual.rewindowIntoGlobalWindow(),
+              this.windowFn.or(new GlobalWindows()),
+              checkerFn));
       return this;
     }
 
@@ -261,15 +293,17 @@ public class PAssert {
     public IterableAssert<T> satisfies(
         AssertRelation<Iterable<T>, Iterable<T>> relation,
         final Iterable<T> expectedElements) {
-      WindowFn<Object, ?> windowFn = new GlobalWindows();
+      WindowFn<Object, ?> expectedWindowFn = this.windowFn.or(new GlobalWindows());
       pipeline.apply(
           "PAssert$" + (assertCount++),
-          new TwoSideInputAssert<Iterable<T>, Iterable<T>>(createActual,
+          new TwoSideInputAssert<Iterable<T>, Iterable<T>>(this.windowFn.isPresent()
+              ? createActual
+              : createActual.rewindowIntoGlobalWindow(),
               new CreateExpected<T, Iterable<T>>(expectedElements,
                   coder,
-                  (WindowFn<T, ?>) windowFn,
+                  (WindowFn<T, ?>) expectedWindowFn,
                   View.<T>asIterable()),
-              windowFn,
+              expectedWindowFn,
               relation));
 
       return this;
@@ -286,9 +320,12 @@ public class PAssert {
       @SuppressWarnings({"rawtypes", "unchecked"})
       SerializableFunction<Iterable<T>, Void> checkerFn =
         (SerializableFunction) new MatcherCheckerFn<>(matcher);
-      pipeline.apply(
-          "PAssert$" + (assertCount++),
-          new OneSideInputAssert<Iterable<T>>(createActual, new GlobalWindows(), checkerFn));
+      pipeline.apply("PAssert$" + (assertCount++),
+          new OneSideInputAssert<Iterable<T>>(this.windowFn.isPresent()
+              ? createActual
+              : createActual.rewindowIntoGlobalWindow(),
+              this.windowFn.or(new GlobalWindows()),
+              checkerFn));
       return this;
     }
 
@@ -381,13 +418,15 @@ public class PAssert {
    */
   public static class SingletonAssert<T> implements Serializable {
     private final Pipeline pipeline;
-    private final CreateActual<?, T> createActual;
+    private final CreateActual<T> createActual;
+    private final Optional<WindowFn<Object, ?>> windowFn;
     private Optional<Coder<T>> coder;
 
     protected SingletonAssert(
-        CreateActual<?, T> createActual, Pipeline pipeline) {
+        CreateActual<T> createActual, @Nullable WindowFn<Object, ?> windowFn, Pipeline pipeline) {
       this.pipeline = pipeline;
       this.createActual = createActual;
+      this.windowFn = Optional.<WindowFn<Object, ?>>fromNullable(windowFn);
       this.coder = Optional.absent();
     }
 
@@ -414,6 +453,12 @@ public class PAssert {
     public int hashCode() {
       throw new UnsupportedOperationException(
           String.format("%s.hashCode() is not supported.", SingletonAssert.class.getSimpleName()));
+    }
+
+    public SingletonAssert<T> inWindow(BoundedWindow window) {
+      return new SingletonAssert<>(createActual,
+          StaticWindowFn.of(createActual.getWindowCoder(), window),
+          pipeline).setCoder(coder.orNull());
     }
 
     /**
@@ -447,7 +492,11 @@ public class PAssert {
      */
     public SingletonAssert<T> satisfies(SerializableFunction<T, Void> checkerFn) {
       pipeline.apply("PAssert$" + (assertCount++),
-          new OneSideInputAssert<T>(createActual, new GlobalWindows(), checkerFn));
+          new OneSideInputAssert<T>(windowFn.isPresent()
+              ? createActual
+              : createActual.rewindowIntoGlobalWindow(),
+              this.windowFn.or(new GlobalWindows()),
+              checkerFn));
       return this;
     }
 
@@ -460,15 +509,16 @@ public class PAssert {
     public SingletonAssert<T> satisfies(
         AssertRelation<T, T> relation,
         final T expectedValue) {
-      WindowFn<Object, ?> windowFn = new GlobalWindows();
-      pipeline.apply(
-          "PAssert$" + (assertCount++),
-          new TwoSideInputAssert<T, T>(createActual,
+      WindowFn<Object, ?> expectedWindowFn = this.windowFn.or(new GlobalWindows());
+      pipeline.apply("PAssert$" + (assertCount++),
+          new TwoSideInputAssert<T, T>(windowFn.isPresent()
+              ? createActual
+              : createActual.rewindowIntoGlobalWindow(),
               new CreateExpected<T, T>(Arrays.asList(expectedValue),
                   coder,
-                  (WindowFn<T, ?>) windowFn,
+                  (WindowFn<T, ?>) expectedWindowFn,
                   View.<T>asSingleton()),
-              windowFn,
+              expectedWindowFn,
               relation));
 
       return this;
@@ -508,49 +558,63 @@ public class PAssert {
   }
 
   ////////////////////////////////////////////////////////////////////////
-  private interface CreateActualView<ActualT> {
+  private abstract static class CreateActual<ActualT>
+      extends PTransform<PBegin, PCollectionView<ActualT>> {
+
     /**
-     * Returns a CreateActualView like this one, but rewindowed into the {@link GlobalWindow} if
+     * Return a {@link PTransform} like this one, but with all elements in the global window if
      * possible.
      *
-     * <p>Not all {@link CreateActualView} can rewindow into the global window. Implementations that
-     * do not support this method should return themselves.
+     * @throws IllegalArgumentException if the actuals cannot be rewindowed into the Global Window
+     *                                  and are not already in the global window
      */
-    CreateActualView<ActualT> rewindowIntoGlobalWindow();
+    public abstract CreateActual<ActualT> rewindowIntoGlobalWindow();
 
-    /**
-     * Return the actual view.
-     */
-    PCollectionView<ActualT> apply(PBegin input);
+    public abstract Coder<BoundedWindow> getWindowCoder();
   }
 
-  private static class CreateActual<T, ActualT>
-      extends PTransform<PBegin, PCollectionView<ActualT>> implements CreateActualView<ActualT> {
+
+  private static class CreateActualFromPCollection<T, ActualT> extends CreateActual<ActualT> {
 
     private final transient PCollection<T> actual;
     private final transient PTransform<PCollection<T>, PCollectionView<ActualT>> actualView;
+    private final transient boolean rewindow;
 
-    private CreateActual(PCollection<T> actual,
+    private CreateActualFromPCollection(PCollection<T> actual,
         PTransform<PCollection<T>, PCollectionView<ActualT>> actualView) {
+      this(actual, actualView, false);
+    }
+
+    private CreateActualFromPCollection(PCollection<T> actual,
+        PTransform<PCollection<T>, PCollectionView<ActualT>> actualView, boolean rewindow) {
       this.actual = actual;
       this.actualView = actualView;
+      this.rewindow = rewindow;
     }
 
     @Override
-    public CreateActualView<ActualT> rewindowIntoGlobalWindow() {
-      return new CreateActual<>(
-          actual.apply(Window.<T>into(new GlobalWindows())
-                             .triggering(DefaultTrigger.of())
-                             .withAllowedLateness(Duration.ZERO)
-                             .discardingFiredPanes()),
-          actualView);
+    public CreateActual<ActualT> rewindowIntoGlobalWindow() {
+      return new CreateActualFromPCollection<>(actual,
+          actualView,
+          !(new GlobalWindows().isCompatible(actual.getWindowingStrategy().getWindowFn())));
+    }
+
+    @Override
+    public Coder<BoundedWindow> getWindowCoder() {
+      return (Coder<BoundedWindow>) actual.getWindowingStrategy().getWindowFn().windowCoder();
     }
 
     @Override
     public PCollectionView<ActualT> apply(PBegin input) {
       final Coder<T> coder = actual.getCoder();
-      return actual
-          .apply(Window.<T>into(new GlobalWindows()))
+      PCollection<T> windowedActuals = actual;
+      if (rewindow) {
+        windowedActuals = actual.apply(Window.<T>into(new GlobalWindows())
+            .triggering(DefaultTrigger.of())
+            .withAllowedLateness(Duration.ZERO)
+            .discardingFiredPanes());
+      }
+      return windowedActuals
           .apply(ParDo.of(new DoFn<T, T>() {
             @Override
             public void processElement(ProcessContext context) throws CoderException {
@@ -569,7 +633,10 @@ public class PAssert {
     private final transient WindowFn<T, ?> windowFn;
     private final transient PTransform<PCollection<T>, PCollectionView<ExpectedT>> view;
 
-    private CreateExpected(Iterable<T> elements, Optional<Coder<T>> coder, WindowFn<T, ?> windowFn,
+    private CreateExpected(
+        Iterable<T> elements,
+        Optional<Coder<T>> coder,
+        WindowFn<T, ?> windowFn,
         PTransform<PCollection<T>, PCollectionView<ExpectedT>> view) {
       this.elements = elements;
       this.coder = coder;
@@ -588,8 +655,7 @@ public class PAssert {
   }
 
 
-  private static class PreExisting<T> extends PTransform<PBegin, PCollectionView<T>>
-      implements CreateActualView<T> {
+  private static class PreExisting<T> extends CreateActual<T> {
 
     private final PCollectionView<T> view;
 
@@ -598,10 +664,21 @@ public class PAssert {
     }
 
     @Override
-    public CreateActualView<T> rewindowIntoGlobalWindow() {
-      // The view can't be rewindowed; just return it. To use the preexisting style of assert the
-      // user has to window appropriately before applying the PAssert.
+    public CreateActual<T> rewindowIntoGlobalWindow() {
+      // If the view is windowed by GlobalWindows, nothing to do. Otherwise, the
+      checkArgument(new GlobalWindows()
+                        .isCompatible(view.getWindowingStrategyInternal().getWindowFn()),
+          "%s cannot be used on a view that is not windowed using %s "
+              + "without specifying a window. Either specify a window with inWindow(BoundedWindow) "
+              + "or construct the PCollectionView from a globally windowed PCollection.",
+          getClass().getSimpleName(),
+          GlobalWindows.class.getSimpleName());
       return this;
+    }
+
+    @Override
+    public Coder<BoundedWindow> getWindowCoder() {
+      return (Coder<BoundedWindow>) view.getWindowingStrategyInternal().getWindowFn().windowCoder();
     }
 
     @Override
@@ -633,9 +710,9 @@ public class PAssert {
         PTransform<PBegin, PCollectionView<ActualT>> createActual,
         WindowFn<Object, ?> windowFn,
         SerializableFunction<ActualT, Void> checkerFn) {
-      this.createActual = createActual;
-      this.windowFn = windowFn;
-      this.checkerFn = checkerFn;
+      this.createActual = checkNotNull(createActual);
+      this.windowFn = checkNotNull(windowFn);
+      this.checkerFn = checkNotNull(checkerFn);
     }
 
     @Override
@@ -706,20 +783,20 @@ public class PAssert {
   public static class TwoSideInputAssert<ActualT, ExpectedT>
       extends PTransform<PBegin, PDone> implements Serializable {
 
-    private final transient PTransform<PBegin, PCollectionView<ActualT>> createActual;
+    private final transient CreateActual<ActualT> createActual;
     private final transient PTransform<PBegin, PCollectionView<ExpectedT>> createExpected;
     private final transient WindowFn<Object, ?> windowFn;
     private final AssertRelation<ActualT, ExpectedT> relation;
 
     protected TwoSideInputAssert(
-        PTransform<PBegin, PCollectionView<ActualT>> createActual,
+        CreateActual<ActualT> createActual,
         PTransform<PBegin, PCollectionView<ExpectedT>> createExpected,
         WindowFn<Object, ?> windowFn,
         AssertRelation<ActualT, ExpectedT> relation) {
-      this.createActual = createActual;
-      this.createExpected = createExpected;
-      this.windowFn = windowFn;
-      this.relation = relation;
+      this.createActual = checkNotNull(createActual);
+      this.createExpected = checkNotNull(createExpected);
+      this.windowFn = checkNotNull(windowFn);
+      this.relation = checkNotNull(relation);
     }
 
     @Override

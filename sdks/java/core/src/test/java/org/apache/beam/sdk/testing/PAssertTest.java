@@ -18,21 +18,30 @@
 package org.apache.beam.sdk.testing;
 
 import static org.apache.beam.sdk.testing.SerializableMatchers.anything;
+import static org.apache.beam.sdk.testing.SerializableMatchers.equalTo;
 import static org.apache.beam.sdk.testing.SerializableMatchers.not;
-
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.CoderException;
+import org.apache.beam.sdk.io.CountingInput;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.SerializableFunction;
+import org.apache.beam.sdk.transforms.Sum;
+import org.apache.beam.sdk.transforms.WithTimestamps;
+import org.apache.beam.sdk.transforms.windowing.FixedWindows;
+import org.apache.beam.sdk.transforms.windowing.IntervalWindow;
+import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.util.common.ElementByteSizeObserver;
 import org.apache.beam.sdk.values.PCollection;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 
+import org.joda.time.Duration;
+import org.joda.time.Instant;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -172,6 +181,79 @@ public class PAssertTest implements Serializable {
     PCollection<Integer> pcollection = pipeline.apply(Create.of(42));
     PAssert.that(pcollection).containsInAnyOrder(not(anything()));
     runExpectingAssertionFailure(pipeline);
+  }
+
+  @Test
+  public void testWindowedMatcherSuccess() {
+    Pipeline p = TestPipeline.create();
+    PCollection<Long> windowed = p.apply(CountingInput.upTo(10L))
+        .apply(WithTimestamps.of(new LongToInstant()))
+        .apply(Window.<Long>into(FixedWindows.of(Duration.millis(5L))));
+
+    PAssert.that(windowed)
+        .inWindow(new IntervalWindow(new Instant(0L), new Instant(5L)))
+        .satisfies(new SerializableFunction<Iterable<Long>, Void>() {
+          @Override
+          public Void apply(Iterable<Long> input) {
+            long total = 0L;
+            for (long l : input) {
+              total += l;
+            }
+            assertThat(total, equalTo(10L));
+            return null;
+          }
+        });
+    PAssert.that(windowed)
+        .inWindow(new IntervalWindow(new Instant(5L), new Instant(10L)))
+        .satisfies(new SerializableFunction<Iterable<Long>, Void>() {
+          @Override
+          public Void apply(Iterable<Long> input) {
+            long total = 0L;
+            for (long l : input) {
+              total += l;
+            }
+            assertThat(total, equalTo(35L));
+            return null;
+          }
+        });
+    p.run();
+  }
+
+  @Test
+  public void testWindowedContainsInAnyOrder() {
+    Pipeline p = TestPipeline.create();
+    PCollection<Long> windowed = p.apply(CountingInput.upTo(10L))
+        .apply(WithTimestamps.of(new LongToInstant()))
+        .apply(Window.<Long>into(FixedWindows.of(Duration.millis(5L))));
+
+    PAssert.that(windowed)
+        .inWindow(new IntervalWindow(new Instant(0L), new Instant(5L)))
+        .containsInAnyOrder(0L, 1L, 2L, 3L, 4L);
+    PAssert.that(windowed)
+        .inWindow(new IntervalWindow(new Instant(5L), new Instant(10L)))
+        .containsInAnyOrder(5L, 6L, 7L, 9L, 8L);
+    p.run();
+  }
+
+  @Test
+  public void testWindowedSingletonAssert() {
+    Pipeline p = TestPipeline.create();
+    PCollection<Long> windowedSums = p.apply(CountingInput.upTo(10L))
+        .apply(WithTimestamps.of(new LongToInstant()))
+        .apply(Window.<Long>into(FixedWindows.of(Duration.millis(5L))))
+        .apply(Sum.longsGlobally().withoutDefaults());
+    PAssert.thatSingleton(windowedSums)
+        .inWindow(new IntervalWindow(new Instant(0L), new Instant(5L))).isEqualTo(10L);
+    PAssert.thatSingleton(windowedSums)
+        .inWindow(new IntervalWindow(new Instant(5L), new Instant(10L))).isEqualTo(35L);
+    p.run();
+  }
+
+  private static class LongToInstant implements SerializableFunction<Long, Instant> {
+    @Override
+    public Instant apply(Long input) {
+      return new Instant(input);
+    }
   }
 
   /**
