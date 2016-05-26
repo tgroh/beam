@@ -89,7 +89,6 @@
             </goals>
             <configuration>
               <groups>
-                org.apache.beam.sdk.testing.RunnableOnService,
                 org.apache.beam.sdk.testing.NeedsRunner
               </groups>
               <parallel>none</parallel>
