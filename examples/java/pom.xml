@@ -212,8 +212,14 @@
     </dependency>
 
     <dependency>
-      <groupId>org.apache.beam.runners</groupId>
-      <artifactId>google-cloud-dataflow-java</artifactId>
+      <groupId>org.apache.beam</groupId>
+      <artifactId>direct</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.beam</groupId>
+      <artifactId>google-cloud-dataflow-java-runner</artifactId>
       <version>${project.version}</version>
     </dependency>
 
