@@ -88,6 +88,7 @@
               <goal>test</goal>
             </goals>
             <configuration>
+              <argLine>-XX:+UseGCOverheadLimit</argLine>
               <groups>
                 org.apache.beam.sdk.testing.NeedsRunner
               </groups>
