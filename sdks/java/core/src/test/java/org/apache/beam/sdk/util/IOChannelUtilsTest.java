@@ -30,6 +30,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -96,6 +99,15 @@ public class IOChannelUtilsTest {
   @Test
   public void testResolveFileFullUri() throws Exception {
     String expected = tmpFolder.getRoot().toPath().resolve("aa").toUri().getPath();
-    assertEquals(expected, IOChannelUtils.resolve(tmpFolder.getRoot().toString(), "aa"));
+    String resolved = IOChannelUtils.resolve("file://" + tmpFolder.getRoot().toString(), "aa");
+    WritableByteChannel channel = IOChannelUtils.create(resolved, "text/plain");
+    ByteBuffer buf = ByteBuffer.allocate(8);
+    buf.put("foobarba".getBytes(), 0, 8);
+    channel.write(buf);
+    channel.close();
+    FileWriter writer = new FileWriter(new File(resolved));
+    writer.write("foobarbaz".toCharArray());
+    writer.close();
+    assertEquals(expected, resolved);
   }
 }
