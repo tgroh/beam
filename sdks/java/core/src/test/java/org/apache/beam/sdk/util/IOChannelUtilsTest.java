@@ -92,4 +92,10 @@ public class IOChannelUtilsTest {
     String expected = tmpFolder.getRoot().toPath().resolve("aa").toString();
     assertEquals(expected, IOChannelUtils.resolve(tmpFolder.getRoot().toString(), "aa"));
   }
+
+  @Test
+  public void testResolveFileFullUri() throws Exception {
+    String expected = tmpFolder.getRoot().toPath().resolve("aa").toUri().getPath();
+    assertEquals(expected, IOChannelUtils.resolve(tmpFolder.getRoot().toString(), "aa"));
+  }
 }

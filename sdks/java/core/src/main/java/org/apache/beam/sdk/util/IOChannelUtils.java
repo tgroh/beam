@@ -57,6 +57,10 @@ public class IOChannelUtils {
     FACTORY_MAP.put(scheme, factory);
   }
 
+  static {
+    setIOFactory("file", new FileIOChannelFactory());
+  }
+
   /**
    * Registers standard factories globally. This requires {@link PipelineOptions}
    * to provide, e.g., credentials for GCS.
@@ -200,6 +204,7 @@ public class IOChannelUtils {
    * dependent and therefore unspecified.
    */
   public static String resolve(String path, String other) throws IOException {
-    return getFactory(path).resolve(path, other);
+    return getFactory(path)
+        .resolve(path, other);
   }
 }
