@@ -387,7 +387,7 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
           // The monitor thread should always be scheduled; but we only need to be scheduled once
           executorService.submit(this);
         } else {
-          System.out.printf(
+          String infos = String.format(
               "Total elements processed: %s%n"
                   + "Total time spent in Transform Executors: %s ns (%s ms)%n"
                   + "Total overall time-per-element %s%n"
@@ -401,6 +401,11 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
               CopyOnAccessInMemoryStateInternals.TOTAL_COMMIT_TIME.get(),
               CopyOnAccessInMemoryStateInternals.TOTAL_COMMIT_TIME.get()
                   / (double) TransformExecutor.TOTAL_PROC_TIME.get());
+          System.out.print(infos);
+          if (TimeUnit.NANOSECONDS.toSeconds(TransformExecutor.TOTAL_PROC_TIME.get()) > 30) {
+            System.err.println("Took too long");
+            throw new IllegalStateException(infos);
+          }
         }
         Thread.currentThread().setName(oldName);
       }
