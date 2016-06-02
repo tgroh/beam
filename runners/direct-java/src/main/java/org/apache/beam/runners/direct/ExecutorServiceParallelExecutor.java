@@ -27,6 +27,7 @@ import org.apache.beam.sdk.util.KeyedWorkItems;
 import org.apache.beam.sdk.util.TimeDomain;
 import org.apache.beam.sdk.util.TimerInternals.TimerData;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.util.state.CopyOnAccessInMemoryStateInternals;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PValue;
 
@@ -385,6 +386,21 @@ final class ExecutorServiceParallelExecutor implements InProcessExecutor {
         if (!shouldShutdown()) {
           // The monitor thread should always be scheduled; but we only need to be scheduled once
           executorService.submit(this);
+        } else {
+          System.out.printf(
+              "Total elements processed: %s%n"
+                  + "Total time spent in Transform Executors: %s ns (%s ms)%n"
+                  + "Total overall time-per-element %s%n"
+                  + "Total time spent committing state %s ms (%s ns) (%s%% of total time)%n",
+              TransformExecutor.TOTAL_ELEMS.get(),
+              TransformExecutor.TOTAL_PROC_TIME.get(),
+              TimeUnit.NANOSECONDS.toMillis(TransformExecutor.TOTAL_PROC_TIME.get()),
+              TransformExecutor.TOTAL_PROC_TIME.get() / TransformExecutor.TOTAL_ELEMS.get(),
+              TimeUnit.NANOSECONDS
+                  .toMillis(CopyOnAccessInMemoryStateInternals.TOTAL_COMMIT_TIME.get()),
+              CopyOnAccessInMemoryStateInternals.TOTAL_COMMIT_TIME.get(),
+              CopyOnAccessInMemoryStateInternals.TOTAL_COMMIT_TIME.get()
+                  / (double) TransformExecutor.TOTAL_PROC_TIME.get());
         }
         Thread.currentThread().setName(oldName);
       }

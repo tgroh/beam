@@ -37,6 +37,7 @@ import org.joda.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nullable;
 
@@ -46,6 +47,7 @@ import javax.annotation.Nullable;
  * accessed, an independent copy will be created within this table.
  */
 public class CopyOnAccessInMemoryStateInternals<K> implements StateInternals<K> {
+  public static final AtomicLong TOTAL_COMMIT_TIME = new AtomicLong();
   private final K key;
   private final CopyOnAccessInMemoryStateTable<K> table;
 
@@ -174,6 +176,7 @@ public class CopyOnAccessInMemoryStateInternals<K> implements StateInternals<K> 
      * are bound in this {@link StateTable table} and this table represents the canonical state.
      */
     private void commit() {
+      long commitStart = System.nanoTime();
       Instant earliestHold = getEarliestWatermarkHold();
       if (underlying.isPresent()) {
         ReadThroughBinderFactory<K> readThroughBinder =
@@ -188,6 +191,8 @@ public class CopyOnAccessInMemoryStateInternals<K> implements StateInternals<K> 
       clearEmpty();
       binderFactory = new InMemoryStateBinderFactory<>(key);
       underlying = Optional.absent();
+      long totalCommitTime = System.nanoTime() - commitStart;
+      TOTAL_COMMIT_TIME.addAndGet(totalCommitTime);
     }
 
     /**

@@ -23,9 +23,13 @@ import org.apache.beam.runners.direct.InProcessPipelineRunner.CommittedBundle;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.util.WindowedValue;
 
+import com.google.common.collect.Iterables;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nullable;
@@ -72,6 +76,9 @@ class TransformExecutor<T> implements Runnable {
 
   private final AtomicReference<Thread> thread;
 
+  public static final AtomicLong TOTAL_PROC_TIME = new AtomicLong();
+  public static final AtomicLong TOTAL_ELEMS = new AtomicLong();
+
   private TransformExecutor(
       TransformEvaluatorFactory factory,
       Iterable<? extends ModelEnforcementFactory> modelEnforcements,
@@ -103,6 +110,7 @@ class TransformExecutor<T> implements Runnable {
         Thread.currentThread(),
         thread.get());
     try {
+      long startNanos = System.nanoTime();
       Collection<ModelEnforcement<T>> enforcements = new ArrayList<>();
       for (ModelEnforcementFactory enforcementFactory : modelEnforcements) {
         ModelEnforcement<T> enforcement = enforcementFactory.forBundle(inputBundle, transform);
@@ -118,6 +126,22 @@ class TransformExecutor<T> implements Runnable {
       processElements(evaluator, enforcements);
 
       InProcessTransformResult result = finishBundle(evaluator, enforcements);
+      if (inputBundle != null) {
+        Long elapsed = System.nanoTime() - startNanos;
+        TOTAL_PROC_TIME.addAndGet(elapsed);
+        int numElems = Iterables.size(inputBundle.getElements());
+        TOTAL_ELEMS.addAndGet(numElems);
+        if ((elapsed / numElems) > 1000000L) {
+          System.out.printf(
+              "Transform %s processed %s elems in %s ms (%s ns)%n"
+                  + "Took %s ns per element (avg), this is longer than expected%n",
+              transform.getFullName(),
+              numElems,
+              TimeUnit.NANOSECONDS.toMillis(elapsed),
+              elapsed,
+              elapsed / numElems);
+        }
+      }
     } catch (Throwable t) {
       onComplete.handleThrowable(inputBundle, t);
       if (t instanceof RuntimeException) {
