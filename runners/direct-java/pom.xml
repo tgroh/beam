@@ -86,12 +86,15 @@
               <goal>test</goal>
             </goals>
             <configuration>
-              <groups>org.apache.beam.sdk.testing.RunnableOnService</groups>
+              <groups>
+                org.apache.beam.sdk.testing.NeedsRunner
+              </groups>
               <parallel>none</parallel>
               <failIfNoTests>true</failIfNoTests>
               <dependenciesToScan>
                 <dependency>org.apache.beam:java-sdk-all</dependency>
               </dependenciesToScan>
+              <argLine>-Xmx1024m -XX:MaxPermSize=256m</argLine>
               <systemPropertyVariables>
                 <beamTestPipelineOptions>
                   [
