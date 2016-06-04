@@ -58,8 +58,8 @@ import org.junit.runners.JUnit4;
 
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Tests for basic {@link InProcessPipelineRunner} functionality.
