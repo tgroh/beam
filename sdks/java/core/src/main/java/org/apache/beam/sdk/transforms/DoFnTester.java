@@ -164,7 +164,7 @@ public class DoFnTester<InputT, OutputT> {
    * calls {@link #finishBundle}, then returns the result of
    * {@link #takeOutputElements}.
    */
-  public List<OutputT> processBatch(Iterable <? extends InputT> inputElements) {
+  public List<OutputT> processBatch(Iterable <? extends InputT> inputElements) throws Exception {
     startBundle();
     for (InputT inputElement : inputElements) {
       processElement(inputElement);
@@ -185,7 +185,7 @@ public class DoFnTester<InputT, OutputT> {
    * </ol>
    */
   @SafeVarargs
-  public final List<OutputT> processBatch(InputT... inputElements) {
+  public final List<OutputT> processBatch(InputT... inputElements) throws Exception {
     return processBatch(Arrays.asList(inputElements));
   }
 
@@ -194,16 +194,12 @@ public class DoFnTester<InputT, OutputT> {
    *
    * <p>If needed, first creates a fresh instance of the DoFn under test.
    */
-  public void startBundle() {
+  public void startBundle() throws Exception {
     resetState();
     initializeState();
-    try {
-      TestContext<InputT, OutputT> context = createContext(fn);
-      context.setupDelegateAggregators();
-      fn.startBundle(context);
-    } catch (Exception e) {
-      throw UserCodeException.wrap(e);
-    }
+    TestContext<InputT, OutputT> context = createContext(fn);
+    context.setupDelegateAggregators();
+    fn.startBundle(context);
     state = State.STARTED;
   }
 
@@ -218,18 +214,12 @@ public class DoFnTester<InputT, OutputT> {
    * @throws IllegalStateException if the {@code DoFn} under test has already
    * been finished
    */
-  public void processElement(InputT element) {
+  public void processElement(InputT element) throws Exception {
     if (state == State.FINISHED) {
       throw new IllegalStateException("finishBundle() has already been called");
     }
-    if (state == State.UNSTARTED) {
-      startBundle();
-    }
-    try {
-      fn.processElement(createProcessContext(fn, element));
-    } catch (Exception e) {
-      throw UserCodeException.wrap(e);
-    }
+    startBundle();
+    fn.processElement(createProcessContext(fn, element));
   }
 
   /**
@@ -241,18 +231,12 @@ public class DoFnTester<InputT, OutputT> {
    * @throws IllegalStateException if the {@code DoFn} under test has already
    * been finished
    */
-  public void finishBundle() {
+  public void finishBundle() throws Exception {
     if (state == State.FINISHED) {
       throw new IllegalStateException("finishBundle() has already been called");
     }
-    if (state == State.UNSTARTED) {
-      startBundle();
-    }
-    try {
-      fn.finishBundle(createContext(fn));
-    } catch (Exception e) {
-      throw UserCodeException.wrap(e);
-    }
+    startBundle();
+    fn.finishBundle(createContext(fn));
     state = State.FINISHED;
   }
 
@@ -390,6 +374,9 @@ public class DoFnTester<InputT, OutputT> {
       String name, CombineFn<?, AccumT, AggregateT> combiner) {
     @SuppressWarnings("unchecked")
     AccumT accumulator = (AccumT) accumulators.get(name);
+    if (accumulator == null) {
+      accumulator = combiner.createAccumulator();
+    }
     return combiner.extractOutput(accumulator);
   }
 
