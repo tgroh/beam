@@ -1116,10 +1116,12 @@ public class PipelineOptionsFactory {
         Sets.filter(
             Sets.difference(Sets.newHashSet(klass.getMethods()), methods),
             NOT_SYNTHETIC_PREDICATE));
-    Preconditions.checkArgument(unknownMethods.isEmpty(),
-        "Methods %s on [%s] do not conform to being bean properties.",
-        FluentIterable.from(unknownMethods).transform(ReflectHelpers.METHOD_FORMATTER),
-        iface.getName());
+    for (Method m : unknownMethods) {
+      Preconditions.checkArgument(m.getName().startsWith("$$"),
+          "Methods %s on [%s] do not conform to being bean properties.",
+          FluentIterable.from(unknownMethods).transform(ReflectHelpers.METHOD_FORMATTER),
+          iface.getName());
+    }
 
     return descriptors;
   }
