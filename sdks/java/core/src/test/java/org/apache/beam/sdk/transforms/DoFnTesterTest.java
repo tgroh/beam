@@ -18,7 +18,7 @@
 package org.apache.beam.sdk.transforms;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.Matchers.hasItems;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;

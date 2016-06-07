@@ -217,7 +217,9 @@ public class DoFnTester<InputT, OutputT> {
     if (state == State.FINISHED) {
       throw new IllegalStateException("finishBundle() has already been called");
     }
-    startBundle();
+    if (state == State.UNSTARTED) {
+      startBundle();
+    }
     fn.processElement(createProcessContext(fn, element));
   }
 
@@ -234,7 +236,9 @@ public class DoFnTester<InputT, OutputT> {
     if (state == State.FINISHED) {
       throw new IllegalStateException("finishBundle() has already been called");
     }
-    startBundle();
+    if (state == State.UNSTARTED) {
+      startBundle();
+    }
     fn.finishBundle(createContext(fn));
     state = State.FINISHED;
   }
