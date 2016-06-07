@@ -57,20 +57,13 @@
     </dependency>
 
     <dependency>
-      <groupId>org.apache.beam</groupId>
-      <artifactId>direct</artifactId>
-      <version>${project.version}</version>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
     </dependency>
 
     <!-- Dependency for tests -->
     <dependency>
-      <groupId>org.apache.beam</groupId>
+      <groupId>org.apache.beam.runners</groupId>
       <artifactId>direct</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>

@@ -100,7 +100,7 @@
 
     <!-- Adds a dependency on a specific version of the Dataflow runnner. -->
     <dependency>
-      <groupId>org.apache.beam</groupId>
+      <groupId>org.apache.beam.runners</groupId>
       <artifactId>direct</artifactId>
       <version>[0-incubating, 2-incubating)</version>
     </dependency>

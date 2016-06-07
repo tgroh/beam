@@ -429,7 +429,7 @@
     </dependency>
 
     <dependency>
-      <groupId>org.apache.beam</groupId>
+      <groupId>org.apache.beam.runners</groupId>
       <artifactId>direct</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
