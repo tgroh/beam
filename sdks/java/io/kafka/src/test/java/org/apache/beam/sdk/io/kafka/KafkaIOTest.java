@@ -59,6 +59,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.joda.time.Instant;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -237,6 +238,7 @@ public class KafkaIOTest {
   }
 
   @Test
+  @Ignore("Maybe leaking resources")
   @Category(RunnableOnService.class)
   public void testUnboundedSource() {
     Pipeline p = TestPipeline.create();
@@ -252,6 +254,7 @@ public class KafkaIOTest {
   }
 
   @Test
+  @Ignore("Maybe leaking resources")
   @Category(RunnableOnService.class)
   public void testUnboundedSourceWithExplicitPartitions() {
     Pipeline p = TestPipeline.create();
@@ -290,6 +293,7 @@ public class KafkaIOTest {
   }
 
   @Test
+  @Ignore("Maybe leaking resources")
   @Category(RunnableOnService.class)
   public void testUnboundedSourceTimestamps() {
     Pipeline p = TestPipeline.create();
@@ -318,6 +322,7 @@ public class KafkaIOTest {
   }
 
   @Test
+  @Ignore("Maybe leaking resources")
   @Category(RunnableOnService.class)
   public void testUnboundedSourceSplits() throws Exception {
     Pipeline p = TestPipeline.create();
@@ -367,6 +372,7 @@ public class KafkaIOTest {
   }
 
   @Test
+  @Ignore("Maybe leaking resources")
   public void testUnboundedSourceCheckpointMark() throws Exception {
     int numElements = 85; // 85 to make sure some partitions have more records than other.
 
@@ -415,6 +421,7 @@ public class KafkaIOTest {
   }
 
   @Test
+  @Ignore("Maybe leaking resources")
   public void testSink() throws Exception {
     // Simply read from kafka source and write to kafka sink. Then verify the records
     // are correctly published to mock kafka producer.
@@ -449,6 +456,7 @@ public class KafkaIOTest {
   }
 
   @Test
+  @Ignore("Maybe leaking resources")
   public void testValuesSink() throws Exception {
     // similar to testSink(), but use values()' interface.
 
@@ -484,6 +492,7 @@ public class KafkaIOTest {
   }
 
   @Test
+  @Ignore("Maybe leaking resources")
   public void testSinkWithSendErrors() throws Throwable {
     // similar to testSink(), except that up to 10 of the send calls to producer will fail
     // asynchronously.
