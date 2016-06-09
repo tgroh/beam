@@ -50,5 +50,5 @@ install:
   - travis_retry mvn -B install clean -U -DskipTests=true
 
 script:
-  - travis_retry mvn -B $MAVEN_OVERRIDE install -U
+  - travis_retry mvn -am -pl runners/direct-java/ -pl sdks/java/io/kafka -pl sdks/java/io/hdfs -B $MAVEN_OVERRIDE install -U
   - travis_retry testing/travis/test_wordcount.sh
