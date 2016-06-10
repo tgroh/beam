@@ -75,7 +75,7 @@ public abstract class UnboundedSource<
    * Create a new {@link UnboundedReader} to read from this source, resuming from the given
    * checkpoint if present.
    */
-  public abstract UnboundedReader<OutputT> createReader(
+  public abstract UnboundedReader<OutputT, CheckpointMarkT> createReader(
       PipelineOptions options, @Nullable CheckpointMarkT checkpointMark);
 
   /**
@@ -142,7 +142,8 @@ public abstract class UnboundedSource<
    * <p>A given {@code UnboundedReader} object will only be accessed by a single thread at once.
    */
   @Experimental(Experimental.Kind.SOURCE_SINK)
-  public abstract static class UnboundedReader<OutputT> extends Source.Reader<OutputT> {
+  public abstract static class UnboundedReader<OutputT, CheckpointMarkT extends CheckpointMarkt a>
+      extends Source.Reader<OutputT> {
     private static final byte[] EMPTY = new byte[0];
 
     /**
@@ -238,7 +239,7 @@ public abstract class UnboundedSource<
      * <p>May be called after {@link #advance} or {@link #start} has returned false, but not before
      * {@link #start} has been called.
      */
-    public abstract CheckpointMark getCheckpointMark();
+    public abstract CheckpointMarkT getCheckpointMark();
 
     /**
      * Constant representing an unknown amount of backlog.

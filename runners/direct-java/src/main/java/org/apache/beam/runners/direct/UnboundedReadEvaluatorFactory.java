@@ -145,6 +145,10 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
 
     @Override
     public InProcessTransformResult finishBundle() throws IOException {
+      // Resuming from a checkpoint, so ensure that checkpoint has been finalized before resuming
+      if (checkpointMark != null) {
+        checkpointMark.finalizeCheckpoint();
+      }
       UncommittedBundle<OutputT> output = evaluationContext.createRootBundle(transform.getOutput());
       try (UnboundedReader<OutputT> reader =
               createReader(source, evaluationContext.getPipelineOptions());) {
@@ -158,7 +162,6 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
           } while (numElements < ARBITRARY_MAX_ELEMENTS && reader.advance());
         }
         checkpointMark = reader.getCheckpointMark();
-        checkpointMark.finalizeCheckpoint();
         // TODO: When exercising create initial splits, make this the minimum watermark across all
         // existing readers
         StepTransformResult result =
