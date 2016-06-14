@@ -959,7 +959,7 @@ public class DataflowPipelineRunnerTest {
                    <String, GlobalWindow>(GlobalWindow.Coder.INSTANCE));
 
     assertThat(
-        doFnTester.processBatch(
+        doFnTester.processBundle(
             ImmutableList.of(KV.<Integer, Iterable<KV<GlobalWindow, WindowedValue<String>>>>of(
                 0, ImmutableList.of(KV.of(GlobalWindow.INSTANCE, valueInGlobalWindow("a")))))),
         contains(IsmRecord.of(ImmutableList.of(GlobalWindow.INSTANCE), valueInGlobalWindow("a"))));
@@ -976,7 +976,7 @@ public class DataflowPipelineRunnerTest {
 
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage("found for singleton within window");
-    doFnTester.processBatch(ImmutableList.of(
+    doFnTester.processBundle(ImmutableList.of(
         KV.<Integer, Iterable<KV<GlobalWindow, WindowedValue<String>>>>of(0,
             ImmutableList.of(KV.of(GlobalWindow.INSTANCE, valueInGlobalWindow("a")),
                 KV.of(GlobalWindow.INSTANCE, valueInGlobalWindow("b"))))));
@@ -988,7 +988,7 @@ public class DataflowPipelineRunnerTest {
         DoFnTester.of(new BatchViewAsList.ToIsmRecordForGlobalWindowDoFn<String>());
 
     // The order of the output elements is important relative to processing order
-    assertThat(doFnTester.processBatch(ImmutableList.of("a", "b", "c")), contains(
+    assertThat(doFnTester.processBundle(ImmutableList.of("a", "b", "c")), contains(
         IsmRecord.of(ImmutableList.of(GlobalWindow.INSTANCE, 0L), valueInGlobalWindow("a")),
         IsmRecord.of(ImmutableList.of(GlobalWindow.INSTANCE, 1L), valueInGlobalWindow("b")),
         IsmRecord.of(ImmutableList.of(GlobalWindow.INSTANCE, 2L), valueInGlobalWindow("c"))));
@@ -1026,7 +1026,7 @@ public class DataflowPipelineRunnerTest {
                 )));
 
     // The order of the output elements is important relative to processing order
-    assertThat(doFnTester.processBatch(inputElements), contains(
+    assertThat(doFnTester.processBundle(inputElements), contains(
         IsmRecord.of(ImmutableList.of(windowA, 0L),
             WindowedValue.of(110L, new Instant(1), windowA, PaneInfo.NO_FIRING)),
         IsmRecord.of(ImmutableList.of(windowA, 1L),
@@ -1098,7 +1098,7 @@ public class DataflowPipelineRunnerTest {
                     WindowedValue.of(330L, new Instant(21), windowC, PaneInfo.NO_FIRING)))));
 
     // The order of the output elements is important relative to processing order
-    assertThat(doFnTester.processBatch(inputElements), contains(
+    assertThat(doFnTester.processBundle(inputElements), contains(
         IsmRecord.of(
             ImmutableList.of(1L, windowA, 0L),
             WindowedValue.of(110L, new Instant(1), windowA, PaneInfo.NO_FIRING)),
@@ -1186,7 +1186,7 @@ public class DataflowPipelineRunnerTest {
 
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage("Unique keys are expected but found key");
-    doFnTester.processBatch(inputElements);
+    doFnTester.processBundle(inputElements);
   }
 
   @Test
@@ -1229,7 +1229,7 @@ public class DataflowPipelineRunnerTest {
                     KV.of(windowC, 9L))));
 
     // The order of the output elements is important relative to processing order
-    assertThat(doFnTester.processBatch(inputElements), contains(
+    assertThat(doFnTester.processBundle(inputElements), contains(
         IsmRecord.<WindowedValue<Long>>meta(
             ImmutableList.of(IsmFormat.getMetadataKey(), windowA, 0L),
             CoderUtils.encodeToByteArray(VarLongCoder.of(), 5L)),
@@ -1284,7 +1284,7 @@ public class DataflowPipelineRunnerTest {
                     KV.of(windowC, 3L))));
 
     // The order of the output elements is important relative to processing order
-    assertThat(doFnTester.processBatch(inputElements), contains(
+    assertThat(doFnTester.processBundle(inputElements), contains(
         IsmRecord.<WindowedValue<Long>>meta(
             ImmutableList.of(IsmFormat.getMetadataKey(), windowA, 1L),
             CoderUtils.encodeToByteArray(VarLongCoder.of(), 2L)),
@@ -1337,7 +1337,7 @@ public class DataflowPipelineRunnerTest {
     List<IsmRecord<WindowedValue<TransformedMap<Long,
                                                 WindowedValue<Long>,
                                                 Long>>>> output =
-                                                doFnTester.processBatch(inputElements);
+                                                doFnTester.processBundle(inputElements);
     assertEquals(3, output.size());
     Map<Long, Long> outputMap;
 
@@ -1394,7 +1394,7 @@ public class DataflowPipelineRunnerTest {
     List<IsmRecord<WindowedValue<TransformedMap<Long,
                                                 Iterable<WindowedValue<Long>>,
                                                 Iterable<Long>>>>> output =
-                                                doFnTester.processBatch(inputElements);
+                                                doFnTester.processBundle(inputElements);
     assertEquals(3, output.size());
     Map<Long, Iterable<Long>> outputMap;
 
