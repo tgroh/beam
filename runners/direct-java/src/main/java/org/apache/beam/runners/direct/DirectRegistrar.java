@@ -38,7 +38,8 @@ public class DirectRegistrar {
   public static class DirectRunner implements PipelineRunnerRegistrar {
     @Override
     public Iterable<Class<? extends PipelineRunner<?>>> getPipelineRunners() {
-      return ImmutableList.<Class<? extends PipelineRunner<?>>>of(org.apache.beam.runners.direct.DirectRunner.class);
+      return ImmutableList.<Class<? extends PipelineRunner<?>>>of(
+          org.apache.beam.runners.direct.DirectRunner.class);
     }
   }
 
@@ -49,7 +50,8 @@ public class DirectRegistrar {
   public static class DirectOptions implements PipelineOptionsRegistrar {
     @Override
     public Iterable<Class<? extends PipelineOptions>> getPipelineOptions() {
-      return ImmutableList.<Class<? extends PipelineOptions>>of(org.apache.beam.runners.direct.DirectOptions.class);
+      return ImmutableList.<Class<? extends PipelineOptions>>of(
+          org.apache.beam.runners.direct.DirectOptions.class);
     }
   }
 }
