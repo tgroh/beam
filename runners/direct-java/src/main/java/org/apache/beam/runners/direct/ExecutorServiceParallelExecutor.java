@@ -19,6 +19,7 @@ package org.apache.beam.runners.direct;
 
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
+import org.apache.beam.runners.direct.WorkManager.Work;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -30,7 +31,6 @@ import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PValue;
 
-import com.google.auto.value.AutoValue;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Optional;
 import com.google.common.cache.CacheBuilder;
@@ -46,11 +46,9 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -68,15 +66,16 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   private final Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers;
   private final Set<PValue> keyedPValues;
   private final TransformEvaluatorRegistry registry;
+
   @SuppressWarnings("rawtypes")
   private final Map<Class<? extends PTransform>, Collection<ModelEnforcementFactory>>
       transformEnforcements;
 
   private final EvaluationContext evaluationContext;
+  private final WorkManager workManager;
 
   private final LoadingCache<StepAndKey, TransformExecutorService> executorServices;
 
-  private final Queue<ExecutorUpdate> allUpdates;
   private final BlockingQueue<VisibleExecutorUpdate> visibleUpdates;
 
   private final TransformExecutorService parallelExecutorService;
@@ -110,6 +109,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     this.registry = registry;
     this.transformEnforcements = transformEnforcements;
     this.evaluationContext = context;
+    this.workManager = QueueWorkManager.create();
 
     // Weak Values allows TransformExecutorServices that are no longer in use to be reclaimed.
     // Executing TransformExecutorServices have a strong reference to their TransformExecutorService
@@ -117,7 +117,6 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     executorServices =
         CacheBuilder.newBuilder().weakValues().build(serialTransformExecutorServiceCacheLoader());
 
-    this.allUpdates = new ConcurrentLinkedQueue<>();
     this.visibleUpdates = new ArrayBlockingQueue<>(20);
 
     parallelExecutorService = TransformExecutorServices.parallel(executorService);
@@ -189,11 +188,8 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     return keyedPValues.contains(pvalue);
   }
 
-  private void scheduleConsumers(ExecutorUpdate update) {
-    CommittedBundle<?> bundle = update.getBundle().get();
-    for (AppliedPTransform<?, ?, ?> consumer : update.getConsumers()) {
-      scheduleConsumption(consumer, bundle, defaultCompletionCallback);
-    }
+  private void scheduleConsumers(Work work) {
+    scheduleConsumption(work.getTransform(), work.getBundle(), defaultCompletionCallback);
   }
 
   @Override
@@ -221,28 +217,28 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
    */
   private abstract class CompletionCallbackBase implements CompletionCallback {
     protected abstract CommittedResult getCommittedResult(
-        CommittedBundle<?> inputBundle,
-        TransformResult result);
+        CommittedBundle<?> inputBundle, TransformResult result);
 
     @Override
     public final CommittedResult handleResult(
         CommittedBundle<?> inputBundle, TransformResult result) {
       CommittedResult committedResult = getCommittedResult(inputBundle, result);
       for (CommittedBundle<?> outputBundle : committedResult.getOutputs()) {
-        allUpdates.offer(ExecutorUpdate.fromBundle(outputBundle,
-            valueToConsumers.get(outputBundle.getPCollection())));
+        for (AppliedPTransform<?, ?, ?> consumer :
+            valueToConsumers.get(outputBundle.getPCollection())) {
+          workManager.addWork(consumer, outputBundle);
+        }
       }
       CommittedBundle<?> unprocessedInputs = committedResult.getUnprocessedInputs();
       if (unprocessedInputs != null && !Iterables.isEmpty(unprocessedInputs.getElements())) {
-        allUpdates.offer(ExecutorUpdate.fromBundle(unprocessedInputs,
-            Collections.<AppliedPTransform<?, ?, ?>>singleton(committedResult.getTransform())));
+        workManager.returnWork(committedResult.getTransform(), unprocessedInputs);
       }
       return committedResult;
     }
 
     @Override
     public final void handleThrowable(CommittedBundle<?> inputBundle, Throwable t) {
-      allUpdates.offer(ExecutorUpdate.fromThrowable(t));
+      visibleUpdates.offer(VisibleExecutorUpdate.fromThrowable(t));
     }
   }
 
@@ -255,9 +251,8 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     @Override
     public CommittedResult getCommittedResult(
         CommittedBundle<?> inputBundle, TransformResult result) {
-      return evaluationContext.handleResult(inputBundle,
-          Collections.<TimerData>emptyList(),
-          result);
+      return evaluationContext.handleResult(
+          inputBundle, Collections.<TimerData>emptyList(), result);
     }
   }
 
@@ -277,45 +272,8 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     @Override
     public CommittedResult getCommittedResult(
         CommittedBundle<?> inputBundle, TransformResult result) {
-          return evaluationContext.handleResult(inputBundle, timers, result);
+      return evaluationContext.handleResult(inputBundle, timers, result);
     }
-  }
-
-  /**
-   * An internal status update on the state of the executor.
-   *
-   * Used to signal when the executor should be shut down (due to an exception).
-   */
-  @AutoValue
-  abstract static class ExecutorUpdate {
-    public static ExecutorUpdate fromBundle(
-        CommittedBundle<?> bundle,
-        Collection<AppliedPTransform<?, ?, ?>> consumers) {
-      return new AutoValue_ExecutorServiceParallelExecutor_ExecutorUpdate(
-          Optional.of(bundle),
-          consumers,
-          Optional.<Throwable>absent());
-    }
-
-    public static ExecutorUpdate fromThrowable(Throwable t) {
-      return new AutoValue_ExecutorServiceParallelExecutor_ExecutorUpdate(
-          Optional.<CommittedBundle<?>>absent(),
-          Collections.<AppliedPTransform<?, ?, ?>>emptyList(),
-          Optional.of(t));
-    }
-
-    /**
-     * Returns the bundle that produced this update.
-     */
-    public abstract Optional<? extends CommittedBundle<?>> getBundle();
-
-    /**
-     * Returns the transforms to process the bundle. If nonempty, {@link #getBundle()} will return
-     * a present {@link Optional}.
-     */
-    public abstract Collection<AppliedPTransform<?, ?, ?>> getConsumers();
-
-    public abstract Optional<? extends Throwable> getException();
   }
 
   /**
@@ -347,34 +305,21 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   private class MonitorRunnable implements Runnable {
     // arbitrary termination condition to ensure progress in the presence of pushback
     private final long maxTimeProcessingUpdatesNanos = TimeUnit.MILLISECONDS.toNanos(5L);
-    private final String runnableName = String.format("%s$%s-monitor",
-        evaluationContext.getPipelineOptions().getAppName(),
-        ExecutorServiceParallelExecutor.class.getSimpleName());
-
-    private boolean exceptionThrown = false;
+    private final String runnableName =
+        String.format(
+            "%s$%s-monitor",
+            evaluationContext.getPipelineOptions().getAppName(),
+            ExecutorServiceParallelExecutor.class.getSimpleName());
 
     @Override
     public void run() {
       String oldName = Thread.currentThread().getName();
       Thread.currentThread().setName(runnableName);
       try {
-        ExecutorUpdate update = allUpdates.poll();
-        int numUpdates = 0;
         // pull all of the pending work off of the queue
-        long updatesStart = System.nanoTime();
-        while (update != null) {
-          LOG.debug("Executor Update: {}", update);
-          if (update.getBundle().isPresent()) {
-            scheduleConsumers(update);
-          } else if (update.getException().isPresent()) {
-            visibleUpdates.offer(VisibleExecutorUpdate.fromThrowable(update.getException().get()));
-            exceptionThrown = true;
-          }
-          if (System.nanoTime() - updatesStart > maxTimeProcessingUpdatesNanos) {
-            break;
-          } else {
-            update = allUpdates.poll();
-          }
+        Iterable<Work> newWork = workManager.getWork();
+        for (Work work : newWork) {
+          scheduleConsumers(work);
         }
         boolean timersFired = fireTimers();
         addWorkIfNecessary(timersFired);
@@ -404,9 +349,8 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     private boolean fireTimers() throws Exception {
       try {
         boolean firedTimers = false;
-        for (Map.Entry<
-               AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> transformTimers :
-            evaluationContext.extractFiredTimers().entrySet()) {
+        for (Map.Entry<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>>
+            transformTimers : evaluationContext.extractFiredTimers().entrySet()) {
           AppliedPTransform<?, ?, ?> transform = transformTimers.getKey();
           for (Map.Entry<StructuralKey<?>, FiredTimers> keyTimers :
               transformTimers.getValue().entrySet()) {
@@ -437,7 +381,9 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     }
 
     private boolean shouldShutdown() {
-      boolean shouldShutdown = exceptionThrown || evaluationContext.isDone();
+      boolean shouldShutdown =
+          (visibleUpdates.peek() != null && visibleUpdates.peek().throwable.isPresent())
+              || evaluationContext.isDone();
       if (shouldShutdown) {
         if (evaluationContext.isDone()) {
           LOG.debug("Pipeline is finished. Shutting down. {}");
