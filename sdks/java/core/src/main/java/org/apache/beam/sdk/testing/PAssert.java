@@ -47,6 +47,7 @@ import org.apache.beam.sdk.transforms.WithKeys;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
 import org.apache.beam.sdk.transforms.windowing.Never;
+import org.apache.beam.sdk.transforms.windowing.PaneInfo.Timing;
 import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.util.GatherAllPanes;
@@ -871,6 +872,43 @@ public class PAssert {
               equalTo(paneIndex));
           outputs.add(value.getValue());
         }
+      }
+      c.output(outputs);
+    }
+  }
+
+  private static class ExtractOnTimePane<T> extends DoFn<Iterable<WindowedValue<T>>, Iterable<T>> {
+    @Override
+    public void processElement(ProcessContext c) throws Exception {
+      List<T> outputs = new ArrayList<>();
+      for (WindowedValue<T> value : c.element()) {
+        if (value.getPane().getTiming().equals(Timing.ON_TIME)) {
+          outputs.add(value.getValue());
+        }
+      }
+      c.output(outputs);
+    }
+  }
+
+  private static class ExtractFinalPane<T> extends DoFn<Iterable<WindowedValue<T>>, Iterable<T>> {
+    @Override
+    public void processElement(ProcessContext c) throws Exception {
+      List<T> outputs = new ArrayList<>();
+      for (WindowedValue<T> value : c.element()) {
+        if (value.getPane().isLast()) {
+          outputs.add(value.getValue());
+        }
+      }
+      c.output(outputs);
+    }
+  }
+
+  private static class ConcatenatePanes<T> extends DoFn<Iterable<WindowedValue<T>>, Iterable<T>> {
+    @Override
+    public void processElement(ProcessContext c) throws Exception {
+      List<T> outputs = new ArrayList<>();
+      for (WindowedValue<T> value : c.element()) {
+        outputs.add(value.getValue());
       }
       c.output(outputs);
     }
