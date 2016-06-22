@@ -47,9 +47,7 @@ import org.apache.beam.sdk.transforms.WithKeys;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
 import org.apache.beam.sdk.transforms.windowing.Never;
-import org.apache.beam.sdk.transforms.windowing.PaneInfo.Timing;
 import org.apache.beam.sdk.transforms.windowing.Window;
-import org.apache.beam.sdk.transforms.windowing.WindowFn;
 import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.util.GatherAllPanes;
 import org.apache.beam.sdk.util.WindowedValue;
@@ -324,8 +322,7 @@ public class PAssert {
     @Override
     public PCollectionContentsAssert<T> satisfies(
         SerializableFunction<Iterable<T>, Void> checkerFn) {
-      actual.apply(nextAssertionName(), new GroupThenAssert<>(checkerFn,
-          rewindowingStrategy));
+      actual.apply(nextAssertionName(), new GroupThenAssert<>(checkerFn, rewindowingStrategy));
       return this;
     }
 
@@ -482,37 +479,35 @@ public class PAssert {
   private static class PCollectionViewAssert<ElemT, ViewT> implements SingletonAssert<ViewT> {
     private final PCollection<ElemT> actual;
     private final PTransform<PCollection<ElemT>, PCollectionView<ViewT>> view;
-    private final PTransform<PCollection<ElemT>, PCollection<ElemT>> rewindowActuals;
-    private final WindowFn<Object, ?> tokenWindowFn;
+    private final AssertWindowingStrategy<ElemT> rewindowActuals;
     private final Coder<ViewT> coder;
 
     protected PCollectionViewAssert(
         PCollection<ElemT> actual,
         PTransform<PCollection<ElemT>, PCollectionView<ViewT>> view,
         Coder<ViewT> coder) {
-      this(actual, view, Window.<ElemT>into(new GlobalWindows()), new GlobalWindows(), coder);
+      this(actual, view, IntoGlobalWindow.<ElemT>of(), coder);
     }
 
     private PCollectionViewAssert(
         PCollection<ElemT> actual,
         PTransform<PCollection<ElemT>, PCollectionView<ViewT>> view,
-        PTransform<PCollection<ElemT>, PCollection<ElemT>> rewindowActuals,
-        WindowFn<Object, ?> tokenWindowFn,
+        AssertWindowingStrategy<ElemT> rewindowActuals,
         Coder<ViewT> coder) {
       this.actual = actual;
       this.view = view;
       this.rewindowActuals = rewindowActuals;
-      this.tokenWindowFn = tokenWindowFn;
       this.coder = coder;
     }
 
     @Override
     public PCollectionViewAssert<ElemT, ViewT> inWindow(BoundedWindow window) {
-      StaticWindows restrictWindows =
-          StaticWindows.of(
-              (Coder) actual.getWindowingStrategy().getWindowFn().windowCoder(), window);
       return new PCollectionViewAssert<>(
-          actual, view, new FilterAndRewindow<ElemT>(restrictWindows), restrictWindows, coder);
+          actual,
+          view,
+          IntoStaticWindows.of(
+              (Coder) actual.getWindowingStrategy().getWindowFn().windowCoder(), window),
+          coder);
     }
 
     @Override
@@ -530,9 +525,11 @@ public class PAssert {
         SerializableFunction<ViewT, Void> checkerFn) {
       actual
           .getPipeline()
-          .apply("PAssert$" + (assertCount++),
-              new OneSideInputAssert<ViewT>(CreateActual.from(actual, rewindowActuals, view),
-                  tokenWindowFn,
+          .apply(
+              "PAssert$" + (assertCount++),
+              new OneSideInputAssert<ViewT>(
+                  CreateActual.from(actual, rewindowActuals.actualsTransform(), view),
+                  rewindowActuals.<Integer>dummyTransform(),
                   checkerFn));
       return this;
     }
@@ -571,23 +568,6 @@ public class PAssert {
     public int hashCode() {
       throw new UnsupportedOperationException(
           String.format("%s.hashCode() is not supported.", SingletonAssert.class.getSimpleName()));
-    }
-  }
-
-  private static class FilterAndRewindow<T> extends PTransform<PCollection<T>, PCollection<T>> {
-    private StaticWindows restrictWindows;
-
-    public FilterAndRewindow(StaticWindows restrictWindows) {
-      this.restrictWindows = restrictWindows;
-    }
-
-    public PCollection<T> apply(PCollection<T> input) {
-      return input
-          .apply(
-              ParDo.of(
-                  new FilterWindowFn<T>(
-                      restrictWindows.windowCoder(), restrictWindows.getWindows())))
-          .apply(Window.<T>into(restrictWindows.intoOnlyExisting()));
     }
   }
 
@@ -713,7 +693,9 @@ public class PAssert {
                               (Iterable<WindowedValue<T>>)
                                   Collections.<WindowedValue<T>>emptyList()))
                       .withCoder(groupedContents.getCoder()))
-              .apply("WindowIntoDummy", rewindowingStrategy.dummyTransform())
+              .apply(
+                  "WindowIntoDummy",
+                  rewindowingStrategy.<KV<Integer, Iterable<WindowedValue<T>>>>dummyTransform())
               .apply("RemoveDummyTriggering", removeTriggering);
 
       // Flatten them together and group by the combined key to get a single element
@@ -735,48 +717,6 @@ public class PAssert {
       return dummyAndContents
           .apply(Values.<Iterable<Iterable<WindowedValue<T>>>>create())
           .apply(ParDo.of(new ConcatFn<WindowedValue<T>>()));
-    }
-  }
-
-
-  /**
-   * A DoFn that filters elements based on their presence in a static collection of windows.
-   */
-  private static final class FilterWindowFn<T> extends DoFn<T, T> implements RequiresWindowAccess {
-    private final Coder<BoundedWindow> coder;
-    private final Collection<byte[]> encodedWindows;
-    transient Collection<BoundedWindow> windows;
-
-    public FilterWindowFn(Coder<BoundedWindow> coder, BoundedWindow window) {
-      this(coder, Collections.singleton(window));
-    }
-
-    private FilterWindowFn(Coder<BoundedWindow> coder, Collection<BoundedWindow> windows) {
-      this.coder = coder;
-      encodedWindows = new ArrayList<>(windows.size());
-      for (BoundedWindow window : windows) {
-        try {
-          encodedWindows.add(CoderUtils.encodeToByteArray(coder, window));
-        } catch (CoderException e) {
-          throw new IllegalArgumentException(
-              "Could not encode all provided Windows with provided Coder", e);
-        }
-      }
-    }
-
-    @Override
-    public void startBundle(Context c) throws CoderException {
-      windows = new ArrayList<>(encodedWindows.size());
-      for (byte[] encodedWindow : encodedWindows) {
-        windows.add(CoderUtils.decodeFromByteArray(coder, encodedWindow));
-      }
-    }
-
-    @Override
-    public void processElement(ProcessContext c) throws Exception {
-      if (windows.contains(c.window())) {
-        c.output(c.element());
-      }
     }
   }
 
@@ -856,15 +796,15 @@ public class PAssert {
   public static class OneSideInputAssert<ActualT> extends PTransform<PBegin, PDone>
       implements Serializable {
     private final transient PTransform<PBegin, PCollectionView<ActualT>> createActual;
-    private final transient WindowFn<Object, ?> tokenWindowFn;
+    private final transient PTransform<PCollection<Integer>, PCollection<Integer>> windowToken;
     private final SerializableFunction<ActualT, Void> checkerFn;
 
     private OneSideInputAssert(
         PTransform<PBegin, PCollectionView<ActualT>> createActual,
-        WindowFn<Object, ?> tokenWindowFn,
+        PTransform<PCollection<Integer>, PCollection<Integer>> windowToken,
         SerializableFunction<ActualT, Void> checkerFn) {
       this.createActual = createActual;
-      this.tokenWindowFn = tokenWindowFn;
+      this.windowToken = windowToken;
       this.checkerFn = checkerFn;
     }
 
@@ -874,7 +814,7 @@ public class PAssert {
 
       input
           .apply(Create.of(0).withCoder(VarIntCoder.of()))
-          .apply("WindowInputToken", Window.<Integer>into(tokenWindowFn))
+          .apply("WindowToken", windowToken)
           .apply(
               ParDo.named("RunChecks")
                   .withSideInputs(actual)
@@ -931,43 +871,6 @@ public class PAssert {
               equalTo(paneIndex));
           outputs.add(value.getValue());
         }
-      }
-      c.output(outputs);
-    }
-  }
-
-  private static class ExtractOnTimePane<T> extends DoFn<Iterable<WindowedValue<T>>, Iterable<T>> {
-    @Override
-    public void processElement(ProcessContext c) throws Exception {
-      List<T> outputs = new ArrayList<>();
-      for (WindowedValue<T> value : c.element()) {
-        if (value.getPane().getTiming().equals(Timing.ON_TIME)) {
-          outputs.add(value.getValue());
-        }
-      }
-      c.output(outputs);
-    }
-  }
-
-  private static class ExtractFinalPane<T> extends DoFn<Iterable<WindowedValue<T>>, Iterable<T>> {
-    @Override
-    public void processElement(ProcessContext c) throws Exception {
-      List<T> outputs = new ArrayList<>();
-      for (WindowedValue<T> value : c.element()) {
-        if (value.getPane().isLast()) {
-          outputs.add(value.getValue());
-        }
-      }
-      c.output(outputs);
-    }
-  }
-
-  private static class ConcatenatePanes<T> extends DoFn<Iterable<WindowedValue<T>>, Iterable<T>> {
-    @Override
-    public void processElement(ProcessContext c) throws Exception {
-      List<T> outputs = new ArrayList<>();
-      for (WindowedValue<T> value : c.element()) {
-        outputs.add(value.getValue());
       }
       c.output(outputs);
     }
@@ -1162,6 +1065,7 @@ public class PAssert {
     }
   }
 
+  ////////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
    * A strategy for filtering and rewindowing the actual and dummy {@link PCollection PCollections}
@@ -1178,9 +1082,9 @@ public class PAssert {
      * Returns a transform that places the element of the dummy {@link PCollection} in the
      * appropriate window.
      */
-    PTransform<
-            PCollection<KV<Integer, Iterable<WindowedValue<T>>>>,
-            PCollection<KV<Integer, Iterable<WindowedValue<T>>>>> dummyTransform();
+    <ArbitraryT> PTransform<
+            PCollection<ArbitraryT>,
+            PCollection<ArbitraryT>> dummyTransform();
   }
 
   private static class IntoGlobalWindow<T> implements AssertWindowingStrategy<T> {
@@ -1194,9 +1098,8 @@ public class PAssert {
     }
 
     @Override
-    public PTransform<
-            PCollection<KV<Integer, Iterable<WindowedValue<T>>>>,
-            PCollection<KV<Integer, Iterable<WindowedValue<T>>>>> dummyTransform() {
+    public <ArbitraryT>
+        PTransform<PCollection<ArbitraryT>, PCollection<ArbitraryT>> dummyTransform() {
       return Window.into(new GlobalWindows());
     }
   }
@@ -1219,11 +1122,67 @@ public class PAssert {
     }
 
     @Override
-    public PTransform<
-            PCollection<KV<Integer, Iterable<WindowedValue<T>>>>,
-            PCollection<KV<Integer, Iterable<WindowedValue<T>>>>>
-        dummyTransform() {
+    public <ArbitraryT>
+    PTransform<PCollection<ArbitraryT>, PCollection<ArbitraryT>> dummyTransform() {
       return Window.into(windowFn);
+    }
+  }
+
+  private static class FilterAndRewindow<T> extends PTransform<PCollection<T>, PCollection<T>> {
+    private StaticWindows restrictWindows;
+
+    public FilterAndRewindow(StaticWindows restrictWindows) {
+      this.restrictWindows = restrictWindows;
+    }
+
+    public PCollection<T> apply(PCollection<T> input) {
+      return input
+          .apply(
+              ParDo.of(
+                  new FilterWindowFn<T>(
+                      restrictWindows.windowCoder(), restrictWindows.getWindows())))
+          .apply(Window.<T>into(restrictWindows.intoOnlyExisting()));
+    }
+  }
+
+  /**
+   * A DoFn that filters elements based on their presence in a static collection of windows.
+   */
+  private static final class FilterWindowFn<T> extends DoFn<T, T> implements RequiresWindowAccess {
+    private final Coder<BoundedWindow> coder;
+    private final Collection<byte[]> encodedWindows;
+    transient Collection<BoundedWindow> windows;
+
+    public FilterWindowFn(Coder<BoundedWindow> coder, BoundedWindow window) {
+      this(coder, Collections.singleton(window));
+    }
+
+    private FilterWindowFn(Coder<BoundedWindow> coder, Collection<BoundedWindow> windows) {
+      this.coder = coder;
+      encodedWindows = new ArrayList<>(windows.size());
+      for (BoundedWindow window : windows) {
+        try {
+          encodedWindows.add(CoderUtils.encodeToByteArray(coder, window));
+        } catch (CoderException e) {
+          throw new IllegalArgumentException(
+              "Could not encode all provided Windows with provided Coder", e);
+        }
+      }
+    }
+
+    @Override
+    public void startBundle(Context c) throws CoderException {
+      windows = new ArrayList<>(encodedWindows.size());
+      for (byte[] encodedWindow : encodedWindows) {
+        windows.add(CoderUtils.decodeFromByteArray(coder, encodedWindow));
+      }
+    }
+
+    @Override
+    public void processElement(ProcessContext c) throws Exception {
+      if (windows.contains(c.window())) {
+        c.output(c.element());
+      }
     }
   }
 }
