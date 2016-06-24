@@ -17,6 +17,9 @@
  */
 package org.apache.beam.sdk.transforms.join;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -25,6 +28,8 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.BigEndianIntegerCoder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.io.CountingInput;
+import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.RunnableOnService;
 import org.apache.beam.sdk.testing.TestPipeline;
@@ -34,6 +39,8 @@ import org.apache.beam.sdk.transforms.DoFn.RequiresWindowAccess;
 import org.apache.beam.sdk.transforms.DoFnTester;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SerializableFunction;
+import org.apache.beam.sdk.transforms.Values;
+import org.apache.beam.sdk.transforms.WithKeys;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
 import org.apache.beam.sdk.transforms.windowing.OutputTimeFns;
@@ -511,4 +518,45 @@ public class CoGroupByKeyTest implements Serializable {
             KV.of("Click t8:House t10", "8:11"));
     p.run();
   }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testCoGroupByKeyEnoughElements() {
+    final TupleTag<Long> bigTag = new TupleTag<>();
+    final TupleTag<Long> smallTag = new TupleTag<>();
+
+    Pipeline p = TestPipeline.create();
+    PCollection<KV<Long, Long>> big =
+        p
+            .apply("CreateManyElements", CountingInput.upTo(20000))
+            .apply("AddManyKeys", WithKeys.<Long, Long>of(1L));
+    PCollection<KV<Long, Long>> small =
+        p
+            .apply("CreateFewElements", CountingInput.upTo(100))
+            .apply("AddFewKeys", WithKeys.<Long, Long>of(1L));
+
+    PCollection<KV<Long, CoGbkResult>> grouped =
+        KeyedPCollectionTuple.of(bigTag, big)
+            .and(smallTag, small)
+            .apply(CoGroupByKey.<Long>create());
+
+    PCollection<CoGbkResult> result =
+        grouped
+            .apply(Values.<CoGbkResult>create());
+
+    PAssert.thatSingleton(result).satisfies(new SerializableFunction<CoGbkResult, Void>() {
+      @Override
+      public Void apply(CoGbkResult input) {
+        assertThat(input.getAll(bigTag), not(nullValue()));
+        assertThat(Iterables.size(input.getAll(bigTag)), equalTo(20000));
+
+        assertThat(input.getAll(smallTag), not(nullValue()));
+        assertThat(Iterables.size(input.getAll(smallTag)), equalTo(100));
+        return null;
+      }
+    });
+
+    p.run();
+  }
 }
+
