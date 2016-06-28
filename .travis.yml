@@ -35,11 +35,11 @@ matrix:
       env: MAVEN_OVERRIDE=""
     # On Linux, run with specific JDKs only.
     - os: linux
-      env: CUSTOM_JDK="oraclejdk8" MAVEN_OVERRIDE="-DforkCount=1 -DargLine=-Xmx512m"
+      env: CUSTOM_JDK="oraclejdk8" MAVEN_OVERRIDE="-DforkCount=1 -DargLine='-Xmx512m -XX:MaxPermSize=512m'"
     - os: linux
-      env: CUSTOM_JDK="oraclejdk7" MAVEN_OVERRIDE="-DforkCount=1 -DargLine=-Xmx512m"
+      env: CUSTOM_JDK="oraclejdk7" MAVEN_OVERRIDE="-DforkCount=1 -DargLine='-Xmx512m -XX:MaxPermSize=512m'"
     - os: linux
-      env: CUSTOM_JDK="openjdk7" MAVEN_OVERRIDE="-DforkCount=1 -DargLine=-Xmx512m"
+      env: CUSTOM_JDK="openjdk7" MAVEN_OVERRIDE="-DforkCount=1 -DargLine='-Xmx512m -XX:MaxPermSize=512m'"
 
 before_install:
   - echo "MAVEN_OPTS='-Xmx2048m -XX:MaxPermSize=512m'" > ~/.mavenrc
