@@ -41,7 +41,7 @@ matrix:
       env: CUSTOM_JDK="openjdk7" FORK_COUNT=1 ARG_LINE="-Xmx512m -XX:MaxPermSize=512m"
 
 before_install:
-  - echo "MAVEN_OPTS='-Xmx2048m -XX:MaxPermSize=512m'" > ~/.mavenrc
+  - echo "MAVEN_OPTS='-Xmx1024m -XX:MaxPermSize=512m'" > ~/.mavenrc
   - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export JAVA_HOME=$(/usr/libexec/java_home); fi
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then jdk_switcher use "$CUSTOM_JDK"; fi
 
@@ -49,5 +49,5 @@ install:
   - travis_retry mvn -B install clean -U -DskipTests=true
 
 script:
-  - travis_retry mvn -B "-DforkCount=${FORK_COUNT}" "-DargLine=${ARG_LINE}" install -U
+  - travis_retry mvn -B -X "-DforkCount=${FORK_COUNT}" "-DargLine=${ARG_LINE}" install -U
   - travis_retry testing/travis/test_wordcount.sh
