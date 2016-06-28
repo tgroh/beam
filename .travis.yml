@@ -39,7 +39,7 @@ matrix:
     - os: linux
       env: CUSTOM_JDK="oraclejdk7" MAVEN_OVERRIDE="-DforkCount=1 -DargLine='-Xmx512m -XX:MaxPermSize=512m'"
     - os: linux
-      env: CUSTOM_JDK="openjdk7" MAVEN_OVERRIDE="-DforkCount=1 -DargLine='-Xmx512m -XX:MaxPermSize=512m'"
+      env: CUSTOM_JDK="openjdk7" MAVEN_OVERRIDE='-DforkCount=1 -DargLine="-Xmx512m -XX:MaxPermSize=512m"'
 
 before_install:
   - echo "MAVEN_OPTS='-Xmx2048m -XX:MaxPermSize=512m'" > ~/.mavenrc
@@ -50,5 +50,5 @@ install:
   - travis_retry mvn -B install clean -U -DskipTests=true
 
 script:
-  - travis_retry mvn -B $MAVEN_OVERRIDE install -U
+  - travis_retry mvn -B "${MAVEN_OVERRIDE}" install -U
   - travis_retry testing/travis/test_wordcount.sh
