@@ -74,4 +74,8 @@ public class GameStatsTest implements Serializable {
     p.run();
   }
 
+  @Test
+  public void testCalculateSessionLengths() {
+
+  }
 }
