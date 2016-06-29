@@ -146,6 +146,28 @@ public class GameStats extends LeaderBoard {
   }
   // [END DocInclude_AbuseDetect]
 
+  public static class GetUserSessionLengths
+      extends PTransform<PCollection<KV<String, Integer>>, PCollection<Integer>> {
+    private final Duration gap;
+
+    public GetUserSessionLengths(Duration gap) {
+      this.gap = gap;
+    }
+
+    @Override
+    public PCollection<Integer> apply(PCollection<KV<String, Integer>> input) {
+    return input
+      .apply("WindowIntoSessions", Window.<KV<String, Integer>>into(
+          Sessions.withGapDuration(gap))
+          .withOutputTimeFn(OutputTimeFns.outputAtEndOfWindow()))
+          // For this use, we care only about the existence of the session, not any particular
+          // information aggregated over it, so the following is an efficient way to do that.
+          .apply(Combine.perKey(x -> 0))
+          // Get the duration per session.
+          .apply("UserSessionActivity", ParDo.of(new UserSessionInfoFn()));
+    }
+  }
+
   /**
    * Calculate and output an element's session duration.
    */
@@ -305,24 +327,20 @@ public class GameStats extends LeaderBoard {
     // This information could help the game designers track the changing user engagement
     // as their set of games changes.
     userEvents
-      .apply("WindowIntoSessions", Window.<KV<String, Integer>>into(
-          Sessions.withGapDuration(Duration.standardMinutes(options.getSessionGap())))
-          .withOutputTimeFn(OutputTimeFns.outputAtEndOfWindow()))
-      // For this use, we care only about the existence of the session, not any particular
-      // information aggregated over it, so the following is an efficient way to do that.
-      .apply(Combine.perKey(x -> 0))
-      // Get the duration per session.
-      .apply("UserSessionActivity", ParDo.of(new UserSessionInfoFn()))
-      // [END DocInclude_SessionCalc]
-      // [START DocInclude_Rewindow]
-      // Re-window to process groups of session sums according to when the sessions complete.
-      .apply("WindowToExtractSessionMean", Window.<Integer>into(
-          FixedWindows.of(Duration.standardMinutes(options.getUserActivityWindowDuration()))))
-      // Find the mean session duration in each window.
-      .apply(Mean.<Integer>globally().withoutDefaults())
-      // Write this info to a BigQuery table.
-      .apply("WriteAvgSessionLength",
-             new WriteWindowedToBigQuery<Double>(
+        .apply(new GetUserSessionLengths(Duration.standardMinutes(options.getSessionGap())))
+        // [END DocInclude_SessionCalc]
+        // [START DocInclude_Rewindow]
+        // Re-window to process groups of session sums according to when the sessions complete.
+        .apply(
+            "WindowToExtractSessionMean",
+            Window.<Integer>into(
+                FixedWindows.of(Duration.standardMinutes(options.getUserActivityWindowDuration()))))
+        // Find the mean session duration in each window.
+        .apply(Mean.<Integer>globally().withoutDefaults())
+        // Write this info to a BigQuery table.
+        .apply(
+            "WriteAvgSessionLength",
+            new WriteWindowedToBigQuery<Double>(
                 options.getTablePrefix() + "_sessions", configureSessionWindowWrite()));
     // [END DocInclude_Rewindow]
 
