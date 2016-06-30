@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.Coder;
@@ -60,9 +61,13 @@ import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.PDone;
 
+import com.google.common.base.Optional;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -146,6 +151,9 @@ public class PAssert {
      */
     IterableAssert<T> containsInAnyOrder(Iterable<T> expectedElements);
 
+    IterableAssertContinuation<T> containsAtLeast(T... expectedElements);
+    IterableAssertContinuation<T> containsAtLeast(Iterable<T> expectedElements);
+
     /**
      * Asserts that the iterable in question is empty.
      *
@@ -160,6 +168,17 @@ public class PAssert {
      * @return the same {@link IterableAssert} builder for further assertions
      */
     IterableAssert<T> satisfies(SerializableFunction<Iterable<T>, Void> checkerFn);
+  }
+
+
+  /**
+   * Builder interface for assertions about partial contents applicable to iterables and PCollection
+   * contents, which allows a restriction on the elements which may but are not required to be
+   * present within the iterable or PCollection.
+   */
+  public interface IterableAssertContinuation<T> {
+    IterableAssert<T> allowing(T... potentialOthers);
+    IterableAssert<T> allowing(Iterable<T> potentialOthers);
   }
 
   /**
@@ -315,6 +334,17 @@ public class PAssert {
     }
 
     @Override
+    public PCollectionPartialContentsAssert<T> containsAtLeast(T... expectedElements) {
+      return containsAtLeast(Arrays.asList(expectedElements));
+    }
+
+    @Override
+    public PCollectionPartialContentsAssert<T> containsAtLeast(Iterable<T> expectedElements) {
+      satisfies(new AssertContainsAtLeastRelation<T>(), expectedElements);
+      return new PCollectionPartialContentsAssert<>(this, expectedElements);
+    }
+
+    @Override
     public PCollectionContentsAssert<T> empty() {
       containsInAnyOrder(Collections.<T>emptyList());
       return this;
@@ -406,6 +436,28 @@ public class PAssert {
     }
   }
 
+  private static class PCollectionPartialContentsAssert<T>
+      implements IterableAssertContinuation<T> {
+    private final IterableAssert<T> underlying;
+    private final Iterable<T> requiredElems;
+
+    private PCollectionPartialContentsAssert(
+        IterableAssert<T> underlying, Iterable<T> requiredElems) {
+      this.underlying = underlying;
+      this.requiredElems = requiredElems;
+    }
+
+    @Override
+    public IterableAssert<T> allowing(T... potentialOthers) {
+      return allowing(Arrays.asList(potentialOthers));
+    }
+
+    @Override
+    public IterableAssert<T> allowing(Iterable<T> potentialOthers) {
+      throw new IllegalArgumentException("Agh");
+    }
+  }
+
   /**
    * An {@link IterableAssert} for an iterable that is the sole element of a {@link PCollection}.
    * This does not require the runner to support side inputs.
@@ -453,6 +505,16 @@ public class PAssert {
     @Override
     public PCollectionSingletonIterableAssert<T> containsInAnyOrder(Iterable<T> expectedElements) {
       return satisfies(new AssertContainsInAnyOrderRelation<T>(), expectedElements);
+    }
+
+    @Override
+    public PCollectionPartialContentsAssert<T> containsAtLeast(T... expectedElements) {
+      return null;
+    }
+
+    @Override
+    public PCollectionPartialContentsAssert<T> containsAtLeast(Iterable<T> expectedElements) {
+      return null;
     }
 
     @Override
@@ -1025,6 +1087,57 @@ public class PAssert {
     }
   }
 
+  private static class AssertContainsAtLeast<T> implements SerializableFunction<Iterable<T>, Void> {
+    private T[] expected;
+
+    @SafeVarargs
+    public AssertContainsAtLeast(T... expected) {
+      this.expected = expected;
+    }
+
+    @SuppressWarnings("unchecked")
+    public AssertContainsAtLeast(Collection<T> expected) {
+      this((T[]) expected.toArray());
+    }
+
+    public AssertContainsAtLeast(Iterable<T> expected) {
+      this(Lists.<T>newArrayList(expected));
+    }
+
+    @Override
+    public Void apply(Iterable<T> actual) {
+      fail("Ugh");
+      return null;
+    }
+  }
+
+  private static class ContainsAtLeast<T> extends BaseMatcher<Iterable<T>> {
+    private final Collection<T> expectedAtLeast;
+    private final Optional<Collection<T>> expectedAdditional;
+    private final Matcher<T> nonMatchingMatcher;
+
+    @Override
+    public boolean matches(Object item) {
+      if (!(item instanceof Iterable)) {
+        return false;
+      }
+      Iterable<T> actuals = (Iterable<T>) item;
+      Collection<T> expected = Lists.newArrayList(expectedAtLeast);
+      for (T actual : actuals) {
+        expected.remove(actual);
+      }
+      if (!expected.isEmpty()) {
+        return false;
+      }
+      return true;
+    }
+
+    @Override
+    public void describeTo(Description description) {
+
+    }
+  }
+
   ////////////////////////////////////////////////////////////
 
   /**
@@ -1065,6 +1178,13 @@ public class PAssert {
     @Override
     public SerializableFunction<Iterable<T>, Void> assertFor(Iterable<T> expectedElements) {
       return new AssertContainsInAnyOrder<T>(expectedElements);
+    }
+  }
+
+  private static class AssertContainsAtLeastRelation<T> implements AssertRelation<Iterable<T>, Iterable<T>> {
+    @Override
+    public SerializableFunction<Iterable<T>, Void> assertFor(Iterable<T> expected) {
+      return new AssertContainsAtLeast<>(expected);
     }
   }
 

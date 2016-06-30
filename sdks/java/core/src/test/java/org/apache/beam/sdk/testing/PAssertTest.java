@@ -314,6 +314,15 @@ public class PAssertTest implements Serializable {
     pipeline.run();
   }
 
+  @Test
+  @Category(RunnableOnService.class)
+  public void testContainsInAnyOrderDuplicates() throws Exception {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 3, 2, 1, 1, 1, 1));
+    PAssert.that(pcollection).containsInAnyOrder(2, 1, 1, 4, 1, 1, 3, 2, 1);
+    pipeline.run();
+  }
+
   /**
    * Tests that {@code containsInAnyOrder} is actually order-independent.
    */
@@ -383,6 +392,60 @@ public class PAssertTest implements Serializable {
             + exc.getMessage()
             + "\"",
         expectedPattern.matcher(exc.getMessage()).find());
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastContainsExactly() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4));
+    PAssert.that(pcollection).containsAtLeast(2, 1, 4, 3);
+    pipeline.run();
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastNotEnough() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 3));
+    PAssert.that(pcollection).containsAtLeast(2, 1, 4, 3);
+    runExpectingAssertionFailure(pipeline);
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastWithAdditionalElements() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 3, 2, 1, 1, 1, 1));
+    PAssert.that(pcollection).containsAtLeast(4, 3, 2, 1);
+    pipeline.run();
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastAdditionallyExactly() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 3, 2, 1, 1, 1, 1));
+    PAssert.that(pcollection).containsAtLeast(2, 1, 1, 4, 1).allowing(1, 3, 2, 1);
+    pipeline.run();
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastAdditionallyWithNotInAdditionalFails() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 7));
+    PAssert.that(pcollection).containsAtLeast(1, 4, 3, 2).allowing(6);
+    runExpectingAssertionFailure(pipeline);
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastAdditionallySomeOfAdditionally() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 5, 6));
+    PAssert.that(pcollection).containsAtLeast(1, 2, 3, 4).allowing(5, 6, 7, 8);
+    pipeline.run();
   }
 
   private static Throwable runExpectingAssertionFailure(Pipeline pipeline) {
