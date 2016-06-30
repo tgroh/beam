@@ -36,6 +36,7 @@ import org.apache.beam.sdk.util.common.ElementByteSizeObserver;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TimestampedValue;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -314,6 +315,15 @@ public class PAssertTest implements Serializable {
     pipeline.run();
   }
 
+  @Test
+  @Category(RunnableOnService.class)
+  public void testContainsInAnyOrderDuplicates() throws Exception {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(4, 4, 4, 4, 3, 3, 3, 2, 2, 1));
+    PAssert.that(pcollection).containsInAnyOrder(1, 2, 2, 3, 3, 3, 4, 4, 4, 4);
+    pipeline.run();
+  }
+
   /**
    * Tests that {@code containsInAnyOrder} is actually order-independent.
    */
@@ -383,6 +393,63 @@ public class PAssertTest implements Serializable {
             + exc.getMessage()
             + "\"",
         expectedPattern.matcher(exc.getMessage()).find());
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastContainsExactly() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4));
+    PAssert.that(pcollection).containsAtLeast(2, 1, 4, 3);
+    pipeline.run();
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastNotEnough() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4));
+    PAssert.that(pcollection).containsAtLeast(2, 1, 4, 3, /* extra */ 3);
+    runExpectingAssertionFailure(pipeline);
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastWithAdditionalElements() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection =
+        pipeline.apply(Create.of(1, 2, 3, 4, /* extras */ 3, 2, 1, 1, 1, 1));
+    PAssert.that(pcollection).containsAtLeast(4, 3, 2, 1);
+    pipeline.run();
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastAdditionallyExactly() {
+    Iterable<Integer> req = ImmutableList.of(1, 2, 4, 8, 16);
+    Iterable<Integer> add = ImmutableList.of(0, 1, 3, 7, 15);
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(Iterables.concat(req, add)));
+    PAssert.that(pcollection).containsAtLeast(req).allowing(add);
+    pipeline.run();
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastAdditionallyWithNotInAdditionalFails() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 7));
+    PAssert.that(pcollection).containsAtLeast(1, 4, 3, 2).allowing(6);
+    runExpectingAssertionFailure(pipeline);
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testContainsAtLeastAdditionallySomeOfAdditionally() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 5, 6));
+    PAssert.that(pcollection).containsAtLeast(1, 2, 3, 4).allowing(5, 6, 7, 8);
+    pipeline.run();
   }
 
   private static Throwable runExpectingAssertionFailure(Pipeline pipeline) {
