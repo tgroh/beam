@@ -27,6 +27,7 @@ import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.SerializableFunction;
+import org.apache.beam.sdk.transforms.Sum;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow;
@@ -287,6 +288,18 @@ public class PAssertTest implements Serializable {
     PAssert.thatSingleton(pcollection)
         .inOnlyPane(new IntervalWindow(new Instant(-500L), new Instant(0L)))
         .isEqualTo(22);
+    pipeline.run();
+  }
+
+  @Test
+  @Category(RunnableOnService.class)
+  public void testCombineIsEqualTo() {
+    Pipeline pipeline = TestPipeline.create();
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(13, 30));
+    PAssert.that(pcollection)
+        .inCombinedPanes(GlobalWindow.INSTANCE, new Sum.SumIntegerFn())
+        .isEqualTo(43);
+
     pipeline.run();
   }
 

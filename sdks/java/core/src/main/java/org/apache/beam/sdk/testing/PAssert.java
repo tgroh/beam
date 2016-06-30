@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.IterableCoder;
@@ -32,6 +33,8 @@ import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.options.StreamingOptions;
 import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.transforms.Aggregator;
+import org.apache.beam.sdk.transforms.Combine;
+import org.apache.beam.sdk.transforms.Combine.CombineFn;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.DoFn.RequiresWindowAccess;
@@ -175,13 +178,11 @@ public class PAssert {
     IterableAssert<T> inCombinedNonLatePanes(BoundedWindow window);
 
     /**
-     * Creates a new {@link IterableAssert} like this one, but with the assertion restricted to only
-     * run on the provided window across all panes produced in the window.
-     *
-     * @return a new {@link IterableAssert} like this one but with the assertion only applied to the
-     * specified window.
+     * Creates a new {@link SingletonAssert} on the input {@link PCollection}, which will run the
+     * provided combine function over all the panes produced within the provided window.
      */
-    IterableAssert<T> acrossAllPanes(BoundedWindow window);
+    <CombinedT> SingletonAssert<CombinedT> inCombinedPanes(
+        BoundedWindow window, CombineFn<T, ?, CombinedT> combiner);
 
     /**
      * Asserts that the iterable in question contains the provided elements.
@@ -399,6 +400,45 @@ public class PAssert {
           actual, IntoStaticWindows.<T>of(windowCoder, window), paneExtractor);
     }
 
+    @Override
+    public <CombinedT> SingletonAssert<CombinedT> inCombinedPanes(
+        BoundedWindow window, CombineFn<T, ?, CombinedT> combiner) {
+      try {
+        return new PCollectionViewAssert<>(
+                actual,
+                new CombinePanesAsView<T, CombinedT>(window, combiner),
+                combiner.getDefaultOutputCoder(
+                    actual.getPipeline().getCoderRegistry(), actual.getCoder()))
+            .inOnlyPane(window);
+      } catch (CannotProvideCoderException e) {
+        throw new IllegalStateException("Could not infer coder for ", e);
+      }
+    }
+
+    private static class CombinePanesAsView<T, CombinedT> extends
+        PTransform<PCollection<T>, PCollectionView<CombinedT>> {
+      private final BoundedWindow window;
+      private final CombineFn<T, ?, CombinedT>  combiner;
+
+      private CombinePanesAsView(BoundedWindow window, CombineFn<T, ?, CombinedT> combiner) {
+        this.window = window;
+        this.combiner = combiner;
+      }
+
+      @Override
+      public PCollectionView<CombinedT> apply(PCollection<T> input) {
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Coder<BoundedWindow> windowCoder =
+            (Coder) input.getWindowingStrategy().getWindowFn().windowCoder();
+
+        return input
+            .apply(new GroupGlobally<T>(IntoStaticWindows.of(windowCoder, window)))
+            .apply(MapElements.via(PaneExtractors.<T>allPanes()))
+            .setCoder(IterableCoder.of(input.getCoder()))
+            .apply(new CombineAllPanes<>(combiner));
+      }
+    }
+
     /**
      * Checks that the {@code Iterable} contains the expected elements, in any order.
      *
@@ -572,6 +612,48 @@ public class PAssert {
           (Coder) actual.getWindowingStrategy().getWindowFn().windowCoder();
       return new PCollectionSingletonIterableAssert<>(
           actual, IntoStaticWindows.<Iterable<T>>of(windowCoder, window), paneExtractor);
+    }
+
+    @Override
+    public <CombinedT> SingletonAssert<CombinedT> inCombinedPanes(
+        BoundedWindow window, CombineFn<T, ?, CombinedT> combiner) {
+      try {
+        return new PCollectionViewAssert<>(
+                actual,
+                new CombinePanesAsView<>(window, combiner),
+                combiner.getDefaultOutputCoder(
+                    actual.getPipeline().getCoderRegistry(),
+                    (Coder<T>) actual.getCoder().getCoderArguments().get(0)))
+            .inOnlyPane(window);
+      } catch (CannotProvideCoderException e) {
+        throw new IllegalStateException("Could not infer coder for ", e);
+      }
+    }
+
+    private static class CombinePanesAsView<T, ViewT>
+        extends PTransform<PCollection<Iterable<T>>, PCollectionView<ViewT>> {
+      private final BoundedWindow window;
+      private final CombineFn<T, ?, ViewT> combiner;
+
+      private CombinePanesAsView(BoundedWindow window, CombineFn<T, ?, ViewT> combiner) {
+        this.window = window;
+        this.combiner = combiner;
+      }
+
+      @Override
+      public PCollectionView<ViewT> apply(PCollection<Iterable<T>> actual) {
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Coder<BoundedWindow> windowCoder =
+            (Coder) actual.getWindowingStrategy().getWindowFn().windowCoder();
+        return actual
+            .apply(
+                "GroupPanes",
+                new GroupGlobally<Iterable<T>>(IntoStaticWindows.of(windowCoder, window)))
+            .apply("GetAllPanes", MapElements.via(PaneExtractors.<Iterable<T>>allPanes()))
+            .setCoder(IterableCoder.of(actual.getCoder()))
+            .apply("ConcatenatePanes", ParDo.of(new ConcatFn<T>()))
+            .apply(new CombineAllPanes<>(combiner));
+      }
     }
 
     @Override
@@ -893,6 +975,24 @@ public class PAssert {
     @Override
     public void processElement(ProcessContext c) throws Exception {
       c.output(Iterables.concat(c.element()));
+    }
+  }
+
+  private static class CombineAllPanes<InT, OutT>
+      extends PTransform<PCollection<Iterable<InT>>, PCollectionView<OutT>> {
+    private final CombineFn<InT, ?, OutT> combiner;
+
+    CombineAllPanes(CombineFn<InT, ?, OutT> combiner) {
+      this.combiner = combiner;
+    }
+
+    @Override
+    public PCollectionView<OutT> apply(PCollection<Iterable<InT>> input) {
+      return input
+          .apply(WithKeys.<Integer, Iterable<InT>>of(0))
+          .apply(Combine.<Integer, InT, OutT>groupedValues(combiner))
+          .apply(Values.<OutT>create())
+          .apply(View.<OutT>asSingleton());
     }
   }
 
