@@ -36,6 +36,7 @@ import org.apache.beam.sdk.util.common.ElementByteSizeObserver;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TimestampedValue;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -318,8 +319,8 @@ public class PAssertTest implements Serializable {
   @Category(RunnableOnService.class)
   public void testContainsInAnyOrderDuplicates() throws Exception {
     Pipeline pipeline = TestPipeline.create();
-    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 3, 2, 1, 1, 1, 1));
-    PAssert.that(pcollection).containsInAnyOrder(2, 1, 1, 4, 1, 1, 3, 2, 1);
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(4, 4, 4, 4, 3, 3, 3, 2, 2, 1));
+    PAssert.that(pcollection).containsInAnyOrder(1, 2, 2, 3, 3, 3, 4, 4, 4, 4);
     pipeline.run();
   }
 
@@ -407,8 +408,8 @@ public class PAssertTest implements Serializable {
   @Category(NeedsRunner.class)
   public void testContainsAtLeastNotEnough() {
     Pipeline pipeline = TestPipeline.create();
-    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 3));
-    PAssert.that(pcollection).containsAtLeast(2, 1, 4, 3);
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4));
+    PAssert.that(pcollection).containsAtLeast(2, 1, 4, 3, /* extra */ 3);
     runExpectingAssertionFailure(pipeline);
   }
 
@@ -416,7 +417,8 @@ public class PAssertTest implements Serializable {
   @Category(NeedsRunner.class)
   public void testContainsAtLeastWithAdditionalElements() {
     Pipeline pipeline = TestPipeline.create();
-    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 3, 2, 1, 1, 1, 1));
+    PCollection<Integer> pcollection =
+        pipeline.apply(Create.of(1, 2, 3, 4, /* extras */ 3, 2, 1, 1, 1, 1));
     PAssert.that(pcollection).containsAtLeast(4, 3, 2, 1);
     pipeline.run();
   }
@@ -424,9 +426,11 @@ public class PAssertTest implements Serializable {
   @Test
   @Category(NeedsRunner.class)
   public void testContainsAtLeastAdditionallyExactly() {
+    Iterable<Integer> req = ImmutableList.of(1, 2, 4, 8, 16);
+    Iterable<Integer> add = ImmutableList.of(0, 1, 3, 7, 15);
     Pipeline pipeline = TestPipeline.create();
-    PCollection<Integer> pcollection = pipeline.apply(Create.of(1, 2, 3, 4, 3, 2, 1, 1, 1, 1));
-    PAssert.that(pcollection).containsAtLeast(2, 1, 1, 4, 1).allowing(1, 3, 2, 1);
+    PCollection<Integer> pcollection = pipeline.apply(Create.of(Iterables.concat(req, add)));
+    PAssert.that(pcollection).containsAtLeast(req).allowing(add);
     pipeline.run();
   }
 

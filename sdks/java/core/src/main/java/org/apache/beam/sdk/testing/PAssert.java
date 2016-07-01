@@ -22,7 +22,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.Coder;
@@ -30,9 +29,12 @@ import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.IterableCoder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.MapCoder;
+import org.apache.beam.sdk.coders.NullableCoder;
+import org.apache.beam.sdk.coders.StandardCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.options.StreamingOptions;
 import org.apache.beam.sdk.runners.PipelineRunner;
+import org.apache.beam.sdk.testing.PAssert.ExpectedElements.ExpectedElementsCoder;
 import org.apache.beam.sdk.transforms.Aggregator;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
@@ -61,7 +63,6 @@ import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.PDone;
 
-import com.google.common.base.Optional;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
@@ -72,6 +73,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -80,6 +83,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+
+import javax.annotation.Nullable;
 
 /**
  * An assertion on the contents of a {@link PCollection} incorporated into the pipeline. Such an
@@ -340,8 +345,11 @@ public class PAssert {
 
     @Override
     public PCollectionPartialContentsAssert<T> containsAtLeast(Iterable<T> expectedElements) {
-      satisfies(new AssertContainsAtLeastRelation<T>(), expectedElements);
-      return new PCollectionPartialContentsAssert<>(this, expectedElements);
+      // Must apply the more general case in case the assertion is not further specified.
+      ExpectedElements<T> partialElems = ExpectedElements.requiring(expectedElements);
+      ExpectedElementsCoder<T> coder = new ExpectedElementsCoder<>(actual.getCoder());
+      satisfies(new AssertContainsAtLeastRelation<T>(), partialElems, coder);
+      return new PCollectionPartialContentsAssert<>(this, partialElems, coder);
     }
 
     @Override
@@ -445,13 +453,17 @@ public class PAssert {
 
   private static class PCollectionPartialContentsAssert<T>
       implements IterableAssertContinuation<T> {
-    private final IterableAssert<T> underlying;
-    private final Iterable<T> requiredElems;
+    private final PCollectionContentsAssert<T> underlying;
+    private final ExpectedElements<T> requiredElems;
+    private final Coder<ExpectedElements<T>> coder;
 
     private PCollectionPartialContentsAssert(
-        IterableAssert<T> underlying, Iterable<T> requiredElems) {
+        PCollectionContentsAssert<T> underlying,
+        ExpectedElements<T> requiredElems,
+        Coder<ExpectedElements<T>> coder) {
       this.underlying = underlying;
       this.requiredElems = requiredElems;
+      this.coder = coder;
     }
 
     @Override
@@ -461,7 +473,10 @@ public class PAssert {
 
     @Override
     public IterableAssert<T> allowing(Iterable<T> potentialOthers) {
-      throw new IllegalArgumentException("Agh");
+      return underlying.satisfies(
+          new AssertContainsAtLeastRelation<T>(),
+          requiredElems.withAdditional(potentialOthers),
+          coder);
     }
   }
 
@@ -611,7 +626,8 @@ public class PAssert {
      */
     private PCollectionViewAssert<ElemT, ViewT> satisfies(
         AssertRelation<ViewT, ViewT> relation, final ViewT expectedValue) {
-      return satisfies(new CheckRelationAgainstExpected<ViewT>(relation, expectedValue, coder));
+      return satisfies(
+          new CheckRelationAgainstExpected<ViewT, ViewT>(relation, expectedValue, coder));
     }
 
     /**
@@ -1097,33 +1113,35 @@ public class PAssert {
   }
 
   private static class AssertContainsAtLeast<T> implements SerializableFunction<Iterable<T>, Void> {
-    private T[] expected;
+    private final Iterable<T> required;
+    @Nullable
+    private final Iterable<T> additional;
 
-    @SafeVarargs
-    public AssertContainsAtLeast(T... expected) {
-      this.expected = expected;
-    }
-
-    @SuppressWarnings("unchecked")
-    public AssertContainsAtLeast(Collection<T> expected) {
-      this((T[]) expected.toArray());
-    }
-
-    public AssertContainsAtLeast(Iterable<T> expected) {
-      this(Lists.<T>newArrayList(expected));
+    private AssertContainsAtLeast(ExpectedElements<T> elements) {
+      this.required = elements.getRequired();
+      this.additional = elements.getAdditional();
     }
 
     @Override
     public Void apply(Iterable<T> actual) {
-      fail("Ugh");
+      assertThat(required, isSubMultiset(actual));
+      if (additional != null) {
+        assertThat(actual, isSubMultiset(Iterables.concat(required, additional)));
+      }
       return null;
     }
   }
 
-  private static class ContainsAtLeast<T> extends BaseMatcher<Iterable<T>> {
-    private final Collection<T> expectedAtLeast;
-    private final Optional<Collection<T>> expectedAdditional;
-    private final Matcher<T> nonMatchingMatcher;
+  private static <T> Matcher<Iterable<T>> isSubMultiset(Iterable<T> superMultiset) {
+    return new IsSubMultiset<>(superMultiset);
+  }
+
+  private static class IsSubMultiset<T> extends BaseMatcher<Iterable<T>> {
+    private final Iterable<T> superMultiset;
+
+    IsSubMultiset(Iterable<T> superMultiset) {
+      this.superMultiset = superMultiset;
+    }
 
     @Override
     public boolean matches(Object item) {
@@ -1131,19 +1149,21 @@ public class PAssert {
         return false;
       }
       Iterable<T> actuals = (Iterable<T>) item;
-      Collection<T> expected = Lists.newArrayList(expectedAtLeast);
+      Collection<T> expected = Lists.newArrayList(superMultiset);
       for (T actual : actuals) {
-        expected.remove(actual);
-      }
-      if (!expected.isEmpty()) {
-        return false;
+        if (!expected.remove(actual)) {
+          return false;
+        }
       }
       return true;
     }
 
     @Override
     public void describeTo(Description description) {
-
+      description
+          .appendText("iterable over at least ")
+          .appendValueList("[", ", ", "]", superMultiset)
+          .appendText(" in any order");
     }
   }
 
@@ -1190,10 +1210,73 @@ public class PAssert {
     }
   }
 
-  private static class AssertContainsAtLeastRelation<T> implements AssertRelation<Iterable<T>, Iterable<T>> {
+  private static class AssertContainsAtLeastRelation<T>
+      implements AssertRelation<Iterable<T>, ExpectedElements<T>> {
     @Override
-    public SerializableFunction<Iterable<T>, Void> assertFor(Iterable<T> expected) {
+    public SerializableFunction<Iterable<T>, Void> assertFor(ExpectedElements<T> expected) {
       return new AssertContainsAtLeast<>(expected);
+    }
+  }
+
+  static class ExpectedElements<T> {
+    private final Iterable<T> required;
+    @Nullable private final Iterable<T> additional;
+
+    public static <T> ExpectedElements<T> requiring(Iterable<T> elements) {
+      return new ExpectedElements<>(elements, null);
+    }
+
+    ExpectedElements(Iterable<T> required, @Nullable Iterable<T> additional) {
+      this.required = required;
+      this.additional = additional;
+    }
+
+    public Iterable<T> getRequired() {
+      return required;
+    }
+
+    @Nullable
+    public Iterable<T> getAdditional() {
+      return additional;
+    }
+
+    public ExpectedElements<T> withAdditional(Iterable<T> additional) {
+      return new ExpectedElements<>(required, additional);
+    }
+
+    static class ExpectedElementsCoder<T> extends StandardCoder<ExpectedElements<T>> {
+      private final Coder<T> elementCoder;
+
+      ExpectedElementsCoder(Coder<T> elementCoder) {
+        this.elementCoder = elementCoder;
+      }
+
+      @Override
+      public void encode(ExpectedElements<T> value, OutputStream outStream, Context context)
+          throws IOException {
+        Coder<Iterable<T>> iterCoder = IterableCoder.of(elementCoder);
+        iterCoder.encode(value.getRequired(), outStream, context.nested());
+        NullableCoder.of(iterCoder).encode(value.getAdditional(), outStream, context.nested());
+      }
+
+      @Override
+      public ExpectedElements<T> decode(
+          InputStream inStream, Context context) throws CoderException, IOException {
+        Coder<Iterable<T>> iterCoder = IterableCoder.of(elementCoder);
+        return new ExpectedElements<>(
+            iterCoder.decode(inStream, context.nested()),
+            NullableCoder.of(iterCoder).decode(inStream, context.nested()));
+      }
+
+      @Override
+      public List<? extends org.apache.beam.sdk.coders.Coder<?>> getCoderArguments() {
+        return Collections.singletonList(elementCoder);
+      }
+
+      @Override
+      public void verifyDeterministic() throws NonDeterministicException {
+        elementCoder.verifyDeterministic();
+      }
     }
   }
 
