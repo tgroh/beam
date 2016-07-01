@@ -346,9 +346,16 @@ public class PAssert {
      */
     private PCollectionContentsAssert<T> satisfies(
         AssertRelation<Iterable<T>, Iterable<T>> relation, Iterable<T> expectedElements) {
+      return satisfies(relation, expectedElements, IterableCoder.of(actual.getCoder()));
+    }
+
+    private <ExpectedT> PCollectionContentsAssert<T> satisfies(
+        AssertRelation<Iterable<T>, ExpectedT> relation,
+        ExpectedT expectedElements,
+        Coder<ExpectedT> coder) {
       return satisfies(
-          new CheckRelationAgainstExpected<Iterable<T>>(
-              relation, expectedElements, IterableCoder.of(actual.getCoder())));
+          new CheckRelationAgainstExpected<Iterable<T>, ExpectedT>(
+              relation, expectedElements, coder));
     }
 
     /**
@@ -467,7 +474,7 @@ public class PAssert {
     private PCollectionSingletonIterableAssert<T> satisfies(
         AssertRelation<Iterable<T>, Iterable<T>> relation, Iterable<T> expectedElements) {
       return satisfies(
-          new CheckRelationAgainstExpected<Iterable<T>>(
+          new CheckRelationAgainstExpected<Iterable<T>, Iterable<T>>(
               relation, expectedElements, IterableCoder.of(elementCoder)));
     }
   }
@@ -618,12 +625,14 @@ public class PAssert {
    * A partially applied {@link AssertRelation}, where one value is provided along with a coder to
    * serialize/deserialize them.
    */
-  private static class CheckRelationAgainstExpected<T> implements SerializableFunction<T, Void> {
-    private final AssertRelation<T, T> relation;
+  private static class CheckRelationAgainstExpected<ActualT, ExpectedT>
+      implements SerializableFunction<ActualT, Void> {
+    private final AssertRelation<ActualT, ExpectedT> relation;
     private final byte[] encodedExpected;
-    private final Coder<T> coder;
+    private final Coder<ExpectedT> coder;
 
-    public CheckRelationAgainstExpected(AssertRelation<T, T> relation, T expected, Coder<T> coder) {
+    public CheckRelationAgainstExpected(
+        AssertRelation<ActualT, ExpectedT> relation, ExpectedT expected, Coder<ExpectedT> coder) {
       this.relation = relation;
       this.coder = coder;
 
@@ -635,9 +644,9 @@ public class PAssert {
     }
 
     @Override
-    public Void apply(T actual) {
+    public Void apply(ActualT actual) {
       try {
-        T expected = CoderUtils.decodeFromByteArray(coder, encodedExpected);
+        ExpectedT expected = CoderUtils.decodeFromByteArray(coder, encodedExpected);
         return relation.assertFor(expected).apply(actual);
       } catch (IOException coderException) {
         throw new RuntimeException(coderException);
