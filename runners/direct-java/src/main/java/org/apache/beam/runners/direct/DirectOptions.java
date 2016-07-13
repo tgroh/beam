@@ -20,6 +20,7 @@ package org.apache.beam.runners.direct;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.ApplicationNameOptions;
 import org.apache.beam.sdk.options.Default;
+import org.apache.beam.sdk.options.DefaultValueFactory;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.Hidden;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -53,6 +54,17 @@ public interface DirectOptions extends PipelineOptions, ApplicationNameOptions {
   ExecutorServiceFactory getExecutorServiceFactory();
 
   void setExecutorServiceFactory(ExecutorServiceFactory executorService);
+
+  /**
+   * Gets the maximum parallelism the {@link DirectRunner} is permitted to execute with. This will
+   * by default be equal to the number of available processors as returned by
+   * {@link Runtime#availableProcessors()}.
+   */
+  @Required
+  @Default.InstanceFactory(AvailableProcessorsParallelismFactory.class)
+  int getMaxParallelism();
+
+  void setMaxParallelism(int parallelism);
 
   /**
    * Gets the {@link Clock} used by this pipeline. The clock is used in place of accessing the
@@ -98,4 +110,15 @@ public interface DirectOptions extends PipelineOptions, ApplicationNameOptions {
   boolean isTestImmutability();
 
   void setTestImmutability(boolean test);
+
+  /**
+   * A {@link DefaultValueFactory} that returns the number of processors available to the current
+   * runtime.
+   */
+  class AvailableProcessorsParallelismFactory implements DefaultValueFactory<Integer> {
+    @Override
+    public Integer create(PipelineOptions options) {
+      return Runtime.getRuntime().availableProcessors();
+    }
+  }
 }

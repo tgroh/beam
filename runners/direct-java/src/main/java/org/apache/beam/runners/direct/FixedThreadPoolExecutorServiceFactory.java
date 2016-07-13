@@ -17,6 +17,8 @@
  */
 package org.apache.beam.runners.direct;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import org.apache.beam.sdk.options.DefaultValueFactory;
 import org.apache.beam.sdk.options.PipelineOptions;
 
@@ -24,22 +26,29 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * A {@link ExecutorServiceFactory} that produces fixed thread pools via
- * {@link Executors#newFixedThreadPool(int)}, with the number of threads equal to the available
- * processors as provided by {@link Runtime#availableProcessors()}.
+ * Produces instances {@link ExecutorServiceFactory} that produces fixed thread pools via
+ * {@link Executors#newFixedThreadPool(int)}, with the number of threads equal to the maximum
+ * parallelism in {@link DirectOptions}.
  */
-class FixedThreadPoolExecutorServiceFactory
-    implements DefaultValueFactory<ExecutorServiceFactory>, ExecutorServiceFactory {
-  private static final FixedThreadPoolExecutorServiceFactory INSTANCE =
-      new FixedThreadPoolExecutorServiceFactory();
+class FixedThreadPoolExecutorServiceFactory implements DefaultValueFactory<ExecutorServiceFactory> {
 
   @Override
   public ExecutorServiceFactory create(PipelineOptions options) {
-    return INSTANCE;
+    return new FixedParallelismThreadPoolFactory(
+        options.as(DirectOptions.class).getMaxParallelism());
   }
 
-  @Override
-  public ExecutorService create() {
-    return Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+  private static class FixedParallelismThreadPoolFactory implements ExecutorServiceFactory {
+    private final int parallelism;
+
+    private FixedParallelismThreadPoolFactory(int parallelism) {
+      checkArgument(parallelism > 0, "Max Parallelism must be at least 1");
+      this.parallelism = parallelism;
+    }
+
+    @Override
+    public ExecutorService create() {
+      return Executors.newFixedThreadPool(parallelism);
+    }
   }
 }
