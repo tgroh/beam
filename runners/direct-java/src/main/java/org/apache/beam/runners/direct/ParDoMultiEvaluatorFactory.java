@@ -70,9 +70,7 @@ class ParDoMultiEvaluatorFactory implements TransformEvaluatorFactory {
 
   @Override
   public void cleanup() throws Exception {
-    for (DoFnLifecycleManager lifecycleManager : fnClones.asMap().values()) {
-      lifecycleManager.removeAll();
-    }
+    DoFnLifecycleManagers.removeAllFromManagers(fnClones.asMap().values());
   }
 
   private <InT, OuT> TransformEvaluator<InT> createMultiEvaluator(
@@ -81,8 +79,7 @@ class ParDoMultiEvaluatorFactory implements TransformEvaluatorFactory {
       EvaluationContext evaluationContext) throws Exception {
     Map<TupleTag<?>, PCollection<?>> outputs = application.getOutput().getAll();
 
-    DoFnLifecycleManager fnLocal =
-        fnClones.getUnchecked((AppliedPTransform) application);
+    DoFnLifecycleManager fnLocal = fnClones.getUnchecked((AppliedPTransform) application);
     try {
       @SuppressWarnings({"unchecked", "rawtypes"})
       TransformEvaluator<InT> parDoEvaluator =

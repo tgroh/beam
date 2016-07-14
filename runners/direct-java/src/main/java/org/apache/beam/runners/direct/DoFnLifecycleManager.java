@@ -18,9 +18,16 @@
 
 package org.apache.beam.runners.direct;
 
+import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.util.SerializableUtils;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -49,24 +56,47 @@ class DoFnLifecycleManager {
     Thread currentThread = Thread.currentThread();
     DoFn<?, ?> fn = outstanding.get(currentThread);
     if (fn == null) {
+      // The key is the current thread, so this is safe when accessed in a multithreaded manner.
       fn =
           (DoFn<?, ?>)
               SerializableUtils.deserializeFromByteArray(
                   original, "DoFn Copy in thread " + currentThread.getName());
       outstanding.put(currentThread, fn);
+      fn.setup();
     }
     return fn;
   }
 
   public void remove() throws Exception {
     Thread currentThread = Thread.currentThread();
-    outstanding.remove(currentThread);
+    DoFn<?, ?> fn = outstanding.remove(currentThread);
+    if (fn != null) {
+      fn.teardown();
+    }
   }
 
   /**
-   * Remove all {@link DoFn DoFns} from this {@link DoFnLifecycleManager}.
+   * Remove all {@link DoFn DoFns} from this {@link DoFnLifecycleManager}. Returns all exceptions
+   * that were thrown while calling the remove methods.
+   *
+   * <p>If the returned Collection is nonempty, an exception was thrown from at least one
+   * {@link DoFn#teardown()} method, and the {@link PipelineRunner} should throw an exception.
    */
-  public void removeAll() throws Exception {
-    outstanding.clear();
+  public Collection<Exception> removeAll() {
+    List<Exception> suppressed = new ArrayList<>();
+    Iterator<Entry<Thread, DoFn<?, ?>>> entries = outstanding.entrySet().iterator();
+    while (entries.hasNext()) {
+      Map.Entry<Thread, DoFn<?, ?>> entry = entries.next();
+      entries.remove();
+      try {
+        entry.getValue().teardown();
+      } catch (Exception e) {
+        if (e instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
+        }
+        suppressed.add(e);
+      }
+    }
+    return suppressed;
   }
 }

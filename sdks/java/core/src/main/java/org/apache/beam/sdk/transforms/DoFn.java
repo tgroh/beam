@@ -24,6 +24,7 @@ import static com.google.common.base.Preconditions.checkState;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Experimental.Kind;
 import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.transforms.Combine.CombineFn;
 import org.apache.beam.sdk.transforms.display.DisplayData;
 import org.apache.beam.sdk.transforms.display.HasDisplayData;
@@ -337,12 +338,21 @@ public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayD
   private boolean aggregatorsAreFinal;
 
   /**
+   * Prepares this {@link DoFn} instance for processing bundles.
+   *
+   * <p>{@link #setup()} will be called at most once per {@link DoFn} instance, and before any other
+   * {@link DoFn} method is called.
+   *
+   * <p>By default, does nothing.
+   */
+  public void setup() throws Exception {}
+
+  /**
    * Prepares this {@code DoFn} instance for processing a batch of elements.
    *
    * <p>By default, does nothing.
    */
-  public void startBundle(Context c) throws Exception {
-  }
+  public void startBundle(Context c) throws Exception {}
 
   /**
    * Processes one input element.
@@ -367,8 +377,18 @@ public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayD
    *
    * <p>By default, does nothing.
    */
-  public void finishBundle(Context c) throws Exception {
-  }
+  public void finishBundle(Context c) throws Exception {}
+
+  /**
+   * Cleans up this {@link DoFn}.
+   *
+   * <p>{@link #teardown()} will be called before the {@link PipelineRunner} discards a {@link DoFn}
+   * instance, including due to another {@link DoFn} method throwing an {@link Exception}. No other
+   * {@link DoFn} methods will be called after a call to {@link #teardown()}.
+   *
+   * <p>By default, does nothing.
+   */
+  public void teardown() throws Exception {}
 
   /**
    * {@inheritDoc}
