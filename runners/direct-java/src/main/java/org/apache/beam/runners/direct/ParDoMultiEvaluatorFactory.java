@@ -22,7 +22,6 @@ import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo.BoundMulti;
-import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.TupleTag;
@@ -31,6 +30,9 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Map;
 
 /**
@@ -38,22 +40,19 @@ import java.util.Map;
  * {@link BoundMulti} primitive {@link PTransform}.
  */
 class ParDoMultiEvaluatorFactory implements TransformEvaluatorFactory {
-  private final LoadingCache<AppliedPTransform<?, ?, BoundMulti<?, ?>>, ThreadLocal<DoFn<?, ?>>>
+  private static final Logger LOG = LoggerFactory.getLogger(ParDoMultiEvaluatorFactory.class);
+  private final LoadingCache<AppliedPTransform<?, ?, BoundMulti<?, ?>>, DoFnLifecycleManager>
       fnClones;
 
   public ParDoMultiEvaluatorFactory() {
     fnClones =
         CacheBuilder.newBuilder()
             .build(
-                new CacheLoader<
-                    AppliedPTransform<?, ?, BoundMulti<?, ?>>, ThreadLocal<DoFn<?, ?>>>() {
+                new CacheLoader<AppliedPTransform<?, ?, BoundMulti<?, ?>>, DoFnLifecycleManager>() {
                   @Override
-                  public ThreadLocal<DoFn<?, ?>> load(AppliedPTransform<?, ?, BoundMulti<?, ?>> key)
+                  public DoFnLifecycleManager load(AppliedPTransform<?, ?, BoundMulti<?, ?>> key)
                       throws Exception {
-                    @SuppressWarnings({"unchecked", "rawtypes"})
-                    ThreadLocal threadLocal =
-                        (ThreadLocal) CloningThreadLocal.of(key.getTransform().getFn());
-                    return threadLocal;
+                    return DoFnLifecycleManager.of(key.getTransform().getFn());
                   }
                 });
   }
@@ -62,7 +61,7 @@ class ParDoMultiEvaluatorFactory implements TransformEvaluatorFactory {
   public <T> TransformEvaluator<T> forApplication(
       AppliedPTransform<?, ?, ?> application,
       CommittedBundle<?> inputBundle,
-      EvaluationContext evaluationContext) {
+      EvaluationContext evaluationContext) throws Exception {
     @SuppressWarnings({"unchecked", "rawtypes"})
     TransformEvaluator<T> evaluator =
         createMultiEvaluator((AppliedPTransform) application, inputBundle, evaluationContext);
@@ -70,42 +69,43 @@ class ParDoMultiEvaluatorFactory implements TransformEvaluatorFactory {
   }
 
   @Override
-  public void cleanup() {
-
+  public void cleanup() throws Exception {
+    for (DoFnLifecycleManager lifecycleManager : fnClones.asMap().values()) {
+      lifecycleManager.removeAll();
+    }
   }
 
   private <InT, OuT> TransformEvaluator<InT> createMultiEvaluator(
       AppliedPTransform<PCollection<InT>, PCollectionTuple, BoundMulti<InT, OuT>> application,
       CommittedBundle<InT> inputBundle,
-      EvaluationContext evaluationContext) {
+      EvaluationContext evaluationContext) throws Exception {
     Map<TupleTag<?>, PCollection<?>> outputs = application.getOutput().getAll();
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    ThreadLocal<DoFn<InT, OuT>> fnLocal =
-        (ThreadLocal) fnClones.getUnchecked((AppliedPTransform) application);
+    DoFnLifecycleManager fnLocal =
+        fnClones.getUnchecked((AppliedPTransform) application);
     try {
+      @SuppressWarnings({"unchecked", "rawtypes"})
       TransformEvaluator<InT> parDoEvaluator =
           ParDoEvaluator.create(
               evaluationContext,
               inputBundle,
               application,
-              fnLocal.get(),
+              (DoFn) fnLocal.get(),
               application.getTransform().getSideInputs(),
               application.getTransform().getMainOutputTag(),
               application.getTransform().getSideOutputTags().getAll(),
               outputs);
-      return ThreadLocalInvalidatingTransformEvaluator.wrapping(parDoEvaluator, fnLocal);
+      return DoFnLifecycleManagerRemovingTransformEvaluator.wrapping(parDoEvaluator, fnLocal);
     } catch (Exception e) {
-      fnLocal.remove();
+      try {
+        fnLocal.remove();
+      } catch (Exception removalException) {
+        LOG.error(
+            "Exception encountered while cleaning up in ParDo evaluator construction",
+            removalException);
+        e.addSuppressed(removalException);
+      }
       throw e;
-    }
-  }
-
-  private static class BoundToFn
-      implements SerializableFunction<AppliedPTransform<?, ?, BoundMulti<?, ?>>, DoFn<?, ?>> {
-    @Override
-    public DoFn<?, ?> apply(AppliedPTransform<?, ?, BoundMulti<?, ?>> input) {
-      return input.getTransform().getFn();
     }
   }
 }
