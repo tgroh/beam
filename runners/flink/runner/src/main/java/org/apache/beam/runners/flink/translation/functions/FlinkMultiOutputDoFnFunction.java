@@ -75,36 +75,41 @@ public class FlinkMultiOutputDoFnFunction<InputT, OutputT>
       Iterable<WindowedValue<InputT>> values,
       Collector<WindowedValue<RawUnionValue>> out) throws Exception {
 
-    FlinkProcessContext<InputT, OutputT> context = new FlinkMultiOutputProcessContext<>(
-        serializedOptions.getPipelineOptions(),
-        getRuntimeContext(),
-        doFn,
-        windowingStrategy,
-        out,
-        outputMap,
-        sideInputs);
+    FlinkProcessContext<InputT, OutputT> context =
+        new FlinkMultiOutputProcessContext<>(
+            serializedOptions.getPipelineOptions(),
+            getRuntimeContext(),
+            doFn,
+            windowingStrategy,
+            out,
+            outputMap,
+            sideInputs);
 
-    this.doFn.startBundle(context);
+    try {
+      this.doFn.setup();
+      this.doFn.startBundle(context);
 
-    if (!requiresWindowAccess || hasSideInputs) {
-      // we don't need to explode the windows
-      for (WindowedValue<InputT> value : values) {
-        context = context.forWindowedValue(value);
-        doFn.processElement(context);
-      }
-    } else {
-      // we need to explode the windows because we have per-window
-      // side inputs and window access also only works if an element
-      // is in only one window
-      for (WindowedValue<InputT> value : values) {
-        for (WindowedValue<InputT> explodedValue: value.explodeWindows()) {
+      if (!requiresWindowAccess || hasSideInputs) {
+        // we don't need to explode the windows
+        for (WindowedValue<InputT> value : values) {
           context = context.forWindowedValue(value);
           doFn.processElement(context);
         }
+      } else {
+        // we need to explode the windows because we have per-window
+        // side inputs and window access also only works if an element
+        // is in only one window
+        for (WindowedValue<InputT> value : values) {
+          for (WindowedValue<InputT> explodedValue : value.explodeWindows()) {
+            context = context.forWindowedValue(value);
+            doFn.processElement(context);
+          }
+        }
       }
+
+      this.doFn.finishBundle(context);
+    } finally {
+      this.doFn.teardown();
     }
-
-
-    this.doFn.finishBundle(context);
   }
 }

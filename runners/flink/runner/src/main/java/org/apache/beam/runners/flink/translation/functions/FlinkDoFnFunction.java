@@ -73,30 +73,36 @@ public class FlinkDoFnFunction<InputT, OutputT>
         out,
         sideInputs);
 
-    this.doFn.startBundle(context);
+    try {
+      this.doFn.setup();
+      this.doFn.startBundle(context);
 
-    if (!requiresWindowAccess || hasSideInputs) {
-      // we don't need to explode the windows
-      for (WindowedValue<InputT> value : values) {
-        context = context.forWindowedValue(value);
-        doFn.processElement(context);
-      }
-    } else {
-      // we need to explode the windows because we have per-window
-      // side inputs and window access also only works if an element
-      // is in only one window
-      for (WindowedValue<InputT> value : values) {
-        for (WindowedValue<InputT> explodedValue: value.explodeWindows()) {
+      if (!requiresWindowAccess || hasSideInputs) {
+        // we don't need to explode the windows
+        for (WindowedValue<InputT> value : values) {
           context = context.forWindowedValue(value);
           doFn.processElement(context);
         }
+      } else {
+        // we need to explode the windows because we have per-window
+        // side inputs and window access also only works if an element
+        // is in only one window
+        for (WindowedValue<InputT> value : values) {
+          for (WindowedValue<InputT> explodedValue : value.explodeWindows()) {
+            context = context.forWindowedValue(value);
+            doFn.processElement(context);
+          }
+        }
       }
-    }
 
-    // set the windowed value to null so that the logic
-    // or outputting in finishBundle kicks in
-    context = context.forWindowedValue(null);
-    this.doFn.finishBundle(context);
+      // set the windowed value to null so that the logic
+      // or outputting in finishBundle kicks in
+      context = context.forWindowedValue(null);
+      this.doFn.finishBundle(context);
+    } finally {
+      this.doFn
+          .teardown();
+    }
   }
 
 }

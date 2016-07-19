@@ -238,6 +238,7 @@ public abstract class SparkProcessContext<InputT, OutputT, ValueT>
           try {
             doFn.processElement(SparkProcessContext.this);
           } catch (Exception e) {
+            handleProcessingException(e);
             throw new SparkProcessException(e);
           }
           outputIterator = getOutputIterator();
@@ -249,13 +250,28 @@ public abstract class SparkProcessContext<InputT, OutputT, ValueT>
               calledFinish = true;
               doFn.finishBundle(SparkProcessContext.this);
             } catch (Exception e) {
+              handleProcessingException(e);
               throw new SparkProcessException(e);
             }
             outputIterator = getOutputIterator();
             continue; // try to consume outputIterator from start of loop
           }
+          try {
+            doFn.teardown();
+          } catch (Exception e) {
+            throw new SparkProcessException(e);
+          }
           return endOfData();
         }
+      }
+    }
+
+    private void handleProcessingException(Exception e) {
+      try {
+        doFn.teardown();
+      } catch (Exception e1) {
+        LOG.error("Exception while cleaning up DoFn", e1);
+        e.addSuppressed(e1);
       }
     }
   }

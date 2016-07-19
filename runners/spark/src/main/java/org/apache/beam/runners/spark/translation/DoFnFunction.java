@@ -61,6 +61,7 @@ public class DoFnFunction<InputT, OutputT>
       Exception {
     ProcCtxt ctxt = new ProcCtxt(mFunction, mRuntimeContext, mSideInputs);
     ctxt.setup();
+    mFunction.setup();
     mFunction.startBundle(ctxt);
     return ctxt.getOutputIterable(iter, mFunction);
   }
