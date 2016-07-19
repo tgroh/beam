@@ -21,6 +21,11 @@ package org.apache.beam.runners.direct;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.util.SerializableUtils;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -51,19 +56,41 @@ class DoFnLifecycleManager {
     if (fn == null) {
       fn = SerializableUtils.clone(original);
       outstanding.put(currentThread, fn);
+      fn.setup();
     }
     return fn;
   }
 
   public void remove() throws Exception {
     Thread currentThread = Thread.currentThread();
-    outstanding.remove(currentThread);
+    DoFn<?, ?> fn = outstanding.remove(currentThread);
+    if (fn != null) {
+      fn.teardown();
+    }
   }
 
   /**
    * Remove all {@link DoFn DoFns} from this {@link DoFnLifecycleManager}.
    */
   public void removeAll() throws Exception {
-    outstanding.clear();
+    List<Exception> suppressed = new ArrayList<>();
+    Iterator<Entry<Thread, DoFn<?, ?>>> entries = outstanding.entrySet().iterator();
+    while (entries.hasNext()) {
+      Map.Entry<Thread, DoFn<?, ?>> entry = entries.next();
+      entries.remove();
+      try {
+        entry.getValue().teardown();
+      } catch (Exception e) {
+        suppressed.add(e);
+      }
+    }
+    // Throw any exceptions that were thrown while making calls to teardown
+    if (!suppressed.isEmpty()) {
+      Exception arbitrary = suppressed.get(0);
+      for (Exception alsoThrown : suppressed.subList(1, suppressed.size())) {
+        arbitrary.addSuppressed(alsoThrown);
+      }
+      throw arbitrary;
+    }
   }
 }
