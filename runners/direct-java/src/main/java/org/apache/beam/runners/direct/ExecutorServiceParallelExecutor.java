@@ -468,4 +468,12 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
       }
     }
   }
+
+  private enum MonitorState {
+    ACTIVE,
+    DRAINING,
+    DRAINED,
+    QUIESCING,
+    QUIESCENT
+  }
 }
