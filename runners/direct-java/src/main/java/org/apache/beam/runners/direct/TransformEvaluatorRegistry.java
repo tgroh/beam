@@ -21,6 +21,8 @@ import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupAlsoByWindow;
 import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupByKeyOnly;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.sdk.io.Read;
+import org.apache.beam.sdk.options.DefaultValueFactory;
+import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.Flatten.FlattenPCollectionList;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -37,7 +39,7 @@ import javax.annotation.Nullable;
  * A {@link TransformEvaluatorFactory} that delegates to primitive {@link TransformEvaluatorFactory}
  * implementations based on the type of {@link PTransform} of the application.
  */
-class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
+public class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
   public static TransformEvaluatorRegistry defaultRegistry() {
     @SuppressWarnings("rawtypes")
     ImmutableMap<Class<? extends PTransform>, TransformEvaluatorFactory> primitives =
@@ -75,5 +77,21 @@ class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
       throws Exception {
     TransformEvaluatorFactory factory = factories.get(application.getTransform().getClass());
     return factory.forApplication(application, inputBundle, evaluationContext);
+  }
+
+  public TransformEvaluatorRegistry withEvaluatorFactory(
+      Class<? extends PTransform> transformClass, TransformEvaluatorFactory evaluatorFactory) {
+    return new TransformEvaluatorRegistry(
+        ImmutableMap.<Class<? extends PTransform>, TransformEvaluatorFactory>builder()
+            .putAll(factories)
+            .put(transformClass, evaluatorFactory)
+            .build());
+  }
+
+  static class DefaultFactory implements DefaultValueFactory<TransformEvaluatorRegistry> {
+    @Override
+    public TransformEvaluatorRegistry create(PipelineOptions options) {
+      return TransformEvaluatorRegistry.defaultRegistry();
+    }
   }
 }

@@ -69,7 +69,18 @@ public interface DirectOptions extends PipelineOptions, ApplicationNameOptions {
 
   void setClock(Clock clock);
 
-  @Default.Boolean(false)
+  /**
+   * Gets the {@link TransformEvaluatorRegistry} used to evaluate this {@link Pipeline}.
+   */
+  @Default.InstanceFactory(TransformEvaluatorRegistry.DefaultFactory.class)
+  @Required
+  @JsonIgnore
+  @Hidden
+  TransformEvaluatorRegistry getTransformEvaluatorRegistry();
+
+  void setTransformEvaluatorRegistry(TransformEvaluatorRegistry registry);
+
+  @Default.Boolean(true)
   @Description(
       "If the pipeline should shut down producers which have reached the maximum "
           + "representable watermark. If this is set to true, a pipeline in which all PTransforms "

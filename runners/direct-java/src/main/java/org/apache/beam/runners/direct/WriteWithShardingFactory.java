@@ -65,7 +65,7 @@ class WriteWithShardingFactory implements PTransformOverrideFactory {
     return transform;
   }
 
-  private static class DynamicallyReshardedWrite <T> extends PTransform<PCollection<T>, PDone> {
+  private static class DynamicallyReshardedWrite<T> extends PTransform<PCollection<T>, PDone> {
     private final transient Write.Bound<T> original;
 
     private DynamicallyReshardedWrite(Bound<T> original) {
@@ -74,10 +74,13 @@ class WriteWithShardingFactory implements PTransformOverrideFactory {
 
     @Override
     public PDone apply(PCollection<T> input) {
-      PCollection<T> records = input.apply("RewindowInputs",
-          Window.<T>into(new GlobalWindows()).triggering(DefaultTrigger.of())
-              .withAllowedLateness(Duration.ZERO)
-              .discardingFiredPanes());
+      PCollection<T> records =
+          input.apply(
+              "RewindowInputs",
+              Window.<T>into(new GlobalWindows())
+                  .triggering(DefaultTrigger.of())
+                  .withAllowedLateness(Duration.ZERO)
+                  .discardingFiredPanes());
       final PCollectionView<Long> numRecords = records
           .apply("CountRecords", Count.<T>globally().asSingletonView());
       PCollection<T> resharded =

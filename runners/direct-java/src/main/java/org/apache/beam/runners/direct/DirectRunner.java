@@ -238,7 +238,7 @@ public class DirectRunner
             executorService,
             consumerTrackingVisitor.getValueToConsumers(),
             keyedPValueVisitor.getKeyedPValues(),
-            TransformEvaluatorRegistry.defaultRegistry(),
+            options.getTransformEvaluatorRegistry(),
             defaultModelEnforcements(options),
             context);
     executor.start(consumerTrackingVisitor.getRootTransforms());
