@@ -21,6 +21,8 @@ import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupAlsoByWindow;
 import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupByKeyOnly;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.sdk.io.Read;
+import org.apache.beam.sdk.options.DefaultValueFactory;
+import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.Flatten.FlattenPCollectionList;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -29,6 +31,7 @@ import org.apache.beam.sdk.transforms.windowing.Window;
 
 import com.google.common.collect.ImmutableMap;
 
+import java.util.Collections;
 import java.util.Map;
 
 import javax.annotation.Nullable;
@@ -37,7 +40,7 @@ import javax.annotation.Nullable;
  * A {@link TransformEvaluatorFactory} that delegates to primitive {@link TransformEvaluatorFactory}
  * implementations based on the type of {@link PTransform} of the application.
  */
-class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
+public class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
   public static TransformEvaluatorRegistry defaultRegistry() {
     @SuppressWarnings("rawtypes")
     ImmutableMap<Class<? extends PTransform>, TransformEvaluatorFactory> primitives =
@@ -75,5 +78,55 @@ class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
       throws Exception {
     TransformEvaluatorFactory factory = factories.get(application.getTransform().getClass());
     return factory.forApplication(application, inputBundle, evaluationContext);
+  }
+
+  public TransformEvaluatorRegistry withEvaluatorFactory(
+      Class<? extends PTransform> transformClass, TransformEvaluatorFactory evaluatorFactory) {
+    return new TransformEvaluatorRegistry(
+        ImmutableMap.<Class<? extends PTransform>, TransformEvaluatorFactory>builder()
+            .putAll(factories)
+            .put(transformClass, evaluatorFactory)
+            .build());
+  }
+
+  static class DefaultFactory implements DefaultValueFactory<Factory> {
+    @Override
+    public Factory create(PipelineOptions options) {
+      return new Factory(
+          Collections.<Class<? extends PTransform>, TransformEvaluatorFactory>emptyMap());
+    }
+  }
+
+
+  /**
+   * A factory to create Transform Evaluator Registires.
+   */
+  public static class Factory {
+    private final Map<Class<? extends PTransform>, TransformEvaluatorFactory> additionalFactories;
+
+    private Factory(
+        Map<Class<? extends PTransform>, TransformEvaluatorFactory> additionalFactories) {
+      this.additionalFactories = additionalFactories;
+    }
+
+    public TransformEvaluatorRegistry create() {
+      TransformEvaluatorRegistry registry =
+          TransformEvaluatorRegistry.defaultRegistry();
+      for (Map.Entry<Class<? extends PTransform>, TransformEvaluatorFactory> factory
+          : additionalFactories.entrySet()) {
+        registry = registry.withEvaluatorFactory(factory.getKey(), factory.getValue());
+      }
+      return registry;
+    }
+
+    public Factory withAdditionalFactory(
+        Class<? extends PTransform> clazz,
+        TransformEvaluatorFactory factory) {
+      return new Factory(
+          ImmutableMap.<Class<? extends PTransform>, TransformEvaluatorFactory>builder()
+          .putAll(additionalFactories)
+          .put(clazz, factory)
+          .build());
+    }
   }
 }
