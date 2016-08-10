@@ -101,7 +101,7 @@ public class CreateStream<T> extends PTransform<PBegin, PCollection<T>> {
       @SuppressWarnings("unchecked")
       TimestampedValue<T>[] remainingElements = new TimestampedValue[elements.length];
       for (int i = 0; i < elements.length; i++) {
-        remainingElements[i] = TimestampedValue.of(elements[i], currentWatermark);
+        remainingElements[i] = TimestampedValue.of(elements[i], currentWatermark.minus(1L));
       }
       return addElements(firstElement, remainingElements);
     }
