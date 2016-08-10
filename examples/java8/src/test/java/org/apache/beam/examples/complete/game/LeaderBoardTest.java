@@ -29,7 +29,6 @@ import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.beam.sdk.values.TypeDescriptor;
 
 import com.google.common.collect.ImmutableMap;
@@ -199,10 +198,7 @@ public class LeaderBoardTest {
     p.run();
   }
 
-  private TimestampedValue<GameActionInfo> event(TestUser user, int score, Instant timestamp) {
-    return TimestampedValue.of(new GameActionInfo(user.getUser(),
-        user.getTeam(),
-        score,
-        timestamp.getMillis()), timestamp);
+  private GameActionInfo event(TestUser user, int score, Instant timestamp) {
+    return new GameActionInfo(user.getUser(), user.getTeam(), score, timestamp.getMillis());
   }
 }

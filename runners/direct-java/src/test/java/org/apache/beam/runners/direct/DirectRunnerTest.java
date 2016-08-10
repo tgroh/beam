@@ -120,7 +120,7 @@ public class DirectRunnerTest implements Serializable {
               public String apply(String input) {
                 return input;
               }
-            }))
+           }))
             .apply(Count.<String>perElement());
     PCollection<String> countStrs =
         counts.apply(MapElements.via(new SimpleFunction<KV<String, Long>, String>() {
