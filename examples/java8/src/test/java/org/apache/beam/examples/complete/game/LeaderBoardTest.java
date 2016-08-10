@@ -24,11 +24,15 @@ import org.apache.beam.examples.complete.game.UserScore.GameActionInfo;
 import org.apache.beam.runners.direct.CreateStream;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
+import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.beam.sdk.values.TypeDescriptor;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.joda.time.Duration;
 import org.joda.time.Instant;
@@ -93,9 +97,10 @@ public class LeaderBoardTest {
         .apply(new CalculateTeamScores(TEAM_WINDOW_DURATION, ALLOWED_LATENESS));
 
     String blueTeam = TestUser.BLUE_ONE.getTeam();
+    String redTeam = TestUser.RED_ONE.getTeam();
     PAssert.that(teamScores)
         .inOnTimePane(new IntervalWindow(baseTime, baseTime.plus(TEAM_WINDOW_DURATION)))
-        .containsInAnyOrder(KV.of(blueTeam, 14));
+        .containsInAnyOrder(KV.of(blueTeam, 14), KV.of(redTeam, 3));
     PAssert.that(teamScores)
         .inOnTimePane(new IntervalWindow(baseTime.plus(TEAM_WINDOW_DURATION),
             baseTime.plus(TEAM_WINDOW_DURATION).plus(TEAM_WINDOW_DURATION)))
@@ -107,25 +112,55 @@ public class LeaderBoardTest {
   @Test
   public void testTeamScoresLateData() {
     Instant baseTime = new Instant(0L);
+    Instant firstWindowCloses = baseTime.plus(ALLOWED_LATENESS).plus(TEAM_WINDOW_DURATION);
     CreateStream<GameActionInfo> createEvents =
         CreateStream.create(TypeDescriptor.of(GameActionInfo.class))
             .advanceWatermarkTo(baseTime)
-            .addElements(event(TestUser.BLUE_ONE, 3, baseTime.plus(Duration.standardSeconds(3))),
-                event(TestUser.BLUE_ONE, 2, baseTime.plus(Duration.standardMinutes(1))),
-                event(TestUser.BLUE_TWO, 3, baseTime.plus(Duration.standardSeconds(22))),
-                event(TestUser.BLUE_TWO, 5, baseTime.plus(Duration.standardMinutes(3))))
+            .addElements(
+                event(TestUser.BLUE_ONE, 3, baseTime.plus(Duration.standardSeconds(3))),
+                event(TestUser.BLUE_TWO, 5, baseTime.plus(Duration.standardMinutes(8))))
             .advanceProcessingTime(Duration.standardMinutes(10))
             .advanceWatermarkTo(baseTime.plus(Duration.standardMinutes(3)))
-            .addElements(event(TestUser.BLUE_ONE, 1, baseTime.plus(Duration.standardMinutes(4))),
-                event(TestUser.RED_ONE, 3, baseTime),
-                event(TestUser.BLUE_TWO,
-                    4,
-                    baseTime.plus(TEAM_WINDOW_DURATION).plus(Duration.standardMinutes(1))))
+            .addElements(
+                event(TestUser.RED_ONE, 3, baseTime.plus(Duration.standardMinutes(1))),
+                event(TestUser.RED_ONE, 4, baseTime.plus(Duration.standardMinutes(2))),
+                event(TestUser.BLUE_ONE, 3, baseTime.plus(Duration.standardMinutes(5))))
+            .advanceWatermarkTo(firstWindowCloses.minus(Duration.standardMinutes(1)))
+            // These events are late but should still appear in a late pane
+            .addElements(
+                event(TestUser.RED_TWO, 2, baseTime),
+                event(TestUser.RED_TWO, 5, baseTime.plus(Duration.standardMinutes(1))),
+                event(TestUser.RED_TWO, 3, baseTime.plus(Duration.standardMinutes(3))))
+            .advanceProcessingTime(Duration.standardMinutes(12))
+            .addElements(
+                event(TestUser.RED_TWO, 9, baseTime.plus(Duration.standardMinutes(1))),
+                event(TestUser.RED_TWO, 1, baseTime.plus(Duration.standardMinutes(3))))
             .advanceWatermarkToInfinity();
 
     TestPipeline p = TestPipeline.create();
     PCollection<KV<String, Integer>> teamScores = p.apply(createEvents)
         .apply(new CalculateTeamScores(TEAM_WINDOW_DURATION, ALLOWED_LATENESS));
+
+    BoundedWindow window = new IntervalWindow(baseTime, baseTime.plus(TEAM_WINDOW_DURATION));
+    String blueTeam = TestUser.BLUE_ONE.getTeam();
+    String redTeam = TestUser.RED_ONE.getTeam();
+    PAssert.that(teamScores)
+        .inWindow(window)
+        .containsInAnyOrder(
+            KV.of(redTeam, 7),
+            KV.of(redTeam, 17),
+            KV.of(redTeam, 27),
+            KV.of(blueTeam, 8),
+            KV.of(blueTeam, 11));
+    PAssert.thatMap(teamScores)
+        // The closing behavior of CalculateTeamScores precludes an inFinalPane matcher.
+        .inOnTimePane(window)
+        .isEqualTo(ImmutableMap.<String, Integer>builder()
+            .put(redTeam, 7)
+            .put(blueTeam, 11)
+            .build());
+
+    p.run();
   }
 
   @Test
@@ -164,7 +199,10 @@ public class LeaderBoardTest {
     p.run();
   }
 
-  private GameActionInfo event(TestUser user, int score, Instant timestamp) {
-    return new GameActionInfo(user.getUser(), user.getTeam(), score, timestamp.getMillis());
+  private TimestampedValue<GameActionInfo> event(TestUser user, int score, Instant timestamp) {
+    return TimestampedValue.of(new GameActionInfo(user.getUser(),
+        user.getTeam(),
+        score,
+        timestamp.getMillis()), timestamp);
   }
 }

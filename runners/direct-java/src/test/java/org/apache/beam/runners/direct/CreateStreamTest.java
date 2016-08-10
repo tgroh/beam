@@ -56,7 +56,7 @@ import java.io.Serializable;
  * Tests for {@link CreateStream}.
  */
 @RunWith(JUnit4.class)
-public class CreateDirectTestSourceTest implements Serializable {
+public class CreateStreamTest implements Serializable {
   @Test
   public void testLateDataAccumulating() {
     Instant instant = new Instant(0);
