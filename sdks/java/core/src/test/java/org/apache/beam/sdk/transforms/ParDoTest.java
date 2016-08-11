@@ -24,9 +24,7 @@ import static org.apache.beam.sdk.transforms.display.DisplayDataMatchers.include
 import static org.apache.beam.sdk.util.SerializableUtils.serializeToByteArray;
 import static org.apache.beam.sdk.util.StringUtils.byteArrayToJsonString;
 import static org.apache.beam.sdk.util.StringUtils.jsonStringToByteArray;
-
 import static com.google.common.base.Preconditions.checkNotNull;
-
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,16 +38,21 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.VarIntCoder;
+import org.apache.beam.sdk.io.CountingInput;
 import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.RunnableOnService;
 import org.apache.beam.sdk.testing.TestPipeline;
+import org.apache.beam.sdk.transforms.DoFn.ProcessElement;
 import org.apache.beam.sdk.transforms.OldDoFn.RequiresWindowAccess;
 import org.apache.beam.sdk.transforms.ParDo.Bound;
 import org.apache.beam.sdk.transforms.display.DisplayData;
 import org.apache.beam.sdk.transforms.display.DisplayData.Builder;
 import org.apache.beam.sdk.transforms.display.DisplayDataMatchers;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
+import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
+import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
+import org.apache.beam.sdk.transforms.windowing.IntervalWindow;
 import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.util.common.ElementByteSizeObserver;
 import org.apache.beam.sdk.values.PCollection;
@@ -60,6 +63,7 @@ import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.junit.Rule;
@@ -1400,6 +1404,45 @@ public class ParDoTest implements Serializable {
     thrown.expectMessage("WindowFn attempted to access input timestamp when none was available");
     pipeline.run();
   }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testExtraContextIncompatibleWindowTypeGlobal() {
+    TestPipeline p = TestPipeline.create();
+    PCollection<Long> elems = p.apply(CountingInput.upTo(10L))
+        .apply(WithTimestamps.of(new SerializableFunction<Long, Instant>() {
+          @Override
+          public Instant apply(Long input) {
+            return new Instant(input);
+          }
+        }))
+        .apply(Window.<Long>into(FixedWindows.of(Duration.millis(5))));
+    elems.apply(ParDo.of(new DoFn<Long, Instant>() {
+      @ProcessElement
+      public void outputWindow(ProcessContext c, GlobalWindow w) {
+        c.output(w.maxTimestamp());
+      }
+    }));
+
+    p.run();
+  }
+
+  @Test
+  @Category(NeedsRunner.class)
+  public void testExtraContextIncompatibleWindowTypeInterval() {
+    TestPipeline p = TestPipeline.create();
+    PCollection<Long> elems = p.apply(CountingInput.upTo(10L))
+        .apply(Window.<Long>into(new GlobalWindows()));
+    elems.apply(ParDo.of(new DoFn<Long, Instant>() {
+      @ProcessElement
+      public void outputWindow(ProcessContext c, IntervalWindow w) {
+        c.output(w.start());
+      }
+    }));
+
+    p.run();
+  }
+
   @Test
   public void testDoFnDisplayData() {
     OldDoFn<String, String> fn = new OldDoFn<String, String>() {
