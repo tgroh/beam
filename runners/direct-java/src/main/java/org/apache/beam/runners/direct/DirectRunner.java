@@ -262,7 +262,10 @@ public class DirectRunner
         new DirectPipelineResult(executor, context, aggregatorSteps);
     if (options.isBlockOnRun()) {
       try {
-        result.awaitCompletion();
+        result.waitUntilFinish();
+        if (result.getFailureCause() != null) {
+          throw result.getFailureCause();
+        }
       } catch (UserCodeException userException) {
         throw new PipelineExecutionException(userException.getCause());
       } catch (Throwable t) {
@@ -312,6 +315,7 @@ public class DirectRunner
     private final EvaluationContext evaluationContext;
     private final Map<Aggregator<?, ?>, Collection<PTransform<?, ?>>> aggregatorSteps;
     private State state;
+    private Throwable failureCause;
 
     private DirectPipelineResult(
         PipelineExecutor executor,
@@ -359,6 +363,28 @@ public class DirectRunner
       };
     }
 
+    @Override
+    public State cancel() throws IOException {
+      if (!state.isTerminal()) {
+        try {
+          executor.cancel();
+          state = State.CANCELLED;
+        } catch (Exception e) {
+          state = State.FAILED;
+          if (e instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+          }
+          failureCause = e;
+        }
+      }
+      return state;
+    }
+
+    @Override
+    public State waitUntilFinish() throws IOException, InterruptedException {
+      return waitUntilFinish(Duration.millis(0));
+    }
+
     /**
      * Blocks until the {@link Pipeline} execution represented by this
      * {@link DirectPipelineResult} is complete, returning the terminal state.
@@ -370,40 +396,28 @@ public class DirectRunner
      * <p>NOTE: if the {@link Pipeline} contains an {@link IsBounded#UNBOUNDED unbounded}
      * {@link PCollection}, and the {@link PipelineRunner} was created with
      * {@link DirectOptions#isShutdownUnboundedProducersWithMaxWatermark()} set to false,
-     * this method will never return.
+     * this method will return only after the timeout elapses or the {@link Pipeline} throws an
+     * {@link Exception}.
      *
-     * See also {@link PipelineExecutor#awaitCompletion()}.
+     * <p>See also {@link PipelineExecutor#awaitCompletion(Duration)}.
      */
-    public State awaitCompletion() throws Throwable {
+    @Override
+    public State waitUntilFinish(Duration timeout) throws IOException, InterruptedException {
       if (!state.isTerminal()) {
         try {
-          executor.awaitCompletion();
-          state = State.DONE;
+          state = executor.awaitCompletion(timeout);
         } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
           throw e;
         } catch (Throwable t) {
           state = State.FAILED;
-          throw t;
+          failureCause = t;
         }
       }
       return state;
     }
 
-    @Override
-    public State cancel() throws IOException {
-      throw new UnsupportedOperationException("DirectPipelineResult does not support cancel.");
-    }
-
-    @Override
-    public State waitUntilFinish() throws IOException {
-      return waitUntilFinish(Duration.millis(-1));
-    }
-
-    @Override
-    public State waitUntilFinish(Duration duration) throws IOException {
-      throw new UnsupportedOperationException(
-          "DirectPipelineResult does not support waitUntilFinish.");
+    public Throwable getFailureCause() {
+      return failureCause;
     }
   }
 

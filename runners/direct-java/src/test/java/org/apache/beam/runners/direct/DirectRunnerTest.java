@@ -18,22 +18,28 @@
 package org.apache.beam.runners.direct;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.common.collect.ImmutableMap;
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.beam.runners.direct.DirectRunner.DirectPipelineResult;
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.PipelineResult.State;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.ListCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
+import org.apache.beam.sdk.io.CountingInput;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.runners.PipelineRunner;
@@ -55,6 +61,10 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.TypeDescriptor;
 import org.hamcrest.Matchers;
+import org.joda.time.Duration;
+import org.joda.time.Instant;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.internal.matchers.ThrowableMessageMatcher;
@@ -68,6 +78,18 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class DirectRunnerTest implements Serializable {
   @Rule public transient ExpectedException thrown = ExpectedException.none();
+
+  private transient ExecutorService executor;
+
+  @Before
+  public void setup() {
+    executor = Executors.newSingleThreadExecutor();
+  }
+
+  @After
+  public void teardown() {
+    executor.shutdownNow();
+  }
 
   private Pipeline getPipeline() {
     PipelineOptions opts = PipelineOptionsFactory.create();
@@ -109,7 +131,7 @@ public class DirectRunnerTest implements Serializable {
     PAssert.that(countStrs).containsInAnyOrder("baz: 1", "bar: 2", "foo: 3");
 
     DirectPipelineResult result = ((DirectPipelineResult) p.run());
-    result.awaitCompletion();
+    result.waitUntilFinish();
   }
 
   private static AtomicInteger changed;
@@ -147,10 +169,10 @@ public class DirectRunnerTest implements Serializable {
     PAssert.that(countStrs).containsInAnyOrder("baz: 1", "bar: 2", "foo: 3");
 
     DirectPipelineResult result = ((DirectPipelineResult) p.run());
-    result.awaitCompletion();
+    result.waitUntilFinish();
 
     DirectPipelineResult otherResult = ((DirectPipelineResult) p.run());
-    otherResult.awaitCompletion();
+    otherResult.waitUntilFinish();
 
     assertThat("Each element should have been processed twice", changed.get(), equalTo(6));
   }
@@ -377,5 +399,80 @@ public class DirectRunnerTest implements Serializable {
     thrown.expectMessage("Input");
     thrown.expectMessage("must not be mutated");
     pipeline.run();
+  }
+
+  @Test
+  public void testCancel() throws Exception {
+    PipelineOptions options = PipelineOptionsFactory.create();
+    options.setRunner(DirectRunner.class);
+    options.as(DirectOptions.class).setBlockOnRun(false);
+    Pipeline p = Pipeline.create(options);
+
+    p.apply(CountingInput.unbounded());
+
+    // Should not block
+    DirectPipelineResult result = (DirectPipelineResult) p.run();
+    State cancelState = result.cancel();
+    assertThat(cancelState, equalTo(State.CANCELLED));
+
+    assertThat(result.getState(), equalTo(State.CANCELLED));
+    assertThat(result.waitUntilFinish(), equalTo(State.CANCELLED));
+  }
+
+  @Test
+  public void testCancelAfterComplete() throws Exception {
+    Pipeline p = Pipeline.create(PipelineOptionsFactory.create());
+    p.apply(Create.of(1, 2, 3)).apply(Count.<Integer>globally());
+
+    DirectPipelineResult result = (DirectPipelineResult) p.run();
+
+    assertThat(result.getState(), equalTo(State.DONE));
+    State cancelState = result.cancel();
+    assertThat(cancelState, equalTo(State.DONE));
+    assertThat(result.getState(), equalTo(State.DONE));
+  }
+
+  @Test
+  public void testCancelAfterFailure() throws IOException, InterruptedException {
+    PipelineOptions opts = PipelineOptionsFactory.create();
+    opts.as(DirectOptions.class).setBlockOnRun(false);
+    Pipeline p = Pipeline.create(opts);
+    p.apply(Create.of(1, 2, 3)).apply(ParDo.of(new AlwaysThrowsFn()));
+
+    DirectPipelineResult result = (DirectPipelineResult) p.run();
+    State state = result.waitUntilFinish();
+    assertThat(state, equalTo(State.FAILED));
+
+    assertThat(result.cancel(), equalTo(State.FAILED));
+    assertThat(result.getState(), equalTo(State.FAILED));
+  }
+
+  @Test(timeout = 5000L)
+  public void testWaitUntilFinishTimeout() throws Exception {
+    PipelineOptions options = PipelineOptionsFactory.create();
+    options.setRunner(DirectRunner.class);
+    options.as(DirectOptions.class).setBlockOnRun(false);
+    Pipeline p = Pipeline.create(options);
+
+    p.apply(CountingInput.unbounded());
+
+    Instant startish = Instant.now();
+    Instant finishBy = startish.plus(Duration.standardSeconds(2L));
+    DirectPipelineResult result = (DirectPipelineResult) p.run();
+
+    // Should not block
+    State waitedState = result.waitUntilFinish(Duration.standardSeconds(2L));
+    assertThat(Instant.now().getMillis(), greaterThan(finishBy.getMillis()));
+    assertThat(waitedState, equalTo(State.RUNNING));
+    assertThat(result.getState(), equalTo(State.RUNNING));
+
+    result.cancel();
+  }
+
+  private static class AlwaysThrowsFn extends DoFn<Integer, Integer> {
+    @ProcessElement
+    public void alwaysThrows(ProcessContext c) throws Exception {
+      throw new Exception("Foo");
+    }
   }
 }
