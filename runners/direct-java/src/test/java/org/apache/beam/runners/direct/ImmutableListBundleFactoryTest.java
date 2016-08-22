@@ -19,6 +19,9 @@ package org.apache.beam.runners.direct;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.theInstance;
 import static org.junit.Assert.assertThat;
 
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
@@ -37,7 +40,9 @@ import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 
+import com.google.common.base.Function;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -108,8 +113,8 @@ public class ImmutableListBundleFactoryTest {
   }
 
   private <T> CommittedBundle<T>
-  afterCommitGetElementsShouldHaveAddedElements(Iterable<WindowedValue<T>> elems) {
-    PCollection<T> pcollection = TestPipeline.create().apply(Create.<T>of());
+  afterCommitGetElementsShouldHaveAddedElements(Iterable<WindowedValue<T>> elems, Coder<T> coder) {
+    PCollection<T> pcollection = TestPipeline.create().apply(Create.<T>of().withCoder(coder));
 
     UncommittedBundle<T> bundle = bundleFactory.createRootBundle(pcollection);
     Collection<Matcher<? super WindowedValue<T>>> expectations = new ArrayList<>();
@@ -122,42 +127,57 @@ public class ImmutableListBundleFactoryTest {
     CommittedBundle<T> committed = bundle.commit(Instant.now());
     assertThat(committed.getElements(), containsMatcher);
 
+    Function<WindowedValue<T>, T> getElemsFn =
+        new Function<WindowedValue<T>, T>() {
+          @Override
+          public T apply(WindowedValue<T> input) {
+            return input.getValue();
+          }
+        };
+    Iterable<T> committedElems = Iterables.transform(committed.getElements(), getElemsFn);
+    for (WindowedValue<T> inputElem : elems) {
+      assertThat(committedElems, not(hasItem(theInstance(inputElem.getValue()))));
+    }
+
     return committed;
   }
 
   @Test
   public void getElementsBeforeAddShouldReturnEmptyIterable() {
-    afterCommitGetElementsShouldHaveAddedElements(Collections.<WindowedValue<Integer>>emptyList());
+    afterCommitGetElementsShouldHaveAddedElements(
+        Collections.<WindowedValue<Integer>>emptyList(), VarIntCoder.of());
   }
 
   @Test
   public void getElementsAfterAddShouldReturnAddedElements() {
-    WindowedValue<Integer> firstValue = WindowedValue.valueInGlobalWindow(1);
-    WindowedValue<Integer> secondValue =
-        WindowedValue.timestampedValueInGlobalWindow(2, new Instant(1000L));
+    WindowedValue<String> firstValue = WindowedValue.valueInGlobalWindow("foo");
+    WindowedValue<String> secondValue =
+        WindowedValue.timestampedValueInGlobalWindow("String", new Instant(1000L));
 
-    afterCommitGetElementsShouldHaveAddedElements(ImmutableList.of(firstValue, secondValue));
+    afterCommitGetElementsShouldHaveAddedElements(
+        ImmutableList.of(firstValue, secondValue), StringUtf8Coder.of());
   }
 
   @SuppressWarnings("unchecked")
   @Test
   public void withElementsShouldReturnIndependentBundle() {
-    WindowedValue<Integer> firstValue = WindowedValue.valueInGlobalWindow(1);
-    WindowedValue<Integer> secondValue =
-        WindowedValue.timestampedValueInGlobalWindow(2, new Instant(1000L));
+    WindowedValue<String> firstValue = WindowedValue.valueInGlobalWindow("1");
+    WindowedValue<String> secondValue =
+        WindowedValue.timestampedValueInGlobalWindow("2", new Instant(1000L));
 
-    CommittedBundle<Integer> committed =
-        afterCommitGetElementsShouldHaveAddedElements(ImmutableList.of(firstValue, secondValue));
+    CommittedBundle<String> committed =
+        afterCommitGetElementsShouldHaveAddedElements(
+            ImmutableList.of(firstValue, secondValue), StringUtf8Coder.of());
 
-    WindowedValue<Integer> firstReplacement =
+    WindowedValue<String> firstReplacement =
         WindowedValue.of(
-            9,
+            "9",
             new Instant(2048L),
             new IntervalWindow(new Instant(2044L), Instant.now()),
             PaneInfo.NO_FIRING);
-    WindowedValue<Integer> secondReplacement =
-        WindowedValue.timestampedValueInGlobalWindow(-1, Instant.now());
-    CommittedBundle<Integer> withed =
+    WindowedValue<String> secondReplacement =
+        WindowedValue.timestampedValueInGlobalWindow("-1", Instant.now());
+    CommittedBundle<String> withed =
         committed.withElements(ImmutableList.of(firstReplacement, secondReplacement));
 
     assertThat(withed.getElements(), containsInAnyOrder(firstReplacement, secondReplacement));
@@ -171,7 +191,8 @@ public class ImmutableListBundleFactoryTest {
 
   @Test
   public void addAfterCommitShouldThrowException() {
-    PCollection<Integer> pcollection = TestPipeline.create().apply(Create.<Integer>of());
+    PCollection<Integer> pcollection =
+        TestPipeline.create().apply(Create.<Integer>of().withCoder(VarIntCoder.of()));
 
     UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle(pcollection);
     bundle.add(WindowedValue.valueInGlobalWindow(1));
@@ -187,7 +208,8 @@ public class ImmutableListBundleFactoryTest {
 
   @Test
   public void commitAfterCommitShouldThrowException() {
-    PCollection<Integer> pcollection = TestPipeline.create().apply(Create.<Integer>of());
+    PCollection<Integer> pcollection =
+        TestPipeline.create().apply(Create.<Integer>of().withCoder(VarIntCoder.of()));
 
     UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle(pcollection);
     bundle.add(WindowedValue.valueInGlobalWindow(1));

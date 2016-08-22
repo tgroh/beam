@@ -22,6 +22,7 @@ import static com.google.common.base.Preconditions.checkState;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
 import org.apache.beam.sdk.coders.VoidCoder;
+import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollection;
 
@@ -30,8 +31,10 @@ import com.google.common.collect.ImmutableList;
 
 import org.joda.time.Instant;
 
+import java.io.IOException;
+
 /**
- * A factory that produces bundles that perform no additional validation.
+ * A factory that produces bundles that performs no additional validation.
  */
 class ImmutableListBundleFactory implements BundleFactory {
   public static ImmutableListBundleFactory create() {
@@ -92,7 +95,15 @@ class ImmutableListBundleFactory implements BundleFactory {
           "Can't add element %s to committed bundle in PCollection %s",
           element,
           pcollection);
-      elements.add(element);
+      try {
+        elements.add(
+            element.withValue(CoderUtils.clone(pcollection.getCoder(), element.getValue())));
+      } catch (IOException e) {
+        throw new IllegalStateException(
+            String.format(
+                "Could not encode element in PCollection %s with provided coder %s",
+                pcollection, pcollection.getCoder()));
+      }
       return this;
     }
 
