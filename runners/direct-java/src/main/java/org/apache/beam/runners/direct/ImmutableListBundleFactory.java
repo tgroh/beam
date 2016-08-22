@@ -96,6 +96,7 @@ class ImmutableListBundleFactory implements BundleFactory {
           element,
           pcollection);
       try {
+        // TODO(BEAM-: Make this configurable
         elements.add(
             element.withValue(CoderUtils.clone(pcollection.getCoder(), element.getValue())));
       } catch (IOException e) {
