@@ -250,7 +250,7 @@ public class XmlSource<T> extends FileBasedSource<T> {
    * file should be of the form defined at {@link XmlSource}.
    *
    * <p>Timestamped values are currently unsupported - all values implicitly have the timestamp
-   * of {@code BoundedWindow.TIMESTAMP_MIN_VALUE}.
+   * of {@code BoundedWindow.NEGATIVE_INFINITY}.
    *
    * @param <T> Type of objects that will be read by the reader.
    */

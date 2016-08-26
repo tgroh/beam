@@ -18,6 +18,7 @@
 package org.apache.beam.sdk.transforms.windowing;
 
 import java.util.concurrent.TimeUnit;
+import org.apache.beam.sdk.runners.PipelineRunner;
 import org.joda.time.Instant;
 
 /**
@@ -34,9 +35,22 @@ import org.joda.time.Instant;
 public abstract class BoundedWindow {
   // The min and max timestamps that won't overflow when they are converted to
   // usec.
-  public static final Instant TIMESTAMP_MIN_VALUE =
+  /**
+   * The timestamp that is before all other timestamps. Elements with unknown timestamps are set
+   * to this value.
+   */
+  public static final Instant NEGATIVE_INFINITY =
       new Instant(TimeUnit.MICROSECONDS.toMillis(Long.MIN_VALUE));
-  public static final Instant TIMESTAMP_MAX_VALUE =
+  /**
+   * The timestamp that is after all other timestamps. If the watermark for a step reaches this
+   * value, it has received all of its input. Any additional input is droppably late.
+   *
+   * <p>Elements should have timestamps before this value. Windows that end at or after this
+   * timestamp will never finish and will be rejected by the {@link PipelineRunner}.
+   *
+   * <p>If all watermarks within a pipeline reach POSITIVE_INFINITY, the pipeline should shut down.
+   */
+  public static final Instant POSITIVE_INFINITY =
       new Instant(TimeUnit.MICROSECONDS.toMillis(Long.MAX_VALUE));
 
   /**
