@@ -17,6 +17,8 @@
  */
 package org.apache.beam.sdk.transforms;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import com.google.common.base.Function;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
@@ -39,7 +41,6 @@ import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.PaneInfo;
 import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.util.TimerInternals;
-import org.apache.beam.sdk.util.UserCodeException;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.WindowingInternals;
 import org.apache.beam.sdk.util.state.InMemoryStateInternals;
@@ -133,6 +134,7 @@ public class DoFnTester<InputT, OutputT> {
    */
   public enum CloningBehavior {
     CLONE,
+    CLONE_ONCE,
     DO_NOT_CLONE
   }
 
@@ -181,32 +183,48 @@ public class DoFnTester<InputT, OutputT> {
     return processBundle(Arrays.asList(inputElements));
   }
 
+  public void setup() throws Exception {
+    if (state == State.UNSTARTED) {
+      initializeState();
+      try {
+        fn.setup();
+      } catch (Exception e) {
+        try {
+          teardown();
+        } catch (Exception td) {
+          e.addSuppressed(td);
+        }
+        throw e;
+      }
+    }
+  }
+
   /**
    * Calls {@link OldDoFn#startBundle} on the {@code OldDoFn} under test.
    *
    * <p>If needed, first creates a fresh instance of the OldDoFn under test.
    */
   public void startBundle() throws Exception {
-    resetState();
-    initializeState();
+    setup();
+    checkState(state == State.SET_UP || state == State.FINISHED,
+        "The state of %s in startBundle must be either %s or %s. Got %s.",
+        DoFnTester.class.getSimpleName(),
+        State.SET_UP,
+        State.FINISHED,
+        state);
     TestContext<InputT, OutputT> context = createContext(fn);
     context.setupDelegateAggregators();
     try {
       fn.startBundle(context);
-    } catch (UserCodeException e) {
-      unwrapUserCodeException(e);
-    }
-    state = State.STARTED;
-  }
-
-  private static void unwrapUserCodeException(UserCodeException e) throws Exception {
-    if (e.getCause() instanceof Exception) {
-      throw (Exception) e.getCause();
-    } else if (e.getCause() instanceof Error) {
-      throw (Error) e.getCause();
-    } else {
+    } catch (Exception e) {
+      try {
+        teardown();
+      } catch (Exception td) {
+        e.addSuppressed(td);
+      }
       throw e;
     }
+    state = State.STARTED;
   }
 
   /**
@@ -229,8 +247,13 @@ public class DoFnTester<InputT, OutputT> {
     }
     try {
       fn.processElement(createProcessContext(fn, element));
-    } catch (UserCodeException e) {
-      unwrapUserCodeException(e);
+    } catch (Exception e) {
+      try {
+        teardown();
+      } catch (Exception td) {
+        e.addSuppressed(td);
+      }
+      throw e;
     }
   }
 
@@ -244,7 +267,7 @@ public class DoFnTester<InputT, OutputT> {
    * been finished
    */
   public void finishBundle() throws Exception {
-    if (state == State.FINISHED) {
+    if (state == State.FINISHED || state == State.TORN_DOWN) {
       throw new IllegalStateException("finishBundle() has already been called");
     }
     if (state == State.UNSTARTED) {
@@ -252,10 +275,24 @@ public class DoFnTester<InputT, OutputT> {
     }
     try {
       fn.finishBundle(createContext(fn));
-    } catch (UserCodeException e) {
-      unwrapUserCodeException(e);
+    } catch (Exception e) {
+      try {
+        teardown();
+      } catch (Exception td) {
+        e.addSuppressed(td);
+      }
+      throw e;
     }
     state = State.FINISHED;
+  }
+
+  public void teardown() throws Exception  {
+    try {
+      fn.teardown();
+      resetState();
+    } finally {
+      state = State.TORN_DOWN;
+    }
   }
 
   /**
@@ -677,8 +714,10 @@ public class DoFnTester<InputT, OutputT> {
   /** The possible states of processing a OldDoFn. */
   enum State {
     UNSTARTED,
+    SET_UP,
     STARTED,
-    FINISHED
+    FINISHED,
+    TORN_DOWN
   }
 
   private final PipelineOptions options = PipelineOptionsFactory.create();
@@ -691,7 +730,7 @@ public class DoFnTester<InputT, OutputT> {
    *
    * <p></p>Worker-side {@link OldDoFn DoFns} may not be serializable, and are not required to be.
    */
-  private CloningBehavior cloningBehavior = CloningBehavior.CLONE;
+  private CloningBehavior cloningBehavior = CloningBehavior.CLONE_ONCE;
 
   /** The side input values to provide to the OldDoFn under test. */
   private Map<PCollectionView<?>, Map<BoundedWindow, ?>> sideInputs =
@@ -724,14 +763,23 @@ public class DoFnTester<InputT, OutputT> {
   }
 
   @SuppressWarnings("unchecked")
-  private void initializeState() {
-    if (cloningBehavior.equals(CloningBehavior.DO_NOT_CLONE)) {
-      fn = origFn;
-    } else {
-      fn = (OldDoFn<InputT, OutputT>)
-          SerializableUtils.deserializeFromByteArray(
-              SerializableUtils.serializeToByteArray(origFn),
-              origFn.toString());
+  private void initializeState() throws Exception {
+    switch (cloningBehavior) {
+      case DO_NOT_CLONE:
+        fn = origFn;
+        break;
+      case CLONE_ONCE:
+        if (fn == null) {
+          fn = SerializableUtils.clone(origFn);
+          fn.setup();
+        }
+        break;
+      case CLONE:
+        fn = SerializableUtils.clone(origFn);
+        fn.setup();
+        break;
+      default:
+        throw new AssertionError("Unreachable: got cloning behavior " + cloningBehavior);
     }
     outputs = new HashMap<>();
     accumulators = new HashMap<>();
