@@ -17,10 +17,7 @@
  */
 package org.apache.beam.sdk;
 
-import static com.google.common.base.Preconditions.checkState;
-
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -365,7 +362,7 @@ public class Pipeline {
 
     TransformTreeNode parent = transforms.getCurrent();
     String namePrefix = parent.getFullName();
-    String fullName = uniquifyInternal(namePrefix, name);
+    String fullName = uniquify(namePrefix, name);
 
     boolean nameIsUnique = fullName.equals(buildName(namePrefix, name));
 
@@ -484,26 +481,12 @@ public class Pipeline {
   }
 
   /**
-   * @deprecated this method is no longer compatible with the design of {@link Pipeline},
-   * as {@link PTransform PTransforms} can be applied multiple times, with different names
-   * each time.
-   */
-  @Deprecated
-  public String getFullNameForTesting(PTransform<?, ?> transform) {
-    Collection<AppliedPTransform<?, ?, ?>> uses =
-        transformApplicationsForTesting.get(transform);
-    checkState(uses.size() > 0, "Unknown transform: " + transform);
-    checkState(uses.size() <= 1, "Transform used multiple times: " + transform);
-    return Iterables.getOnlyElement(uses).getFullName();
-  }
-
-  /**
    * Returns a unique name for a transform with the given prefix (from
    * enclosing transforms) and initial name.
    *
    * <p>For internal use only.
    */
-  private String uniquifyInternal(String namePrefix, String origName) {
+  private String uniquify(String namePrefix, String origName) {
     String name = origName;
     int suffixNum = 2;
     while (true) {
@@ -529,15 +512,5 @@ public class Pipeline {
    */
   private String buildName(String namePrefix, String name) {
     return namePrefix.isEmpty() ? name : namePrefix + "/" + name;
-  }
-
-  /**
-   * Adds the given {@link PValue} to this {@link Pipeline}.
-   *
-   * <p>For internal use only.
-   */
-  public void addValueInternal(PValue value) {
-    this.values.add(value);
-    LOG.debug("Adding {} to {}", value, this);
   }
 }
