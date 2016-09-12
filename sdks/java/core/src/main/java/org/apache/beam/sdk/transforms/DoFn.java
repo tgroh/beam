@@ -109,6 +109,20 @@ public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayD
      * should be in, throwing an exception if the {@code WindowFn} attempts
      * to access any information about the input element. The output element
      * will have a timestamp of negative infinity.
+     *
+     * <p><b>WARNING:</b> {@link #output(Object)} is thread-hostile among instances used by a
+     * single {@link DoFn} instance. Multiple instances of {@link DoFn.Context} may utilize a single
+     * underlying object that is not thread safe. This imposes the following requirements:
+     * <ul>
+     * <li>At most one call to {@link #output(Object)} or
+     * {@link #outputWithTimestamp(Object, Instant)} may occur at any point for a {@link DoFn}
+     * instance.
+     * <li>All calls to {@link #output(Object)} or {@link #outputWithTimestamp(Object, Instant)}
+     * must complete before the call to the {@link StartBundle}, {@link ProcessElement}, or
+     * {@link FinishBundle} methods complete.
+     * </ul>
+     * Any concurrent processing should synchronize on the {@link DoFn} instance it is processing in
+     * rather than the {@link Context} or {@link ProcessContext} it is outputting to.
      */
     public abstract void output(OutputT output);
 
@@ -131,6 +145,20 @@ public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayD
      * should be in, throwing an exception if the {@code WindowFn} attempts
      * to access any information about the input element except for the
      * timestamp.
+     *
+     * <p><b>WARNING:</b> {@link #output(Object)} is thread-hostile among instances used by a
+     * single {@link DoFn} instance. Multiple instances of {@link DoFn.Context} may utilize a single
+     * underlying object that is not thread safe. This imposes the following requirements:
+     * <ul>
+     * <li>At most one call to {@link #output(Object)} or
+     * {@link #outputWithTimestamp(Object, Instant)} may occur at any point for a {@link DoFn}
+     * instance.
+     * <li>All calls to {@link #output(Object)} or {@link #outputWithTimestamp(Object, Instant)}
+     * must complete before the call to the {@link StartBundle}, {@link ProcessElement}, or
+     * {@link FinishBundle} methods complete.
+     * </ul>
+     * Any concurrent processing should synchronize on the {@link DoFn} instance it is processing in
+     * rather than the {@link Context} or {@link ProcessContext} it is outputting to.
      */
     public abstract void outputWithTimestamp(OutputT output, Instant timestamp);
 
