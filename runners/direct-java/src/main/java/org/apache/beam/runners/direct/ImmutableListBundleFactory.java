@@ -23,7 +23,9 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
+import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.VoidCoder;
+import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollection;
 import org.joda.time.Instant;
@@ -90,7 +92,15 @@ class ImmutableListBundleFactory implements BundleFactory {
           "Can't add element %s to committed bundle in PCollection %s",
           element,
           pcollection);
-      elements.add(element);
+      try {
+        elements.add(element.withValue(CoderUtils.clone(pcollection.getCoder(), element.getValue())));
+      } catch (CoderException e) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Could not encode element %s with coder %s for PCollection %s",
+                element.getValue(), pcollection.getCoder(), pcollection.getName()),
+            e);
+      }
       return this;
     }
 
