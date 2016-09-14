@@ -17,6 +17,9 @@
  */
 package org.apache.beam.sdk;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.beam.sdk.runners.TransformTreeNode.buildName;
+
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import java.util.ArrayList;
@@ -362,9 +365,10 @@ public class Pipeline {
 
     TransformTreeNode parent = transforms.getCurrent();
     String namePrefix = parent.getFullName();
-    String fullName = uniquify(namePrefix, name);
+    String uniqueName = uniquify(namePrefix, name);
+    String fullName = TransformTreeNode.buildName(namePrefix, uniqueName);
 
-    boolean nameIsUnique = fullName.equals(buildName(namePrefix, name));
+    boolean nameIsUnique = name.equals(uniqueName);
 
     if (!nameIsUnique) {
       switch (getOptions().getStableUniqueNames()) {
@@ -385,16 +389,31 @@ public class Pipeline {
     }
 
     TransformTreeNode child =
-        new TransformTreeNode(parent, transform, fullName, input);
+        new TransformTreeNode(parent, transform, name, input);
     parent.addComposite(child);
 
     transforms.addInput(child, input);
 
     LOG.debug("Adding {} to {}", transform, this);
+    return expand(input, transform, child);
+  }
+
+  public void replace(TransformTreeNode original, PTransform<?, ?> replacement) {
+    checkNotNull(original);
+    checkNotNull(replacement);
+    TransformTreeNode parent = original.getEnclosingNode();
+    TransformTreeNode node =
+        new TransformTreeNode(parent, replacement, original.getFullName(), original.getInput());
+
+    expand(original.getInput(), (PTransform) replacement, node);
+  }
+
+  private <InputT extends PInput, OutputT extends POutput> OutputT expand(
+      InputT input, PTransform<? super InputT, OutputT> transform, TransformTreeNode child) {
     try {
       transforms.pushNode(child);
       transform.validate(input);
-      OutputT output = runner.apply(transform, input);
+      OutputT output = transform.apply(input);
       transforms.setOutput(child, output);
 
       AppliedPTransform<?, ?, ?> applied = AppliedPTransform.of(
@@ -467,13 +486,6 @@ public class Pipeline {
   }
 
   /**
-   * Returns the configured {@link PipelineRunner}.
-   */
-  public PipelineRunner<?> getRunner() {
-    return runner;
-  }
-
-  /**
    * Returns the configured {@link PipelineOptions}.
    */
   public PipelineOptions getOptions() {
@@ -481,10 +493,8 @@ public class Pipeline {
   }
 
   /**
-   * Returns a unique name for a transform with the given prefix (from
+   * Returns a unique node name for a transform with the given prefix (from
    * enclosing transforms) and initial name.
-   *
-   * <p>For internal use only.
    */
   private String uniquify(String namePrefix, String origName) {
     String name = origName;
@@ -492,7 +502,7 @@ public class Pipeline {
     while (true) {
       String candidate = buildName(namePrefix, name);
       if (usedFullNames.add(candidate)) {
-        return candidate;
+        return name;
       }
       // A duplicate!  Retry.
       name = origName + suffixNum++;
@@ -505,12 +515,5 @@ public class Pipeline {
    */
   public Map<Aggregator<?, ?>, Collection<PTransform<?, ?>>> getAggregatorSteps() {
     return new AggregatorPipelineExtractor(this).getAggregatorSteps();
-  }
-
-  /**
-   * Builds a name from a "/"-delimited prefix and a name.
-   */
-  private String buildName(String namePrefix, String name) {
-    return namePrefix.isEmpty() ? name : namePrefix + "/" + name;
   }
 }
