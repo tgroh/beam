@@ -20,6 +20,7 @@ package org.apache.beam.runners.direct;
 
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
+import org.apache.beam.sdk.coders.VoidCoder;
 import org.apache.beam.sdk.util.CoderUtils;
 
 /**
@@ -27,6 +28,21 @@ import org.apache.beam.sdk.util.CoderUtils;
  * {@link Coder#structuralValue(Object)}) to perform equality and hashing.
  */
 class StructuralKey<K> {
+  private static final StructuralKey<?> EMPTY;
+
+  static {
+    try {
+      EMPTY = new StructuralKey<>(null, VoidCoder.of());
+    } catch (Exception e) {
+      throw new AssertionError(
+          String.format("%s must be able to encode null values", VoidCoder.class.getSimpleName()),
+          e);
+    }
+  }
+
+  public static StructuralKey<?> unkeyed() {
+    return EMPTY;
+  }
   /**
    * Create a new Structural Key of the provided key that can be encoded by the provided coder.
    */

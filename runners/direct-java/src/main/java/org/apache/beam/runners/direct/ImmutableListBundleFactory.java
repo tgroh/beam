@@ -23,7 +23,6 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
-import org.apache.beam.sdk.coders.VoidCoder;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollection;
 import org.joda.time.Instant;
@@ -32,15 +31,17 @@ import org.joda.time.Instant;
  * A factory that produces bundles that perform no additional validation.
  */
 class ImmutableListBundleFactory implements BundleFactory {
+  private static final ImmutableListBundleFactory FACTORY = new ImmutableListBundleFactory();
+
   public static ImmutableListBundleFactory create() {
-    return new ImmutableListBundleFactory();
+    return FACTORY;
   }
 
   private ImmutableListBundleFactory() {}
 
   @Override
   public <T> UncommittedBundle<T> createRootBundle(PCollection<T> output) {
-    return UncommittedImmutableListBundle.create(output, StructuralKey.of(null, VoidCoder.of()));
+    return UncommittedImmutableListBundle.create(output, StructuralKey.unkeyed());
   }
 
   @Override
