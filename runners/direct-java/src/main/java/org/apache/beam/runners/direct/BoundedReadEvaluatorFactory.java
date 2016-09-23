@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.direct;
 
+import com.google.auto.value.AutoValue;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -129,7 +130,7 @@ final class BoundedReadEvaluatorFactory implements RootTransformEvaluatorFactory
 
     @Override
     public TransformResult finishBundle() throws IOException {
-      try (BoundedReader<OutputT> reader =
+      try (final BoundedReader<OutputT> reader =
           source.createReader(evaluationContext.getPipelineOptions())) {
         boolean contentsRemaining = reader.start();
         UncommittedBundle<OutputT> output =
@@ -145,5 +146,14 @@ final class BoundedReadEvaluatorFactory implements RootTransformEvaluatorFactory
             .build();
       }
     }
+  }
+
+  @AutoValue
+  abstract static class BoundedSourceShard<T> {
+    public static <T> BoundedSourceShard<T> of(BoundedSource<T> source) {
+      return new AutoValue_BoundedReadEvaluatorFactory_BoundedSourceShard<>(source);
+    }
+
+    abstract BoundedSource<T> getSource();
   }
 }

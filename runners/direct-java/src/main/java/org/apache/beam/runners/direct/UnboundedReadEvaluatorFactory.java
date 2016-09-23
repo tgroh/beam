@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.direct;
 
+import com.google.auto.value.AutoValue;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -263,5 +264,25 @@ class UnboundedReadEvaluatorFactory implements RootTransformEvaluatorFactory {
         currentReader = null;
       }
     }
+  }
+
+  @AutoValue
+  abstract static class UnboundedSourceShard<T, CheckpointMarkT extends CheckpointMark> {
+    public static <T, CheckpointMarkT extends CheckpointMark>
+        UnboundedSourceShard<T, CheckpointMarkT> of(
+            UnboundedSource<T, CheckpointMarkT> source, CheckpointMarkT checkpoint) {
+      return new AutoValue_UnboundedReadEvaluatorFactory_UnboundedSourceShard<>(source, checkpoint);
+    }
+
+    public static <T, CheckpointMarkT extends CheckpointMark>
+        UnboundedSourceShard<T, CheckpointMarkT> unstarted(
+            UnboundedSource<T, CheckpointMarkT> source) {
+      return of(source, null);
+    }
+
+    abstract UnboundedSource<T, CheckpointMarkT> getSource();
+
+    @Nullable
+    abstract CheckpointMarkT getCheckpoint();
   }
 }
