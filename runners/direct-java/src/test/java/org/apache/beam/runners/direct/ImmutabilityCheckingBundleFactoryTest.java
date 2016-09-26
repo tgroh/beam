@@ -60,19 +60,8 @@ public class ImmutabilityCheckingBundleFactoryTest {
   }
 
   @Test
-  public void noMutationRootBundleSucceeds() {
-    UncommittedBundle<byte[]> root = factory.createRootBundle(created);
-    byte[] array = new byte[] {0, 1, 2};
-    root.add(WindowedValue.valueInGlobalWindow(array));
-    CommittedBundle<byte[]> committed = root.commit(Instant.now());
-
-    assertThat(
-        committed.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(array)));
-  }
-
-  @Test
   public void noMutationKeyedBundleSucceeds() {
-    CommittedBundle<byte[]> root = factory.createRootBundle(created).commit(Instant.now());
+    CommittedBundle<byte[]> root = factory.<byte[]>createRootBundle().commit(Instant.now());
     UncommittedBundle<byte[]> keyed = factory.createKeyedBundle(root,
         StructuralKey.of("mykey", StringUtf8Coder.of()),
         transformed);
@@ -91,7 +80,7 @@ public class ImmutabilityCheckingBundleFactoryTest {
 
   @Test
   public void noMutationCreateBundleSucceeds() {
-    CommittedBundle<byte[]> root = factory.createRootBundle(created).commit(Instant.now());
+    CommittedBundle<byte[]> root = factory.<byte[]>createRootBundle().commit(Instant.now());
     UncommittedBundle<byte[]> intermediate = factory.createBundle(root, transformed);
 
     WindowedValue<byte[]> windowedArray =
@@ -107,20 +96,8 @@ public class ImmutabilityCheckingBundleFactoryTest {
   }
 
   @Test
-  public void mutationBeforeAddRootBundleSucceeds() {
-    UncommittedBundle<byte[]> root = factory.createRootBundle(created);
-    byte[] array = new byte[] {0, 1, 2};
-    array[1] = 2;
-    root.add(WindowedValue.valueInGlobalWindow(array));
-    CommittedBundle<byte[]> committed = root.commit(Instant.now());
-
-    assertThat(
-        committed.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(array)));
-  }
-
-  @Test
   public void mutationBeforeAddKeyedBundleSucceeds() {
-    CommittedBundle<byte[]> root = factory.createRootBundle(created).commit(Instant.now());
+    CommittedBundle<byte[]> root = factory.<byte[]>createRootBundle().commit(Instant.now());
     UncommittedBundle<byte[]> keyed = factory.createKeyedBundle(root,
         StructuralKey.of("mykey", StringUtf8Coder.of()),
         transformed);
@@ -141,7 +118,7 @@ public class ImmutabilityCheckingBundleFactoryTest {
 
   @Test
   public void mutationBeforeAddCreateBundleSucceeds() {
-    CommittedBundle<byte[]> root = factory.createRootBundle(created).commit(Instant.now());
+    CommittedBundle<byte[]> root = factory.<byte[]>createRootBundle().commit(Instant.now());
     UncommittedBundle<byte[]> intermediate = factory.createBundle(root, transformed);
 
     byte[] array = new byte[] {4, 8, 12};
@@ -159,20 +136,8 @@ public class ImmutabilityCheckingBundleFactoryTest {
   }
 
   @Test
-  public void mutationAfterAddRootBundleThrows() {
-    UncommittedBundle<byte[]> root = factory.createRootBundle(created);
-    byte[] array = new byte[] {0, 1, 2};
-    root.add(WindowedValue.valueInGlobalWindow(array));
-
-    array[1] = 2;
-    thrown.expect(IllegalMutationException.class);
-    thrown.expectMessage("Values must not be mutated in any way after being output");
-    CommittedBundle<byte[]> committed = root.commit(Instant.now());
-  }
-
-  @Test
   public void mutationAfterAddKeyedBundleThrows() {
-    CommittedBundle<byte[]> root = factory.createRootBundle(created).commit(Instant.now());
+    CommittedBundle<byte[]> root = factory.<byte[]>createRootBundle().commit(Instant.now());
     UncommittedBundle<byte[]> keyed = factory.createKeyedBundle(root,
         StructuralKey.of("mykey", StringUtf8Coder.of()),
         transformed);
@@ -194,7 +159,7 @@ public class ImmutabilityCheckingBundleFactoryTest {
 
   @Test
   public void mutationAfterAddCreateBundleThrows() {
-    CommittedBundle<byte[]> root = factory.createRootBundle(created).commit(Instant.now());
+    CommittedBundle<byte[]> root = factory.<byte[]>createRootBundle().commit(Instant.now());
     UncommittedBundle<byte[]> intermediate = factory.createBundle(root, transformed);
 
     byte[] array = new byte[] {4, 8, 12};

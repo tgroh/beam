@@ -71,6 +71,7 @@ public class WindowEvaluatorFactoryTest {
   @Mock private EvaluationContext evaluationContext;
 
   private BundleFactory bundleFactory;
+  private CommittedBundle<?> root;
 
   private WindowedValue<Long> valueInGlobalWindow =
       WindowedValue.timestampedValueInGlobalWindow(3L, new Instant(2L));
@@ -103,6 +104,7 @@ public class WindowEvaluatorFactoryTest {
     input = p.apply(Create.of(1L, 2L, 3L));
 
     bundleFactory = ImmutableListBundleFactory.create();
+    root = bundleFactory.createRootBundle().commit(Instant.now());
     factory = new WindowEvaluatorFactory(evaluationContext);
   }
 
@@ -286,7 +288,7 @@ public class WindowEvaluatorFactoryTest {
   private CommittedBundle<Long> createInputBundle() {
     CommittedBundle<Long> inputBundle =
         bundleFactory
-            .createRootBundle(input)
+            .createBundle(root, input)
             .add(valueInGlobalWindow)
             .add(valueInGlobalAndTwoIntervalWindows)
             .add(valueInIntervalWindow)

@@ -18,12 +18,14 @@
 
 package org.apache.beam.runners.direct;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
+import com.google.auto.value.AutoValue;
 import com.google.common.base.Supplier;
+import com.google.common.collect.Iterables;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
@@ -68,8 +70,17 @@ class TestStreamEvaluatorFactory implements RootTransformEvaluatorFactory {
    */
   @Override
   public List<CommittedBundle<?>> getInitialInputs(AppliedPTransform<?, ?, ?> transform) {
+    return getStartIndex((AppliedPTransform) transform);
+  }
+
+  private <T> List<CommittedBundle<TestStreamIndex<T>>> getStartIndex(
+      AppliedPTransform<?, ?, TestStream<T>> transform) {
     // TODO: Make this consistent with other reads
-    return Collections.emptyList();
+    WindowedValue<TestStreamIndex<T>> startIndex =
+        WindowedValue.valueInGlobalWindow(TestStreamIndex.of(transform.getTransform(), 0));
+    UncommittedBundle<TestStreamIndex<T>> bundle = evaluationContext.createRootBundle();
+    bundle.add(startIndex);
+    return Collections.singletonList(bundle.commit(BoundedWindow.TIMESTAMP_MIN_VALUE));
   }
 
   @Nullable
@@ -78,7 +89,7 @@ class TestStreamEvaluatorFactory implements RootTransformEvaluatorFactory {
       AppliedPTransform<?, ?, ?> application,
       @Nullable CommittedBundle<?> inputBundle)
       throws Exception {
-    return createEvaluator((AppliedPTransform) application);
+    return createEvaluator((AppliedPTransform) application, (CommittedBundle) inputBundle);
   }
 
   @Override
@@ -93,66 +104,73 @@ class TestStreamEvaluatorFactory implements RootTransformEvaluatorFactory {
    * a separate collection of events cannot be created.
    */
   private <InputT, OutputT> TransformEvaluator<? super InputT> createEvaluator(
-      AppliedPTransform<PBegin, PCollection<OutputT>, TestStream<OutputT>> application)
+      AppliedPTransform<PBegin, PCollection<OutputT>, TestStream<OutputT>> application,
+      CommittedBundle<TestStreamIndex<OutputT>> inputBundle)
       throws ExecutionException {
-    return evaluators
-        .tryAcquire(application, new CreateEvaluator<>(application, evaluationContext, evaluators))
-        .orNull();
+    checkArgument(
+        Iterables.size(inputBundle.getElements()) == 1,
+        "Should never get an evaluator for multiple Test Stream indicies at a time");
+    return (TransformEvaluator<? super InputT>)
+        new Evaluator<>(application, inputBundle, evaluationContext);
   }
 
-  private static class Evaluator<T> implements TransformEvaluator<Object> {
+  private static class Evaluator<T> implements TransformEvaluator<TestStreamIndex<T>> {
     private final AppliedPTransform<PBegin, PCollection<T>, TestStream<T>> application;
+    private final CommittedBundle<TestStreamIndex<T>> input;
     private final EvaluationContext context;
-    private final KeyedResourcePool<AppliedPTransform<?, ?, ?>, Evaluator<?>> cache;
-    private final List<Event<T>> events;
-    private int index;
-    private Instant currentWatermark;
+    private final StepTransformResult.Builder resultBuilder;
 
     private Evaluator(
         AppliedPTransform<PBegin, PCollection<T>, TestStream<T>> application,
-        EvaluationContext context,
-        KeyedResourcePool<AppliedPTransform<?, ?, ?>, Evaluator<?>> cache) {
+        CommittedBundle<TestStreamIndex<T>> input,
+        EvaluationContext context) {
       this.application = application;
+      this.input = input;
       this.context = context;
-      this.cache = cache;
-      this.events = application.getTransform().getEvents();
-      index = 0;
-      currentWatermark = BoundedWindow.TIMESTAMP_MIN_VALUE;
+      this.resultBuilder = StepTransformResult.withoutHold(application);
     }
 
     @Override
-    public void processElement(WindowedValue<Object> element) throws Exception {}
+    public void processElement(WindowedValue<TestStreamIndex<T>> element) throws Exception {
+      TestStreamIndex<T> value = element.getValue();
+      List<Event<T>> events = value.getStream().getEvents();
+      int index = value.getIndex();
+      if (index >= events.size()) {
+        // Nothing to do.
+        return;
+      }
+      Event<T> event = events.get(index);
+
+      TestStreamIndex<T> nextIndex = TestStreamIndex.of(value.getStream(), value.getIndex() + 1);
+      if (event.getType().equals(EventType.WATERMARK)) {
+        Instant newWatermark = ((WatermarkEvent<T>) event).getWatermark();
+        WindowedValue<TestStreamIndex<T>> next =
+            WindowedValue.timestampedValueInGlobalWindow(nextIndex, newWatermark);
+        resultBuilder.addUnprocessedElements(
+            Collections.singleton(next));
+      } else {
+        resultBuilder.addUnprocessedElements(Collections.singleton(element.withValue(nextIndex)));
+      }
+
+      StepTransformResult.Builder result =
+          StepTransformResult.withoutHold(application);
+      if (event.getType().equals(EventType.ELEMENT)) {
+        UncommittedBundle<T> bundle = context.createBundle(input, application.getOutput());
+        for (TimestampedValue<T> elem : ((ElementEvent<T>) event).getElements()) {
+          bundle.add(
+              WindowedValue.timestampedValueInGlobalWindow(elem.getValue(), elem.getTimestamp()));
+        }
+        result.addOutput(bundle);
+      }
+      if (event.getType().equals(EventType.PROCESSING_TIME)) {
+        ((TestClock) context.getClock())
+            .advance(((ProcessingTimeEvent<T>) event).getProcessingTimeAdvance());
+      }
+    }
 
     @Override
     public TransformResult finishBundle() throws Exception {
-      try {
-        if (index >= events.size()) {
-          return StepTransformResult.withHold(application, BoundedWindow.TIMESTAMP_MAX_VALUE)
-              .build();
-        }
-        Event<T> event = events.get(index);
-        if (event.getType().equals(EventType.WATERMARK)) {
-          currentWatermark = ((WatermarkEvent<T>) event).getWatermark();
-        }
-        StepTransformResult.Builder result =
-            StepTransformResult.withHold(application, currentWatermark);
-        if (event.getType().equals(EventType.ELEMENT)) {
-          UncommittedBundle<T> bundle = context.createRootBundle(application.getOutput());
-          for (TimestampedValue<T> elem : ((ElementEvent<T>) event).getElements()) {
-            bundle.add(
-                WindowedValue.timestampedValueInGlobalWindow(elem.getValue(), elem.getTimestamp()));
-          }
-          result.addOutput(bundle);
-        }
-        if (event.getType().equals(EventType.PROCESSING_TIME)) {
-          ((TestClock) context.getClock())
-              .advance(((ProcessingTimeEvent<T>) event).getProcessingTimeAdvance());
-        }
-        index++;
-        return result.build();
-      } finally {
-        cache.release(application, this);
-      }
+      return resultBuilder.build();
     }
   }
 
@@ -212,23 +230,13 @@ class TestStreamEvaluatorFactory implements RootTransformEvaluatorFactory {
     }
   }
 
-  private static class CreateEvaluator<OutputT> implements Callable<Evaluator<?>> {
-    private final AppliedPTransform<PBegin, PCollection<OutputT>, TestStream<OutputT>> application;
-    private final EvaluationContext evaluationContext;
-    private final KeyedResourcePool<AppliedPTransform<?, ?, ?>, Evaluator<?>> evaluators;
-
-    public CreateEvaluator(
-        AppliedPTransform<PBegin, PCollection<OutputT>, TestStream<OutputT>> application,
-        EvaluationContext evaluationContext,
-        KeyedResourcePool<AppliedPTransform<?, ?, ?>, Evaluator<?>> evaluators) {
-      this.application = application;
-      this.evaluationContext = evaluationContext;
-      this.evaluators = evaluators;
+  @AutoValue
+  abstract static class TestStreamIndex<T> {
+    public static <T> TestStreamIndex<T> of(TestStream<T> stream, int index) {
+      return new AutoValue_TestStreamEvaluatorFactory_TestStreamIndex<>(stream, index);
     }
+    abstract TestStream<T> getStream();
 
-    @Override
-    public Evaluator<?> call() throws Exception {
-      return new Evaluator<>(application, evaluationContext, evaluators);
-    }
+    abstract int getIndex();
   }
 }

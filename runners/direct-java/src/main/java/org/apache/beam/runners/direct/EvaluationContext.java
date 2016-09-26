@@ -224,10 +224,12 @@ class EvaluationContext {
   }
 
   /**
-   * Create a {@link UncommittedBundle} for use by a source.
+   * Create a {@link UncommittedBundle} for use as input to a root {@link PTransform}. Elements of
+   * a Root Bundle do not belong to any {@link PCollection}, but are used as an impulse to cause
+   * root {@link PTransform PTransforms} to produce output.
    */
-  public <T> UncommittedBundle<T> createRootBundle(PCollection<T> output) {
-    return bundleFactory.createRootBundle(output);
+  public <T> UncommittedBundle<T> createRootBundle() {
+    return bundleFactory.createRootBundle();
   }
 
   /**

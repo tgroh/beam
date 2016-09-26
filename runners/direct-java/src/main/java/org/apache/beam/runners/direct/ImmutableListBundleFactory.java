@@ -39,8 +39,8 @@ class ImmutableListBundleFactory implements BundleFactory {
   private ImmutableListBundleFactory() {}
 
   @Override
-  public <T> UncommittedBundle<T> createRootBundle(PCollection<T> output) {
-    return UncommittedImmutableListBundle.create(output, StructuralKey.of(null, VoidCoder.of()));
+  public <T> UncommittedBundle<T> createRootBundle() {
+    return UncommittedImmutableListBundle.create(null, StructuralKey.of(null, VoidCoder.of()));
   }
 
   @Override

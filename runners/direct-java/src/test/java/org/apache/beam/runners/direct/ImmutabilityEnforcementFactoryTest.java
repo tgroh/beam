@@ -45,6 +45,7 @@ public class ImmutabilityEnforcementFactoryTest implements Serializable {
   @Rule public transient ExpectedException thrown = ExpectedException.none();
   private transient ImmutabilityEnforcementFactory factory;
   private transient BundleFactory bundleFactory;
+  private transient CommittedBundle<?> root;
   private transient PCollection<byte[]> pcollection;
   private transient AppliedPTransform<?, ?, ?> consumer;
 
@@ -52,6 +53,7 @@ public class ImmutabilityEnforcementFactoryTest implements Serializable {
   public void setup() {
     factory = new ImmutabilityEnforcementFactory();
     bundleFactory = ImmutableListBundleFactory.create();
+    root = bundleFactory.createRootBundle().commit(Instant.now());
     TestPipeline p = TestPipeline.create();
     pcollection =
         p.apply(Create.of("foo".getBytes(), "spamhameggs".getBytes()))
@@ -71,7 +73,7 @@ public class ImmutabilityEnforcementFactoryTest implements Serializable {
   public void unchangedSucceeds() {
     WindowedValue<byte[]> element = WindowedValue.valueInGlobalWindow("bar".getBytes());
     CommittedBundle<byte[]> elements =
-        bundleFactory.createRootBundle(pcollection).add(element).commit(Instant.now());
+        bundleFactory.createBundle(root, pcollection).add(element).commit(Instant.now());
 
     ModelEnforcement<byte[]> enforcement = factory.forBundle(elements, consumer);
     enforcement.beforeElement(element);
@@ -86,7 +88,7 @@ public class ImmutabilityEnforcementFactoryTest implements Serializable {
   public void mutatedDuringProcessElementThrows() {
     WindowedValue<byte[]> element = WindowedValue.valueInGlobalWindow("bar".getBytes());
     CommittedBundle<byte[]> elements =
-        bundleFactory.createRootBundle(pcollection).add(element).commit(Instant.now());
+        bundleFactory.createBundle(root, pcollection).add(element).commit(Instant.now());
 
     ModelEnforcement<byte[]> enforcement = factory.forBundle(elements, consumer);
     enforcement.beforeElement(element);
@@ -107,7 +109,7 @@ public class ImmutabilityEnforcementFactoryTest implements Serializable {
 
     WindowedValue<byte[]> element = WindowedValue.valueInGlobalWindow("bar".getBytes());
     CommittedBundle<byte[]> elements =
-        bundleFactory.createRootBundle(pcollection).add(element).commit(Instant.now());
+        bundleFactory.createBundle(root, pcollection).add(element).commit(Instant.now());
 
     ModelEnforcement<byte[]> enforcement = factory.forBundle(elements, consumer);
     enforcement.beforeElement(element);

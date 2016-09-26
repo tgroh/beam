@@ -50,6 +50,8 @@ interface UnboundedReadDeduplicator {
       return new NeverDeduplicator();
     }
 
+    private NeverDeduplicator() {}
+
     @Override
     public boolean shouldOutput(byte[] recordId) {
       return true;

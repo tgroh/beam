@@ -58,9 +58,16 @@ class ImmutabilityCheckingBundleFactory implements BundleFactory {
     this.underlying = checkNotNull(underlying);
   }
 
+  /**
+   * {@inheritDoc}.
+   *
+   * <p>The result of {@link #createRootBundle()} performs no immutability checking on output
+   * elements, as those elements do not have a {@link PCollection} or {@link Coder} and belong to
+   * the runner at all times.
+   */
   @Override
-  public <T> UncommittedBundle<T> createRootBundle(PCollection<T> output) {
-    return new ImmutabilityEnforcingBundle<>(underlying.createRootBundle(output));
+  public <T> UncommittedBundle<T> createRootBundle() {
+    return underlying.createRootBundle();
   }
 
   @Override

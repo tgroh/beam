@@ -72,6 +72,7 @@ public class ParDoEvaluatorTest {
   private TupleTag<Integer> mainOutputTag;
   private List<TupleTag<?>> sideOutputTags;
   private BundleFactory bundleFactory;
+  private CommittedBundle<Object> root;
 
   @Before
   public void setup() {
@@ -82,6 +83,7 @@ public class ParDoEvaluatorTest {
     sideOutputTags = TupleTagList.empty().getAll();
 
     bundleFactory = ImmutableListBundleFactory.create();
+    root = bundleFactory.createRootBundle().commit(Instant.now());
   }
 
   @Test
@@ -94,7 +96,7 @@ public class ParDoEvaluatorTest {
     PCollection<Integer> output = inputPc.apply(ParDo.of(fn).withSideInputs(singletonView));
 
     CommittedBundle<Integer> inputBundle =
-        bundleFactory.createRootBundle(inputPc).commit(Instant.now());
+        bundleFactory.createBundle(root, inputPc).commit(Instant.now());
     UncommittedBundle<Integer> outputBundle = bundleFactory.createBundle(inputBundle, output);
     when(evaluationContext.createBundle(inputBundle, output))
         .thenReturn(outputBundle);

@@ -26,6 +26,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.Iterables;
+import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.testing.TestPipeline;
@@ -46,12 +47,14 @@ public class TestStreamEvaluatorFactoryTest {
   private TestStreamEvaluatorFactory factory;
   private BundleFactory bundleFactory;
   private EvaluationContext context;
+  private CommittedBundle<?> root;
 
   @Before
   public void setup() {
     context = mock(EvaluationContext.class);
     factory = new TestStreamEvaluatorFactory(context);
     bundleFactory = ImmutableListBundleFactory.create();
+    root = bundleFactory.createRootBundle().commit(Instant.now());
   }
 
   /** Demonstrates that returned evaluators produce elements in sequence. */
@@ -65,9 +68,10 @@ public class TestStreamEvaluatorFactoryTest {
                 .addElements(4, 5, 6)
                 .advanceWatermarkToInfinity());
 
-    when(context.createRootBundle(streamVals))
+    when(context.createBundle(root, streamVals))
         .thenReturn(
-            bundleFactory.createRootBundle(streamVals), bundleFactory.createRootBundle(streamVals));
+            bundleFactory.createBundle(root, streamVals),
+            bundleFactory.createBundle(root, streamVals));
 
     TransformEvaluator<Object> firstEvaluator =
         factory.forApplication(streamVals.getProducingTransformInternal(), null);
@@ -134,9 +138,10 @@ public class TestStreamEvaluatorFactoryTest {
     PCollection<Integer> firstVals = p.apply("Stream One", stream);
     PCollection<Integer> secondVals = p.apply("Stream A", stream);
 
-    when(context.createRootBundle(firstVals)).thenReturn(bundleFactory.createRootBundle(firstVals));
-    when(context.createRootBundle(secondVals))
-        .thenReturn(bundleFactory.createRootBundle(secondVals));
+    when(context.createBundle(root, firstVals))
+        .thenReturn(bundleFactory.createBundle(root, firstVals));
+    when(context.createBundle(root, secondVals))
+        .thenReturn(bundleFactory.createBundle(root, secondVals));
 
     TransformEvaluator<Object> firstEvaluator =
         factory.forApplication(firstVals.getProducingTransformInternal(), null);
@@ -181,9 +186,10 @@ public class TestStreamEvaluatorFactoryTest {
                 .addElements("Two")
                 .advanceWatermarkToInfinity());
 
-    when(context.createRootBundle(firstVals)).thenReturn(bundleFactory.createRootBundle(firstVals));
-    when(context.createRootBundle(secondVals))
-        .thenReturn(bundleFactory.createRootBundle(secondVals));
+    when(context.createBundle(root, firstVals))
+        .thenReturn(bundleFactory.createBundle(root, firstVals));
+    when(context.createBundle(root, secondVals))
+        .thenReturn(bundleFactory.createBundle(root, secondVals));
 
     TransformEvaluator<Object> firstEvaluator =
         factory.forApplication(firstVals.getProducingTransformInternal(), null);

@@ -41,13 +41,13 @@ class FlattenEvaluatorFactory implements RootTransformEvaluatorFactory {
   }
 
   /**
-   * Produces an empty list. A root {@link Flatten} transform receives no inputs and produces no
-   * outputs.
+   * Produces an singleton list of an empty bundle. A root {@link Flatten} transform receives only
+   * trivial inputs and produces only trivial outputs.
    */
   @Override
-  public List<CommittedBundle<?>> getInitialInputs(
-      AppliedPTransform<?, ?, ?> transform) {
-    return Collections.emptyList();
+  public List<CommittedBundle<?>> getInitialInputs(AppliedPTransform<?, ?, ?> transform) {
+    return Collections.<CommittedBundle<?>>singletonList(
+        evaluationContext.createRootBundle().commit(evaluationContext.now()));
   }
 
   @Override

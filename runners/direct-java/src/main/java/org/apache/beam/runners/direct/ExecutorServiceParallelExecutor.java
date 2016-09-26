@@ -23,7 +23,6 @@ import com.google.common.base.Optional;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -81,9 +81,10 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   private final TransformExecutorService parallelExecutorService;
   private final CompletionCallback defaultCompletionCallback;
 
-  private Collection<AppliedPTransform<?, ?, ?>> rootNodes;
+  private ConcurrentMap<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
+      pendingRootBundles;
 
- private final AtomicReference<ExecutorState> state =
+  private final AtomicReference<ExecutorState> state =
       new AtomicReference<>(ExecutorState.QUIESCENT);
 
   /**
@@ -148,19 +149,14 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
 
   @Override
   public void start(Collection<AppliedPTransform<?, ?, ?>> roots) {
-    rootNodes = ImmutableList.copyOf(roots);
-    Runnable monitorRunnable = new MonitorRunnable();
     for (AppliedPTransform<?, ?, ?> root : roots) {
-      Iterable<CommittedBundle<?>> impulses = registry.getInitialInputs(root);
-      for (CommittedBundle<?> impulse : impulses) {
-        scheduleExecutor(
-            root,
-            impulse,
-            defaultCompletionCallback,
-            parallelExecutorService,
-            Collections.<ModelEnforcementFactory>emptyList());
+      ConcurrentLinkedQueue<CommittedBundle<?>> bundles = new ConcurrentLinkedQueue<>();
+      for (CommittedBundle<?> bundle : registry.getInitialInputs(root)) {
+        bundles.offer(bundle);
       }
+      pendingRootBundles.put(root, bundles);
     }
+    Runnable monitorRunnable = new MonitorRunnable();
     executorService.submit(monitorRunnable);
   }
 
@@ -477,9 +473,15 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
       // If any timers have fired, they will add more work; We don't need to add more
       if (state.get() == ExecutorState.QUIESCENT) {
         // All current TransformExecutors are blocked; add more work from the roots.
-        for (AppliedPTransform<?, ?, ?> root : rootNodes) {
-          if (!evaluationContext.isDone(root)) {
-            scheduleConsumption(root, null, defaultCompletionCallback);
+        for (Map.Entry<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
+            pendingRoot : pendingRootBundles.entrySet()) {
+          for (CommittedBundle<?> bundle : pendingRoot.getValue()) {
+            scheduleExecutor(
+                pendingRoot.getKey(),
+                bundle,
+                defaultCompletionCallback,
+                parallelExecutorService,
+                Collections.<ModelEnforcementFactory>emptyList());
             state.set(ExecutorState.ACTIVE);
           }
         }

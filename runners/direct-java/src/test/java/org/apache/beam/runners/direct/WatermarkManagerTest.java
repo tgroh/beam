@@ -93,6 +93,7 @@ public class WatermarkManagerTest implements Serializable {
 
   private transient WatermarkManager manager;
   private transient BundleFactory bundleFactory;
+  private transient CommittedBundle<?> root;
 
   @Before
   public void setup() {
@@ -141,6 +142,7 @@ public class WatermarkManagerTest implements Serializable {
 
     manager = WatermarkManager.create(clock, rootTransforms, consumers);
     bundleFactory = ImmutableListBundleFactory.create();
+    root = bundleFactory.createRootBundle().commit(clock.now());
   }
 
   /**
@@ -276,7 +278,7 @@ public class WatermarkManagerTest implements Serializable {
     assertThat(withBufferedElements.getOutputWatermark(), equalTo(firstCollectionTimestamp));
 
     CommittedBundle<?> completedFlattenBundle =
-        bundleFactory.createRootBundle(flattened).commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
+        bundleFactory.createBundle(root, flattened).commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
     manager.updateWatermarks(firstPcollectionBundle,
         TimerUpdate.empty(),
         result(flattened.getProducingTransformInternal(),
@@ -482,7 +484,7 @@ public class WatermarkManagerTest implements Serializable {
   @Test
   public void updateOutputWatermarkShouldBeMonotonic() {
     CommittedBundle<?> firstInput =
-        bundleFactory.createRootBundle(createdInts).commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
+        bundleFactory.createBundle(root, createdInts).commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
     manager.updateWatermarks(null,  TimerUpdate.empty(),
         result(createdInts.getProducingTransformInternal(),
             null,
@@ -494,7 +496,7 @@ public class WatermarkManagerTest implements Serializable {
     assertThat(firstWatermarks.getOutputWatermark(), equalTo(new Instant(0L)));
 
     CommittedBundle<?> secondInput =
-        bundleFactory.createRootBundle(createdInts).commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
+        bundleFactory.createBundle(root, createdInts).commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
     manager.updateWatermarks(null,
         TimerUpdate.empty(),
         result(createdInts.getProducingTransformInternal(),
@@ -558,7 +560,7 @@ public class WatermarkManagerTest implements Serializable {
         WindowedValue.timestampedValueInGlobalWindow(2, new Instant(-1000L));
     WindowedValue<Integer> third =
         WindowedValue.timestampedValueInGlobalWindow(3, new Instant(1234L));
-    CommittedBundle<Integer> createdBundle = bundleFactory.createRootBundle(createdInts)
+    CommittedBundle<Integer> createdBundle = bundleFactory.createBundle(root, createdInts)
         .add(first)
         .add(second)
         .add(third)
@@ -657,12 +659,12 @@ public class WatermarkManagerTest implements Serializable {
         TimerUpdate.empty(), result(createdInts.getProducingTransformInternal(), null,
         Collections.<CommittedBundle<?>>singleton(
             bundleFactory
-                .createRootBundle(createdInts)
+                .createBundle(root, createdInts)
                 .add(WindowedValue.valueInGlobalWindow(1))
                 .commit(Instant.now()))),
         BoundedWindow.TIMESTAMP_MAX_VALUE);
 
-    CommittedBundle<Integer> createdBundle = bundleFactory.createRootBundle(createdInts)
+    CommittedBundle<Integer> createdBundle = bundleFactory.createBundle(root, createdInts)
         .add(WindowedValue.valueInGlobalWindow(1))
         .commit(Instant.now());
     manager.updateWatermarks(createdBundle,
@@ -778,7 +780,7 @@ public class WatermarkManagerTest implements Serializable {
         not(laterThan(BoundedWindow.TIMESTAMP_MIN_VALUE)));
 
     CommittedBundle<Integer> createOutput =
-        bundleFactory.createRootBundle(createdInts).commit(new Instant(1250L));
+        bundleFactory.createBundle(root, createdInts).commit(new Instant(1250L));
 
     manager.updateWatermarks(null,
         TimerUpdate.empty(),
@@ -810,7 +812,7 @@ public class WatermarkManagerTest implements Serializable {
         not(laterThan(new Instant(1250L))));
 
     CommittedBundle<?> filterOutputBundle =
-        bundleFactory.createRootBundle(intsToFlatten).commit(new Instant(1250L));
+        bundleFactory.createBundle(root, intsToFlatten).commit(new Instant(1250L));
     manager.updateWatermarks(createOutput,
         TimerUpdate.empty(),
         result(filtered.getProducingTransformInternal(),
@@ -951,7 +953,7 @@ public class WatermarkManagerTest implements Serializable {
         not(laterThan(BoundedWindow.TIMESTAMP_MIN_VALUE)));
 
     CommittedBundle<Integer> createOutput =
-        bundleFactory.createRootBundle(createdInts).commit(new Instant(1250L));
+        bundleFactory.createBundle(root, createdInts).commit(new Instant(1250L));
 
     manager.updateWatermarks(null,
         TimerUpdate.empty(),
@@ -967,7 +969,7 @@ public class WatermarkManagerTest implements Serializable {
         not(laterThan(clock.now())));
 
     CommittedBundle<Integer> createSecondOutput =
-        bundleFactory.createRootBundle(createdInts).commit(new Instant(750L));
+        bundleFactory.createBundle(root, createdInts).commit(new Instant(750L));
     manager.updateWatermarks(null,
         TimerUpdate.empty(),
         result(createdInts.getProducingTransformInternal(),
@@ -1394,7 +1396,7 @@ public class WatermarkManagerTest implements Serializable {
   @SafeVarargs
   private final <T> CommittedBundle<T> timestampedBundle(
       PCollection<T> pc, TimestampedValue<T>... values) {
-    UncommittedBundle<T> bundle = bundleFactory.createRootBundle(pc);
+    UncommittedBundle<T> bundle = bundleFactory.createBundle(root, pc);
     for (TimestampedValue<T> value : values) {
       bundle.add(
           WindowedValue.timestampedValueInGlobalWindow(value.getValue(), value.getTimestamp()));
@@ -1404,7 +1406,7 @@ public class WatermarkManagerTest implements Serializable {
 
   @SafeVarargs
   private final <T> CommittedBundle<T> multiWindowedBundle(PCollection<T> pc, T... values) {
-    UncommittedBundle<T> bundle = bundleFactory.createRootBundle(pc);
+    UncommittedBundle<T> bundle = bundleFactory.createBundle(root, pc);
     Collection<BoundedWindow> windows =
         ImmutableList.of(
             GlobalWindow.INSTANCE,

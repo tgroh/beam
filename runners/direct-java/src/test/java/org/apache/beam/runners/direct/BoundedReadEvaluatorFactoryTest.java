@@ -21,7 +21,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.when;
 
@@ -30,6 +29,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
+import org.apache.beam.runners.direct.BoundedReadEvaluatorFactory.BoundedSourceShard;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
 import org.apache.beam.sdk.coders.BigEndianLongCoder;
@@ -38,7 +38,6 @@ import org.apache.beam.sdk.io.BoundedSource;
 import org.apache.beam.sdk.io.BoundedSource.BoundedReader;
 import org.apache.beam.sdk.io.CountingSource;
 import org.apache.beam.sdk.io.Read;
-import org.apache.beam.sdk.io.Read.Bounded;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
@@ -78,8 +77,13 @@ public class BoundedReadEvaluatorFactoryTest {
 
   @Test
   public void boundedSourceInMemoryTransformEvaluatorProducesElements() throws Exception {
-    UncommittedBundle<Long> output = bundleFactory.createRootBundle(longs);
-    when(context.createRootBundle(longs)).thenReturn(output);
+    CommittedBundle<BoundedSourceShard<Long>> root =
+        bundleFactory
+            .<BoundedSourceShard<Long>>createRootBundle()
+            .add(WindowedValue.valueInGlobalWindow(BoundedSourceShard.of(source)))
+            .commit(Instant.now());
+    UncommittedBundle<Long> output = bundleFactory.createBundle(root, longs);
+    when(context.createBundle(root, longs)).thenReturn(output);
 
     TransformEvaluator<?> evaluator =
         factory.forApplication(longs.getProducingTransformInternal(), null);
@@ -91,79 +95,22 @@ public class BoundedReadEvaluatorFactoryTest {
             gw(1L), gw(2L), gw(4L), gw(8L), gw(9L), gw(7L), gw(6L), gw(5L), gw(3L), gw(0L)));
   }
 
-  /**
-   * Demonstrate that acquiring multiple {@link TransformEvaluator TransformEvaluators} for the same
-   * {@link Bounded Read.Bounded} application with the same evaluation context only produces the
-   * elements once.
-   */
-  @Test
-  public void boundedSourceInMemoryTransformEvaluatorAfterFinishIsEmpty() throws Exception {
-    UncommittedBundle<Long> output = bundleFactory.createRootBundle(longs);
-    when(context.createRootBundle(longs)).thenReturn(output);
-
-    TransformEvaluator<?> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null);
-    TransformResult result = evaluator.finishBundle();
-    assertThat(result.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
-    Iterable<? extends WindowedValue<Long>> outputElements =
-        output.commit(BoundedWindow.TIMESTAMP_MAX_VALUE).getElements();
-    assertThat(
-        outputElements,
-        containsInAnyOrder(
-            gw(1L), gw(2L), gw(4L), gw(8L), gw(9L), gw(7L), gw(6L), gw(5L), gw(3L), gw(0L)));
-
-    UncommittedBundle<Long> secondOutput = bundleFactory.createRootBundle(longs);
-    when(context.createRootBundle(longs)).thenReturn(secondOutput);
-    TransformEvaluator<?> secondEvaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null);
-    assertThat(secondEvaluator, nullValue());
-  }
-
-  /**
-   * Demonstrates that acquiring multiple evaluators from the factory are independent, but
-   * the elements in the source are only produced once.
-   */
-  @Test
-  public void boundedSourceEvaluatorSimultaneousEvaluations() throws Exception {
-    UncommittedBundle<Long> output = bundleFactory.createRootBundle(longs);
-    UncommittedBundle<Long> secondOutput = bundleFactory.createRootBundle(longs);
-    when(context.createRootBundle(longs)).thenReturn(output).thenReturn(secondOutput);
-
-    // create both evaluators before finishing either.
-    TransformEvaluator<?> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null);
-    TransformEvaluator<?> secondEvaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null);
-    assertThat(secondEvaluator, nullValue());
-
-    TransformResult result = evaluator.finishBundle();
-    assertThat(result.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
-    Iterable<? extends WindowedValue<Long>> outputElements =
-        output.commit(BoundedWindow.TIMESTAMP_MAX_VALUE).getElements();
-
-    assertThat(
-        outputElements,
-        containsInAnyOrder(
-            gw(1L), gw(2L), gw(4L), gw(8L), gw(9L), gw(7L), gw(6L), gw(5L), gw(3L), gw(0L)));
-    assertThat(
-        secondOutput.commit(BoundedWindow.TIMESTAMP_MAX_VALUE).getElements(), emptyIterable());
-    assertThat(
-        outputElements,
-        containsInAnyOrder(
-            gw(1L), gw(2L), gw(4L), gw(8L), gw(9L), gw(7L), gw(6L), gw(5L), gw(3L), gw(0L)));
-  }
-
   @Test
   public void boundedSourceEvaluatorClosesReader() throws Exception {
     TestSource<Long> source = new TestSource<>(BigEndianLongCoder.of(), 1L, 2L, 3L);
+    CommittedBundle<BoundedSourceShard<Long>> root =
+        bundleFactory
+            .<BoundedSourceShard<Long>>createRootBundle()
+            .add(WindowedValue.valueInGlobalWindow(BoundedSourceShard.of(source)))
+            .commit(Instant.now());
 
     TestPipeline p = TestPipeline.create();
     PCollection<Long> pcollection = p.apply(Read.from(source));
     AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
     factory.getInitialInputs(sourceTransform);
 
-    UncommittedBundle<Long> output = bundleFactory.createRootBundle(pcollection);
-    when(context.createRootBundle(pcollection)).thenReturn(output);
+    UncommittedBundle<Long> output = bundleFactory.createBundle(root, pcollection);
+    when(context.createBundle(root, pcollection)).thenReturn(output);
 
     TransformEvaluator<?> evaluator = factory.forApplication(sourceTransform, null);
     evaluator.finishBundle();
@@ -175,14 +122,19 @@ public class BoundedReadEvaluatorFactoryTest {
   @Test
   public void boundedSourceEvaluatorNoElementsClosesReader() throws Exception {
     TestSource<Long> source = new TestSource<>(BigEndianLongCoder.of());
+    CommittedBundle<BoundedSourceShard<Long>> root =
+        bundleFactory
+            .<BoundedSourceShard<Long>>createRootBundle()
+            .add(WindowedValue.valueInGlobalWindow(BoundedSourceShard.of(source)))
+            .commit(Instant.now());
 
     TestPipeline p = TestPipeline.create();
     PCollection<Long> pcollection = p.apply(Read.from(source));
     AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
     factory.getInitialInputs(sourceTransform);
 
-    UncommittedBundle<Long> output = bundleFactory.createRootBundle(pcollection);
-    when(context.createRootBundle(pcollection)).thenReturn(output);
+    UncommittedBundle<Long> output = bundleFactory.createBundle(root, pcollection);
+    when(context.createBundle(root, pcollection)).thenReturn(output);
 
     TransformEvaluator<?> evaluator = factory.forApplication(sourceTransform, null);
     evaluator.finishBundle();

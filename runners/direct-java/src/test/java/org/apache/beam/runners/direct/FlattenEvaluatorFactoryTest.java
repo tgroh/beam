@@ -45,6 +45,9 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class FlattenEvaluatorFactoryTest {
   private BundleFactory bundleFactory = ImmutableListBundleFactory.create();
+  private CommittedBundle<Object> root =
+      bundleFactory.createRootBundle().commit(Instant.now());
+
   @Test
   public void testFlattenInMemoryEvaluator() throws Exception {
     TestPipeline p = TestPipeline.create();
@@ -55,14 +58,14 @@ public class FlattenEvaluatorFactoryTest {
     PCollection<Integer> flattened = list.apply(Flatten.<Integer>pCollections());
 
     CommittedBundle<Integer> leftBundle =
-        bundleFactory.createRootBundle(left).commit(Instant.now());
+        bundleFactory.createBundle(root, left).commit(Instant.now());
     CommittedBundle<Integer> rightBundle =
-        bundleFactory.createRootBundle(right).commit(Instant.now());
+        bundleFactory.createBundle(root, right).commit(Instant.now());
 
     EvaluationContext context = mock(EvaluationContext.class);
 
-    UncommittedBundle<Integer> flattenedLeftBundle = bundleFactory.createRootBundle(flattened);
-    UncommittedBundle<Integer> flattenedRightBundle = bundleFactory.createRootBundle(flattened);
+    UncommittedBundle<Integer> flattenedLeftBundle = bundleFactory.createBundle(root, flattened);
+    UncommittedBundle<Integer> flattenedRightBundle = bundleFactory.createBundle(root, flattened);
 
     when(context.createBundle(leftBundle, flattened)).thenReturn(flattenedLeftBundle);
     when(context.createBundle(rightBundle, flattened)).thenReturn(flattenedRightBundle);

@@ -69,8 +69,9 @@ public class GroupByKeyEvaluatorFactoryTest {
     PCollection<KeyedWorkItem<String, Integer>> groupedKvs =
         kvs.apply(new DirectGroupByKeyOnly<String, Integer>());
 
+    CommittedBundle<Object> root = bundleFactory.createRootBundle().commit(Instant.now());
     CommittedBundle<KV<String, WindowedValue<Integer>>> inputBundle =
-        bundleFactory.createRootBundle(kvs).commit(Instant.now());
+        bundleFactory.createBundle(root, kvs).commit(Instant.now());
     EvaluationContext evaluationContext = mock(EvaluationContext.class);
     StructuralKey<String> fooKey = StructuralKey.of("foo", StringUtf8Coder.of());
     UncommittedBundle<KeyedWorkItem<String, Integer>> fooBundle =

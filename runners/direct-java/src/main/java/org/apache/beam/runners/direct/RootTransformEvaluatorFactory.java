@@ -32,5 +32,5 @@ interface RootTransformEvaluatorFactory extends TransformEvaluatorFactory {
   /**
    * Gets the initial inputs that should be provided to the transform.
    */
-  List<CommittedBundle<?>> getInitialInputs(AppliedPTransform<?, ?, ?> transform);
+  List<? extends CommittedBundle<?>> getInitialInputs(AppliedPTransform<?, ?, ?> transform);
 }

@@ -50,6 +50,8 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class ViewEvaluatorFactoryTest {
   private BundleFactory bundleFactory = ImmutableListBundleFactory.create();
+  private CommittedBundle<Object> root = bundleFactory.createRootBundle().commit(Instant.now());
+
 
   @Test
   public void testInMemoryEvaluator() throws Exception {
@@ -72,7 +74,7 @@ public class ViewEvaluatorFactoryTest {
     when(context.createPCollectionViewWriter(concat, view)).thenReturn(viewWriter);
 
     CommittedBundle<String> inputBundle =
-        bundleFactory.createRootBundle(input).commit(Instant.now());
+        bundleFactory.createBundle(root, input).commit(Instant.now());
     TransformEvaluator<Iterable<String>> evaluator =
         new ViewEvaluatorFactory(context)
             .forApplication(view.getProducingTransformInternal(), inputBundle);

@@ -18,18 +18,15 @@
 package org.apache.beam.runners.direct;
 
 import com.google.auto.value.AutoValue;
+import com.google.common.collect.ImmutableList;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
 import org.apache.beam.sdk.io.BoundedSource;
 import org.apache.beam.sdk.io.BoundedSource.BoundedReader;
+import org.apache.beam.sdk.io.Read;
 import org.apache.beam.sdk.io.Read.Bounded;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -42,57 +39,47 @@ import org.apache.beam.sdk.values.PCollection;
  * for the {@link Bounded Read.Bounded} primitive {@link PTransform}.
  */
 final class BoundedReadEvaluatorFactory implements RootTransformEvaluatorFactory {
-  /*
-   * An evaluator for a Source is stateful, to ensure data is not read multiple times.
-   * Evaluators are cached here to ensure that the reader is not restarted if the evaluator is
-   * retriggered.
-   */
-  private final ConcurrentMap<AppliedPTransform<?, ?, ?>, Queue<? extends BoundedReadEvaluator<?>>>
-      sourceEvaluators;
   private final EvaluationContext evaluationContext;
 
   BoundedReadEvaluatorFactory(EvaluationContext evaluationContext) {
     this.evaluationContext = evaluationContext;
-    sourceEvaluators = new ConcurrentHashMap<>();
   }
 
   @Override
   public List<CommittedBundle<?>> getInitialInputs(AppliedPTransform<?, ?, ?> transform) {
-    int availableEvaluators = createEvaluators((AppliedPTransform) transform).size();
-    List<CommittedBundle<?>> bundles = new ArrayList<>(availableEvaluators);
-    for (int i = 0; i < availableEvaluators; i++) {
-      bundles.add(ImpulseBundle.create());
-    }
-    return bundles;
+    return getSplits((AppliedPTransform) transform);
   }
 
-  /**
-   * Get a {@link TransformEvaluator} that produces elements for the provided application of {@link
-   * Bounded Read.Bounded}, initializing the queue of evaluators if required.
-   */
-  private <OutputT> Queue<BoundedReadEvaluator<OutputT>> createEvaluators(
-      final AppliedPTransform<?, PCollection<OutputT>, ?> transform) {
-    // Key by the application and the context the evaluation is occurring in (which call to
-    // Pipeline#run).
-    Queue<BoundedReadEvaluator<OutputT>> evaluatorQueue = new ConcurrentLinkedQueue<>();
-    // If no queue existed in the evaluators, add an evaluator to initialize the evaluator
-    // factory for this transform
-    Bounded<OutputT> bound = (Bounded<OutputT>) transform.getTransform();
-    BoundedSource<OutputT> source = bound.getSource();
-    BoundedReadEvaluator<OutputT> evaluator =
-        new BoundedReadEvaluator<>(transform, evaluationContext, source);
-    evaluatorQueue.offer(evaluator);
-    sourceEvaluators.put(transform, evaluatorQueue);
-    return evaluatorQueue;
-  }
+  private <T> ImmutableList<CommittedBundle<BoundedSourceShard<T>>> getSplits(
+      AppliedPTransform<?, ?, Bounded<T>> transform) {
+    ImmutableList.Builder<CommittedBundle<BoundedSourceShard<T>>> shards = ImmutableList.builder();
+    // TODO: Perform initial splitting
+    BoundedSource<T> source = transform.getTransform().getSource();
 
+    UncommittedBundle<BoundedSourceShard<T>> bundle = evaluationContext.createRootBundle();
+    bundle.add(WindowedValue.valueInGlobalWindow(BoundedSourceShard.of(source)));
+    shards.add(bundle.commit(BoundedWindow.TIMESTAMP_MIN_VALUE));
+
+    return shards.build();
+  }
 
   @SuppressWarnings({"unchecked", "rawtypes"})
   @Override
   @Nullable
   public <InputT> TransformEvaluator<InputT> forApplication(
       AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) throws IOException {
-    return (TransformEvaluator<InputT>) sourceEvaluators.get(application).poll();
+    return createEvaluator(
+        (AppliedPTransform) application, (CommittedBundle) inputBundle);
+  }
+
+  private <InputT, OutputT> BoundedReadEvaluator<InputT> createEvaluator(
+      AppliedPTransform<?, PCollection<OutputT>, Read.Bounded<OutputT>> application,
+      CommittedBundle<BoundedSourceShard<OutputT>> inputBundle) {
+    // For root PTransforms, the runner controls the input bundles. The runner is responsible for
+    // ensuring that root PTransforms only get the type returned by the getInitialInputs call or
+    // returned as unprocessed elements.
+    return (BoundedReadEvaluator<InputT>)
+        new BoundedReadEvaluator<>(application, evaluationContext, inputBundle);
   }
 
   @Override
@@ -107,44 +94,45 @@ final class BoundedReadEvaluatorFactory implements RootTransformEvaluatorFactory
    * each evaluator should only be called once per evaluation of the pipeline. Otherwise, the source
    * may produce duplicate elements.
    */
-  private static class BoundedReadEvaluator<OutputT> implements TransformEvaluator<Object> {
+  private static class BoundedReadEvaluator<OutputT>
+      implements TransformEvaluator<BoundedSourceShard<OutputT>> {
     private final AppliedPTransform<?, PCollection<OutputT>, ?> transform;
     private final EvaluationContext evaluationContext;
-    /**
-     * The source being read from by this {@link BoundedReadEvaluator}. This may not be the same as
-     * the source derived from {@link #transform} due to splitting.
-     */
-    private BoundedSource<OutputT> source;
+    private final CommittedBundle<BoundedSourceShard<OutputT>> inputBundle;
+    private final StepTransformResult.Builder resultBuilder;
 
     public BoundedReadEvaluator(
         AppliedPTransform<?, PCollection<OutputT>, ?> transform,
         EvaluationContext evaluationContext,
-        BoundedSource<OutputT> source) {
+        CommittedBundle<BoundedSourceShard<OutputT>> inputBundle) {
       this.transform = transform;
       this.evaluationContext = evaluationContext;
-      this.source = source;
+      this.inputBundle = inputBundle;
+      this.resultBuilder = StepTransformResult.withoutHold(transform);
     }
 
     @Override
-    public void processElement(WindowedValue<Object> element) {}
-
-    @Override
-    public TransformResult finishBundle() throws IOException {
+    public void processElement(WindowedValue<BoundedSourceShard<OutputT>> element)
+        throws IOException {
+      BoundedSource<OutputT> source = element.getValue().getSource();
       try (final BoundedReader<OutputT> reader =
           source.createReader(evaluationContext.getPipelineOptions())) {
-        boolean contentsRemaining = reader.start();
         UncommittedBundle<OutputT> output =
-            evaluationContext.createRootBundle(transform.getOutput());
+            evaluationContext.createBundle(inputBundle, transform.getOutput());
+        boolean contentsRemaining = reader.start();
         while (contentsRemaining) {
           output.add(
               WindowedValue.timestampedValueInGlobalWindow(
                   reader.getCurrent(), reader.getCurrentTimestamp()));
           contentsRemaining = reader.advance();
         }
-        return StepTransformResult.withHold(transform, BoundedWindow.TIMESTAMP_MAX_VALUE)
-            .addOutput(output)
-            .build();
+        resultBuilder.addOutput(output);
       }
+    }
+
+    @Override
+    public TransformResult finishBundle() throws IOException {
+      return resultBuilder.build();
     }
   }
 

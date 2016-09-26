@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import org.apache.beam.runners.direct.CommittedResult.OutputType;
+import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.Create;
@@ -57,13 +58,15 @@ public class CommittedResultTest implements Serializable {
         }
       });
   private transient BundleFactory bundleFactory = ImmutableListBundleFactory.create();
+  private transient CommittedBundle<Object> root =
+      bundleFactory.createRootBundle().commit(Instant.now());
 
   @Test
   public void getTransformExtractsFromResult() {
     CommittedResult result =
         CommittedResult.create(
             StepTransformResult.withoutHold(transform).build(),
-            bundleFactory.createRootBundle(created).commit(Instant.now()),
+            bundleFactory.createBundle(root, created).commit(Instant.now()),
             Collections.<DirectRunner.CommittedBundle<?>>emptyList(),
             EnumSet.noneOf(OutputType.class));
 
@@ -73,7 +76,7 @@ public class CommittedResultTest implements Serializable {
   @Test
   public void getUncommittedElementsEqualInput() {
     DirectRunner.CommittedBundle<Integer> bundle =
-        bundleFactory.createRootBundle(created)
+        bundleFactory.createBundle(root, created)
             .add(WindowedValue.valueInGlobalWindow(2))
             .commit(Instant.now());
     CommittedResult result =
@@ -102,16 +105,17 @@ public class CommittedResultTest implements Serializable {
   @Test
   public void getOutputsEqualInput() {
     List<? extends DirectRunner.CommittedBundle<?>> outputs =
-        ImmutableList.of(bundleFactory.createRootBundle(PCollection.createPrimitiveOutputInternal(p,
-            WindowingStrategy.globalDefault(),
-            PCollection.IsBounded.BOUNDED)).commit(Instant.now()),
-            bundleFactory.createRootBundle(PCollection.createPrimitiveOutputInternal(p,
+        ImmutableList.of(bundleFactory.createBundle(root,
+            PCollection.createPrimitiveOutputInternal(p,
                 WindowingStrategy.globalDefault(),
-                PCollection.IsBounded.UNBOUNDED)).commit(Instant.now()));
+                PCollection.IsBounded.BOUNDED)).commit(Instant.now()),
+            bundleFactory.createBundle(root,
+                PCollection.createPrimitiveOutputInternal(p,
+                    WindowingStrategy.globalDefault(),
+                    PCollection.IsBounded.UNBOUNDED)).commit(Instant.now()));
     CommittedResult result =
-        CommittedResult.create(
-            StepTransformResult.withoutHold(transform).build(),
-            bundleFactory.createRootBundle(created).commit(Instant.now()),
+        CommittedResult.create(StepTransformResult.withoutHold(transform).build(),
+            bundleFactory.createBundle(root, created).commit(Instant.now()),
             outputs,
             EnumSet.of(OutputType.BUNDLE, OutputType.PCOLLECTION_VIEW));
 

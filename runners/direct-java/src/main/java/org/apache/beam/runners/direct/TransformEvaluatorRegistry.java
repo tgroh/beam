@@ -79,7 +79,7 @@ class TransformEvaluatorRegistry implements RootTransformEvaluatorFactory {
   }
 
   @Override
-  public List<CommittedBundle<?>> getInitialInputs(AppliedPTransform<?, ?, ?> transform) {
+  public List<? extends CommittedBundle<?>> getInitialInputs(AppliedPTransform<?, ?, ?> transform) {
     checkState(!finished.get(),
         "Tried to get initial inputs for a finished TransformEvaluatorRegistry");
     TransformEvaluatorFactory factory = factories.get(transform.getTransform().getClass());

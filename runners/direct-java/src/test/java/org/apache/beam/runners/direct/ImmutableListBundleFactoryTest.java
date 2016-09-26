@@ -19,6 +19,7 @@ package org.apache.beam.runners.direct;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 
 import com.google.common.collect.ImmutableList;
@@ -71,9 +72,7 @@ public class ImmutableListBundleFactoryTest {
 
   @Test
   public void createRootBundleShouldCreateWithEmptyKey() {
-    PCollection<Integer> pcollection = TestPipeline.create().apply(Create.of(1));
-
-    UncommittedBundle<Integer> inFlightBundle = bundleFactory.createRootBundle(pcollection);
+    UncommittedBundle<Integer> inFlightBundle = bundleFactory.createRootBundle();
 
     CommittedBundle<Integer> bundle = inFlightBundle.commit(Instant.now());
 
@@ -104,11 +103,11 @@ public class ImmutableListBundleFactoryTest {
     createKeyedBundle(ByteArrayCoder.of(), new byte[] {0, 2, 4, 99});
   }
 
-  private <T> CommittedBundle<T>
-  afterCommitGetElementsShouldHaveAddedElements(Iterable<WindowedValue<T>> elems) {
+  private <T> CommittedBundle<T> afterCommitGetElementsShouldHaveAddedElements(
+      Iterable<WindowedValue<T>> elems) {
     PCollection<T> pcollection = TestPipeline.create().apply(Create.<T>of());
 
-    UncommittedBundle<T> bundle = bundleFactory.createRootBundle(pcollection);
+    UncommittedBundle<T> bundle = bundleFactory.createRootBundle();
     Collection<Matcher<? super WindowedValue<T>>> expectations = new ArrayList<>();
     for (WindowedValue<T> elem : elems) {
       bundle.add(elem);
@@ -168,9 +167,7 @@ public class ImmutableListBundleFactoryTest {
 
   @Test
   public void addAfterCommitShouldThrowException() {
-    PCollection<Integer> pcollection = TestPipeline.create().apply(Create.<Integer>of());
-
-    UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle(pcollection);
+    UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle();
     bundle.add(WindowedValue.valueInGlobalWindow(1));
     CommittedBundle<Integer> firstCommit = bundle.commit(Instant.now());
     assertThat(firstCommit.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(1)));
@@ -184,9 +181,7 @@ public class ImmutableListBundleFactoryTest {
 
   @Test
   public void commitAfterCommitShouldThrowException() {
-    PCollection<Integer> pcollection = TestPipeline.create().apply(Create.<Integer>of());
-
-    UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle(pcollection);
+    UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle();
     bundle.add(WindowedValue.valueInGlobalWindow(1));
     CommittedBundle<Integer> firstCommit = bundle.commit(Instant.now());
     assertThat(firstCommit.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(1)));
@@ -200,9 +195,9 @@ public class ImmutableListBundleFactoryTest {
   @Test
   public void createBundleUnkeyedResultUnkeyed() {
     CommittedBundle<KV<String, Integer>> newBundle =
-        bundleFactory
-            .createBundle(bundleFactory.createRootBundle(created).commit(Instant.now()), downstream)
-            .commit(Instant.now());
+        bundleFactory.createBundle(bundleFactory.createRootBundle().commit(Instant.now()),
+            downstream).commit(Instant.now());
+    assertThat(newBundle.getKey().getKey(), nullValue());
   }
 
   @Test
@@ -220,7 +215,7 @@ public class ImmutableListBundleFactoryTest {
   @Test
   public void createKeyedBundleKeyed() {
     CommittedBundle<KV<String, Integer>> keyedBundle = bundleFactory.createKeyedBundle(
-        bundleFactory.createRootBundle(created).commit(Instant.now()),
+        bundleFactory.createRootBundle().commit(Instant.now()),
         StructuralKey.of("foo", StringUtf8Coder.of()),
         downstream).commit(Instant.now());
     assertThat(keyedBundle.getKey().getKey(), Matchers.<Object>equalTo("foo"));

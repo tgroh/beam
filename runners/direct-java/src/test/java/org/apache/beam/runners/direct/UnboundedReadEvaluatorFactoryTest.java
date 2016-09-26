@@ -20,14 +20,15 @@ package org.apache.beam.runners.direct;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.google.common.base.Function;
 import com.google.common.collect.ContiguousSet;
 import com.google.common.collect.DiscreteDomain;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Range;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,6 +39,8 @@ import java.util.NoSuchElementException;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
+import org.apache.beam.runners.direct.UnboundedReadEvaluatorFactory.UnboundedReadEvaluator;
+import org.apache.beam.runners.direct.UnboundedReadEvaluatorFactory.UnboundedSourceShard;
 import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.BigEndianLongCoder;
 import org.apache.beam.sdk.coders.Coder;
@@ -59,86 +62,113 @@ import org.joda.time.DateTime;
 import org.joda.time.Instant;
 import org.joda.time.ReadableInstant;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
-/**
- * Tests for {@link UnboundedReadEvaluatorFactory}.
- */
+/** Tests for {@link UnboundedReadEvaluatorFactory}. */
 @RunWith(JUnit4.class)
 public class UnboundedReadEvaluatorFactoryTest {
+  private static final Function<Long, WindowedValue<Long>> TO_WINDOWED_VAL =
+      new Function<Long, WindowedValue<Long>>() {
+        @Override
+        public WindowedValue<Long> apply(Long input) {
+          return tgw(input);
+        }
+      };
+  UnboundedSource<Long, ?> source;
   private PCollection<Long> longs;
   private UnboundedReadEvaluatorFactory factory;
   private EvaluationContext context;
-  private UncommittedBundle<Long> output;
 
   private BundleFactory bundleFactory = ImmutableListBundleFactory.create();
 
   @Before
   public void setup() {
-    UnboundedSource<Long, ?> source =
-        CountingSource.unboundedWithTimestampFn(new LongToInstantFn());
     TestPipeline p = TestPipeline.create();
+    source = CountingSource.unboundedWithTimestampFn(new LongToInstantFn());
     longs = p.apply(Read.from(source));
 
     context = mock(EvaluationContext.class);
     factory = new UnboundedReadEvaluatorFactory(context);
     factory.getInitialInputs(longs.getProducingTransformInternal());
-    output = bundleFactory.createRootBundle(longs);
-    when(context.createRootBundle(longs)).thenReturn(output);
   }
 
   @Test
   public void unboundedSourceInMemoryTransformEvaluatorProducesElements() throws Exception {
-    TransformEvaluator<?> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null);
+    WindowedValue<UnboundedSourceShard<Long, ?>> windowedShard =
+        (WindowedValue) WindowedValue.valueInGlobalWindow(UnboundedSourceShard.unstarted(source));
+    CommittedBundle<UnboundedSourceShard<Long, ?>> root =
+        bundleFactory
+            .<UnboundedSourceShard<Long, ?>>createRootBundle()
+            .add(windowedShard)
+            .commit(Instant.now());
+    TransformEvaluator<UnboundedSourceShard<Long, ?>> evaluator =
+        factory.forApplication(longs.getProducingTransformInternal(), root);
 
+    evaluator.processElement(windowedShard);
     TransformResult result = evaluator.finishBundle();
+
     assertThat(
         result.getWatermarkHold(), Matchers.<ReadableInstant>lessThan(DateTime.now().toInstant()));
-    assertThat(
-        output.commit(Instant.now()).getElements(),
-        containsInAnyOrder(
-            tgw(1L), tgw(2L), tgw(4L), tgw(8L), tgw(9L), tgw(7L), tgw(6L), tgw(5L), tgw(3L),
-            tgw(0L)));
+    CommittedBundle<Long> output =
+        (CommittedBundle<Long>)
+            Iterables.getOnlyElement(result.getOutputBundles()).commit(Instant.now());
+    Range<Long> expectedRange = Range.closedOpen(0L, UnboundedReadEvaluator.ARBITRARY_MAX_ELEMENTS);
+    Iterable<WindowedValue<Long>> expectedOutput = toWindowedValues(expectedRange);
+    Iterable<WindowedValue<Long>> elems = output.getElements();
+    assertThat(elems, containsInAnyOrder(ImmutableList.copyOf(expectedOutput).toArray()));
   }
 
   /**
-   * Demonstrate that multiple sequential creations will produce additional elements if the source
-   * can provide them.
+   * Demonstrate that the contents of the unprocessed elements permits the evaluator to resume from
+   * that point.
    */
   @Test
-  public void unboundedSourceInMemoryTransformEvaluatorMultipleSequentialCalls() throws Exception {
-    TransformEvaluator<?> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null);
+  public void unboundedSourceInMemoryTransformEvaluatorCallWithUnprocessedOfPrevious()
+      throws Exception {
+    WindowedValue<UnboundedSourceShard<Long, ?>> windowedShard =
+        (WindowedValue) WindowedValue.valueInGlobalWindow(UnboundedSourceShard.unstarted(source));
+    CommittedBundle<UnboundedSourceShard<Long, ?>> root =
+        bundleFactory
+            .<UnboundedSourceShard<Long, ?>>createRootBundle()
+            .add(windowedShard)
+            .commit(Instant.now());
+    TransformEvaluator<UnboundedSourceShard<Long, ?>> evaluator =
+        factory.forApplication(longs.getProducingTransformInternal(), root);
 
+    evaluator.processElement(windowedShard);
     TransformResult result = evaluator.finishBundle();
-    assertThat(
-        result.getWatermarkHold(), Matchers.<ReadableInstant>lessThan(DateTime.now().toInstant()));
-    assertThat(
-        output.commit(Instant.now()).getElements(),
-        containsInAnyOrder(
-            tgw(1L), tgw(2L), tgw(4L), tgw(8L), tgw(9L), tgw(7L), tgw(6L), tgw(5L), tgw(3L),
-            tgw(0L)));
+    assertThat(result.getWatermarkHold(), Matchers.<ReadableInstant>lessThan(Instant.now()));
+    WindowedValue<UnboundedSourceShard<Long, ?>> windowedShardCheckpoint =
+        (WindowedValue<UnboundedSourceShard<Long, ?>>)
+            Iterables.getOnlyElement(result.getUnprocessedElements());
 
-    UncommittedBundle<Long> secondOutput = bundleFactory.createRootBundle(longs);
-    when(context.createRootBundle(longs)).thenReturn(secondOutput);
-    TransformEvaluator<?> secondEvaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null);
+    CommittedBundle<UnboundedSourceShard<Long, ?>> secondRoot =
+        bundleFactory
+            .<UnboundedSourceShard<Long, ?>>createRootBundle()
+            .add(windowedShardCheckpoint)
+            .commit(Instant.now());
+    UncommittedBundle<Long> secondOutput = bundleFactory.createBundle(secondRoot, longs);
+    when(context.createBundle(secondRoot, longs)).thenReturn(secondOutput);
+    TransformEvaluator<UnboundedSourceShard<Long, ?>> secondEvaluator =
+        factory.forApplication(longs.getProducingTransformInternal(), secondRoot);
+    secondEvaluator.processElement(windowedShardCheckpoint);
     TransformResult secondResult = secondEvaluator.finishBundle();
     assertThat(
         secondResult.getWatermarkHold(),
-        Matchers.<ReadableInstant>lessThan(DateTime.now().toInstant()));
+        Matchers.<ReadableInstant>lessThan(Instant.now()));
+    Range<Long> expectedRange = Range.closedOpen(UnboundedReadEvaluator.ARBITRARY_MAX_ELEMENTS,
+        2 * UnboundedReadEvaluator.ARBITRARY_MAX_ELEMENTS);
     assertThat(
         secondOutput.commit(Instant.now()).getElements(),
-        containsInAnyOrder(tgw(11L), tgw(12L), tgw(14L), tgw(18L), tgw(19L), tgw(17L), tgw(16L),
-            tgw(15L), tgw(13L), tgw(10L)));
+        containsInAnyOrder(ImmutableList.copyOf(toWindowedValues(expectedRange)).toArray()));
   }
 
   @Test
   public void unboundedSourceWithDuplicatesMultipleCalls() throws Exception {
-    Long[] outputs = new Long[20];
-    for (long i = 0L; i < 20L; i++) {
+    Long[] outputs = new Long[500];
+    for (long i = 0L; i < outputs.length; i++) {
       outputs[(int) i] = i % 5L;
     }
     TestUnboundedSource<Long> source =
@@ -150,18 +180,34 @@ public class UnboundedReadEvaluatorFactoryTest {
     AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
     factory.getInitialInputs(sourceTransform);
 
-    UncommittedBundle<Long> output = bundleFactory.createRootBundle(pcollection);
-    when(context.createRootBundle(pcollection)).thenReturn(output);
-    TransformEvaluator<?> evaluator = factory.forApplication(sourceTransform, null);
+    WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>> firstShard =
+        WindowedValue.valueInGlobalWindow(UnboundedSourceShard.unstarted(source));
+    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>> firstRoot =
+        bundleFactory
+            .<UnboundedSourceShard<Long, TestCheckpointMark>>createRootBundle()
+            .add(firstShard)
+            .commit(Instant.now());
+    UncommittedBundle<Long> output = bundleFactory.createBundle(firstRoot, pcollection);
+    when(context.createBundle(firstRoot, pcollection)).thenReturn(output);
+    TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> evaluator =
+        factory.forApplication(sourceTransform, firstRoot);
 
-    evaluator.finishBundle();
+    evaluator.processElement(firstShard);
+    TransformResult firstResult = evaluator.finishBundle();
     assertThat(
         output.commit(Instant.now()).getElements(),
         containsInAnyOrder(tgw(1L), tgw(2L), tgw(4L), tgw(3L), tgw(0L)));
 
-    UncommittedBundle<Long> secondOutput = bundleFactory.createRootBundle(longs);
-    when(context.createRootBundle(longs)).thenReturn(secondOutput);
-    TransformEvaluator<?> secondEvaluator = factory.forApplication(sourceTransform, null);
+    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>> secondRoot =
+        firstRoot.withElements(
+            (Iterable<WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>>>)
+                firstResult.getUnprocessedElements());
+    UncommittedBundle<Long> secondOutput = bundleFactory.createBundle(secondRoot, longs);
+    when(context.createBundle(secondRoot, longs)).thenReturn(secondOutput);
+    TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> secondEvaluator =
+        factory.forApplication(sourceTransform, secondRoot);
+
+    secondEvaluator.processElement(Iterables.getOnlyElement(secondRoot.getElements()));
     secondEvaluator.finishBundle();
     assertThat(
         secondOutput.commit(Instant.now()).getElements(),
@@ -169,30 +215,8 @@ public class UnboundedReadEvaluatorFactoryTest {
   }
 
   @Test
-  public void evaluatorClosesReaderAfterOutputCount() throws Exception {
-    ContiguousSet<Long> elems = ContiguousSet.create(
-        Range.closed(0L, 20L * UnboundedReadEvaluatorFactory.MAX_READER_REUSE_COUNT),
-        DiscreteDomain.longs());
-    TestUnboundedSource<Long> source =
-        new TestUnboundedSource<>(BigEndianLongCoder.of(), elems.toArray(new Long[0]));
-
-    TestPipeline p = TestPipeline.create();
-    PCollection<Long> pcollection = p.apply(Read.from(source));
-    AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
-    factory.getInitialInputs(sourceTransform);
-
-    UncommittedBundle<Long> output = bundleFactory.createRootBundle(pcollection);
-    when(context.createRootBundle(pcollection)).thenReturn(output);
-
-    for (int i = 0; i < UnboundedReadEvaluatorFactory.MAX_READER_REUSE_COUNT + 1; i++) {
-      TransformEvaluator<?> evaluator = factory.forApplication(sourceTransform, null);
-      evaluator.finishBundle();
-    }
-    assertThat(TestUnboundedSource.readerClosedCount, equalTo(1));
-  }
-
-  @Test
-  public void evaluatorReusesReaderBeforeCount() throws Exception {
+  @Ignore("Make many readers so reuse is probability > 99.99% that reuse occurs. Calculate that")
+  public void evaluatorReusesAndClosesReader() throws Exception {
     TestUnboundedSource<Long> source =
         new TestUnboundedSource<>(BigEndianLongCoder.of(), 1L, 2L, 3L);
 
@@ -201,8 +225,12 @@ public class UnboundedReadEvaluatorFactoryTest {
     AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
     factory.getInitialInputs(sourceTransform);
 
-    UncommittedBundle<Long> output = bundleFactory.createRootBundle(pcollection);
-    when(context.createRootBundle(pcollection)).thenReturn(output);
+    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>> root =
+        bundleFactory.<UnboundedSourceShard<Long, TestCheckpointMark>>createRootBundle().add(
+            WindowedValue.valueInGlobalWindow(UnboundedSourceShard.unstarted(source)))
+            .commit(Instant.now());
+    UncommittedBundle<Long> output = bundleFactory.createBundle(root, pcollection);
+    when(context.createBundle(root, pcollection)).thenReturn(output);
 
     TransformEvaluator<?> evaluator = factory.forApplication(sourceTransform, null);
     evaluator.finishBundle();
@@ -216,53 +244,6 @@ public class UnboundedReadEvaluatorFactoryTest {
     assertThat(TestUnboundedSource.readerClosedCount, equalTo(0));
     // Tried to advance again, even with no elements
     assertThat(TestUnboundedSource.readerAdvancedCount, equalTo(5));
-  }
-
-  @Test
-  public void evaluatorNoElementsReusesReaderAlways() throws Exception {
-    TestUnboundedSource<Long> source = new TestUnboundedSource<>(BigEndianLongCoder.of());
-
-    TestPipeline p = TestPipeline.create();
-    PCollection<Long> pcollection = p.apply(Read.from(source));
-    AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
-    factory.getInitialInputs(sourceTransform);
-
-    UncommittedBundle<Long> output = bundleFactory.createRootBundle(pcollection);
-    when(context.createRootBundle(pcollection)).thenReturn(output);
-
-    for (int i = 0; i < 2 * UnboundedReadEvaluatorFactory.MAX_READER_REUSE_COUNT; i++) {
-      TransformEvaluator<?> evaluator = factory.forApplication(sourceTransform, null);
-      evaluator.finishBundle();
-    }
-    assertThat(TestUnboundedSource.readerClosedCount, equalTo(0));
-    assertThat(TestUnboundedSource.readerAdvancedCount,
-        equalTo(2 * UnboundedReadEvaluatorFactory.MAX_READER_REUSE_COUNT));
-  }
-
-  // TODO: Once the source is split into multiple sources before evaluating, this test will have to
-  // be updated.
-  /**
-   * Demonstrate that only a single unfinished instance of TransformEvaluator can be created at a
-   * time, with other calls returning an empty evaluator.
-   */
-  @Test
-  public void unboundedSourceWithMultipleSimultaneousEvaluatorsIndependent() throws Exception {
-    TransformEvaluator<?> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null);
-
-    TransformEvaluator<?> secondEvaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), null);
-
-    assertThat(secondEvaluator, nullValue());
-    TransformResult result = evaluator.finishBundle();
-
-    assertThat(
-        result.getWatermarkHold(), Matchers.<ReadableInstant>lessThan(DateTime.now().toInstant()));
-    assertThat(
-        output.commit(Instant.now()).getElements(),
-        containsInAnyOrder(
-            tgw(1L), tgw(2L), tgw(4L), tgw(8L), tgw(9L), tgw(7L), tgw(6L), tgw(5L), tgw(3L),
-            tgw(0L)));
   }
 
   /**
@@ -411,4 +392,10 @@ public class UnboundedReadEvaluatorFactoryTest {
       }
     }
   }
+
+  private Iterable<WindowedValue<Long>> toWindowedValues(Range<Long> expectedRange) {
+    ContiguousSet<Long> contiguous = ContiguousSet.create(expectedRange, DiscreteDomain.longs());
+    return Iterables.transform(contiguous, TO_WINDOWED_VAL);
+  }
+
 }

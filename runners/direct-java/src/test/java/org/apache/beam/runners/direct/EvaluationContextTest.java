@@ -91,6 +91,7 @@ public class EvaluationContextTest {
   private Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers;
 
   private BundleFactory bundleFactory;
+  private CommittedBundle<Object> root;
 
   @Before
   public void setup() {
@@ -110,6 +111,7 @@ public class EvaluationContextTest {
     valueToConsumers = cVis.getValueToConsumers();
 
     bundleFactory = ImmutableListBundleFactory.create();
+    root = bundleFactory.createRootBundle().commit(Instant.now());
 
     context =
         EvaluationContext.create(
@@ -264,7 +266,7 @@ public class EvaluationContextTest {
             .withAggregatorChanges(mutatorAgain)
             .build();
     context.handleResult(
-        context.createRootBundle(created).commit(Instant.now()),
+        context.createBundle(root, created).commit(Instant.now()),
         ImmutableList.<TimerData>of(),
         secondResult);
     assertThat((Long) context.getAggregatorContainer().getAggregate("STEP", "foo"), equalTo(16L));
@@ -422,7 +424,7 @@ public class EvaluationContextTest {
     StructuralKey<String> key = StructuralKey.of("foo", StringUtf8Coder.of());
     CommittedBundle<KV<String, Integer>> keyedBundle =
         context.createKeyedBundle(
-            bundleFactory.createRootBundle(created).commit(Instant.now()),
+            bundleFactory.createBundle(root, created).commit(Instant.now()),
             key,
             downstream).commit(Instant.now());
     assertThat(keyedBundle.getKey(),
@@ -472,7 +474,7 @@ public class EvaluationContextTest {
     context.getPipelineOptions().setShutdownUnboundedProducersWithMaxWatermark(true);
     assertThat(context.isDone(), is(false));
 
-    UncommittedBundle<Integer> rootBundle = context.createRootBundle(created);
+    UncommittedBundle<Integer> rootBundle = context.createBundle(root, created);
     rootBundle.add(WindowedValue.valueInGlobalWindow(1));
     CommittedResult handleResult =
         context.handleResult(
@@ -514,14 +516,14 @@ public class EvaluationContextTest {
         ImmutableList.<TimerData>of(),
         StepTransformResult.withoutHold(unbounded.getProducingTransformInternal()).build());
     context.handleResult(
-        context.createRootBundle(created).commit(Instant.now()),
+        context.createBundle(root, created).commit(Instant.now()),
         ImmutableList.<TimerData>of(),
         StepTransformResult.withoutHold(downstream.getProducingTransformInternal()).build());
     context.extractFiredTimers();
     assertThat(context.isDone(), is(false));
 
     context.handleResult(
-        context.createRootBundle(created).commit(Instant.now()),
+        context.createBundle(root, created).commit(Instant.now()),
         ImmutableList.<TimerData>of(),
         StepTransformResult.withoutHold(view.getProducingTransformInternal()).build());
     context.extractFiredTimers();

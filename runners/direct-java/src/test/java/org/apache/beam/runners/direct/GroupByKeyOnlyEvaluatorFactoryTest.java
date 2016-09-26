@@ -52,6 +52,7 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class GroupByKeyOnlyEvaluatorFactoryTest {
   private BundleFactory bundleFactory = ImmutableListBundleFactory.create();
+  private CommittedBundle<?> root = bundleFactory.createRootBundle().commit(Instant.now());
 
   @Test
   public void testInMemoryEvaluator() throws Exception {
@@ -70,7 +71,7 @@ public class GroupByKeyOnlyEvaluatorFactoryTest {
         kvs.apply(new DirectGroupByKeyOnly<String, Integer>());
 
     CommittedBundle<KV<String, WindowedValue<Integer>>> inputBundle =
-        bundleFactory.createRootBundle(kvs).commit(Instant.now());
+        bundleFactory.createBundle(root, kvs).commit(Instant.now());
     EvaluationContext evaluationContext = mock(EvaluationContext.class);
 
     StructuralKey<String> fooKey = StructuralKey.of("foo", StringUtf8Coder.of());

@@ -67,6 +67,7 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class ParDoMultiEvaluatorFactoryTest implements Serializable {
   private transient BundleFactory bundleFactory = ImmutableListBundleFactory.create();
+  private CommittedBundle<?> root = bundleFactory.createRootBundle().commit(Instant.now());
 
   @Test
   public void testParDoMultiInMemoryTransformEvaluator() throws Exception {
@@ -92,7 +93,7 @@ public class ParDoMultiEvaluatorFactoryTest implements Serializable {
     PCollectionTuple outputTuple = input.apply(pardo);
 
     CommittedBundle<String> inputBundle =
-        bundleFactory.createRootBundle(input).commit(Instant.now());
+        bundleFactory.createBundle(root, input).commit(Instant.now());
 
     PCollection<KV<String, Integer>> mainOutput = outputTuple.get(mainOutputTag);
     PCollection<String> elementOutput = outputTuple.get(elementTag);
@@ -100,9 +101,9 @@ public class ParDoMultiEvaluatorFactoryTest implements Serializable {
 
     EvaluationContext evaluationContext = mock(EvaluationContext.class);
     UncommittedBundle<KV<String, Integer>> mainOutputBundle =
-        bundleFactory.createRootBundle(mainOutput);
-    UncommittedBundle<String> elementOutputBundle = bundleFactory.createRootBundle(elementOutput);
-    UncommittedBundle<Integer> lengthOutputBundle = bundleFactory.createRootBundle(lengthOutput);
+        bundleFactory.createBundle(root, mainOutput);
+    UncommittedBundle<String> elementOutputBundle = bundleFactory.createBundle(root, elementOutput);
+    UncommittedBundle<Integer> lengthOutputBundle = bundleFactory.createBundle(root, lengthOutput);
 
     when(evaluationContext.createBundle(inputBundle, mainOutput)).thenReturn(mainOutputBundle);
     when(evaluationContext.createBundle(inputBundle, elementOutput))
@@ -182,15 +183,15 @@ public class ParDoMultiEvaluatorFactoryTest implements Serializable {
     PCollectionTuple outputTuple = input.apply(pardo);
 
     CommittedBundle<String> inputBundle =
-        bundleFactory.createRootBundle(input).commit(Instant.now());
+        bundleFactory.createBundle(root, input).commit(Instant.now());
 
     PCollection<KV<String, Integer>> mainOutput = outputTuple.get(mainOutputTag);
     PCollection<String> elementOutput = outputTuple.get(elementTag);
 
     EvaluationContext evaluationContext = mock(EvaluationContext.class);
     UncommittedBundle<KV<String, Integer>> mainOutputBundle =
-        bundleFactory.createRootBundle(mainOutput);
-    UncommittedBundle<String> elementOutputBundle = bundleFactory.createRootBundle(elementOutput);
+        bundleFactory.createBundle(root, mainOutput);
+    UncommittedBundle<String> elementOutputBundle = bundleFactory.createBundle(root, elementOutput);
 
     when(evaluationContext.createBundle(inputBundle, mainOutput)).thenReturn(mainOutputBundle);
     when(evaluationContext.createBundle(inputBundle, elementOutput))
@@ -274,15 +275,15 @@ public class ParDoMultiEvaluatorFactoryTest implements Serializable {
     PCollectionTuple outputTuple = input.apply(pardo);
 
     CommittedBundle<String> inputBundle =
-        bundleFactory.createRootBundle(input).commit(Instant.now());
+        bundleFactory.createBundle(root, input).commit(Instant.now());
 
     PCollection<KV<String, Integer>> mainOutput = outputTuple.get(mainOutputTag);
     PCollection<String> elementOutput = outputTuple.get(elementTag);
 
     EvaluationContext evaluationContext = mock(EvaluationContext.class);
     UncommittedBundle<KV<String, Integer>> mainOutputBundle =
-        bundleFactory.createRootBundle(mainOutput);
-    UncommittedBundle<String> elementOutputBundle = bundleFactory.createRootBundle(elementOutput);
+        bundleFactory.createBundle(root, mainOutput);
+    UncommittedBundle<String> elementOutputBundle = bundleFactory.createBundle(root, elementOutput);
 
     when(evaluationContext.createBundle(inputBundle, mainOutput)).thenReturn(mainOutputBundle);
     when(evaluationContext.createBundle(inputBundle, elementOutput))
@@ -388,15 +389,15 @@ public class ParDoMultiEvaluatorFactoryTest implements Serializable {
     PCollectionTuple outputTuple = input.apply(pardo);
 
     CommittedBundle<String> inputBundle =
-        bundleFactory.createRootBundle(input).commit(Instant.now());
+        bundleFactory.createBundle(root, input).commit(Instant.now());
 
     PCollection<KV<String, Integer>> mainOutput = outputTuple.get(mainOutputTag);
     PCollection<String> elementOutput = outputTuple.get(elementTag);
 
     EvaluationContext evaluationContext = mock(EvaluationContext.class);
     UncommittedBundle<KV<String, Integer>> mainOutputBundle =
-        bundleFactory.createRootBundle(mainOutput);
-    UncommittedBundle<String> elementOutputBundle = bundleFactory.createRootBundle(elementOutput);
+        bundleFactory.createBundle(root, mainOutput);
+    UncommittedBundle<String> elementOutputBundle = bundleFactory.createBundle(root, elementOutput);
 
     when(evaluationContext.createBundle(inputBundle, mainOutput)).thenReturn(mainOutputBundle);
     when(evaluationContext.createBundle(inputBundle, elementOutput))
