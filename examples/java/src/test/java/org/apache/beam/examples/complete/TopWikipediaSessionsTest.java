@@ -56,6 +56,8 @@ public class TopWikipediaSessionsTest {
         "user3 : [1970-02-05T00:00:00.000Z..1970-02-05T01:00:00.000Z)"
         + " : 1 : 1970-02-01T00:00:00.000Z"));
 
-    p.run();
+    for (int i = 0; i < 25000; i++) {
+      p.run();
+    }
   }
 }

@@ -18,6 +18,7 @@
 package org.apache.beam.runners.direct;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -29,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.CommittedResult.OutputType;
 import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupByKeyOnly;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
@@ -156,7 +156,7 @@ class EvaluationContext {
    * @return the committed bundles contained within the handled {@code result}
    */
   public CommittedResult handleResult(
-      @Nullable CommittedBundle<?> completedBundle,
+      CommittedBundle<?> completedBundle,
       Iterable<TimerData> completedTimers,
       TransformResult result) {
     Iterable<? extends CommittedBundle<?>> committedBundles =
@@ -168,17 +168,12 @@ class EvaluationContext {
     } else {
       outputTypes.add(OutputType.BUNDLE);
     }
-    CommittedResult committedResult = CommittedResult.create(result,
-        completedBundle == null
-            ? null
-            : completedBundle.withElements((Iterable) result.getUnprocessedElements()),
-        committedBundles,
-        outputTypes);
-    watermarkManager.updateWatermarks(
-        completedBundle,
-        result.getTimerUpdate().withCompletedTimers(completedTimers),
-        committedResult,
-        result.getWatermarkHold());
+    CommittedResult committedResult =
+        CommittedResult.create(
+            result,
+            completedBundle.withElements((Iterable) result.getUnprocessedElements()),
+            committedBundles,
+            outputTypes);
     // Commit aggregator changes
     if (result.getAggregatorChanges() != null) {
       result.getAggregatorChanges().commit();
@@ -189,13 +184,21 @@ class EvaluationContext {
       CopyOnAccessInMemoryStateInternals<?> committedState = theirState.commit();
       StepAndKey stepAndKey =
           StepAndKey.of(
-              result.getTransform(), completedBundle == null ? null : completedBundle.getKey());
+              result.getTransform(), completedBundle.getKey());
       if (!committedState.isEmpty()) {
         applicationStateInternals.put(stepAndKey, committedState);
       } else {
         applicationStateInternals.remove(stepAndKey);
       }
     }
+    if (!result.getTransform().getFullName().contains("PAssert")) {
+      checkState(theirState != null || committedBundles.iterator().hasNext());
+    }
+    watermarkManager.updateWatermarks(
+        completedBundle,
+        result.getTimerUpdate().withCompletedTimers(completedTimers),
+        committedResult,
+        result.getWatermarkHold());
     return committedResult;
   }
 
@@ -439,5 +442,9 @@ class EvaluationContext {
 
   Clock getClock() {
     return clock;
+  }
+
+  public void addPendingTimers(AppliedPTransform<?, ?, ?> transform, CommittedBundle<?> bundle) {
+    watermarkManager.addAdditionalPending(transform, bundle);
   }
 }

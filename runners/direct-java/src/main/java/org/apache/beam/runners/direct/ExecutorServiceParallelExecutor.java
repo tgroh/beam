@@ -453,13 +453,15 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
               }
               KeyedWorkItem<?, Object> work =
                   KeyedWorkItems.timersWorkItem(keyTimers.getKey().getKey(), delivery);
-              LOG.warn("Delivering {} timers for {}", delivery.size(), keyTimers.getKey().getKey());
+              LOG.debug(
+                  "Delivering {} timers for key {}", delivery.size(), keyTimers.getKey().getKey());
               @SuppressWarnings({"unchecked", "rawtypes"})
               CommittedBundle<?> bundle =
                   evaluationContext
                       .createKeyedBundle(keyTimers.getKey(), (PCollection) transform.getInput())
-                      .add(WindowedValue.valueInEmptyWindows(work))
+                      .add(WindowedValue.valueInGlobalWindow(work))
                       .commit(evaluationContext.now());
+              evaluationContext.addPendingTimers(transform, bundle);
               scheduleConsumption(transform, bundle, new TimerIterableCompletionCallback(delivery));
               state.set(ExecutorState.ACTIVE);
             }

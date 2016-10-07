@@ -59,6 +59,8 @@ import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PValue;
 import org.joda.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Manages watermarks of {@link PCollection PCollections} and input and output watermarks of
@@ -123,6 +125,7 @@ import org.joda.time.Instant;
  * </pre>
  */
 public class WatermarkManager {
+  private static final Logger LOG = LoggerFactory.getLogger(WatermarkManager.class);
   /**
    * The watermark of some {@link Pipeline} element, usually a {@link PTransform} or a
    * {@link PCollection}.
@@ -210,7 +213,9 @@ public class WatermarkManager {
 
     public AppliedPTransformInputWatermark(Collection<? extends Watermark> inputWatermarks) {
       this.inputWatermarks = inputWatermarks;
-      this.pendingElements = TreeMultiset.create(new WindowedValueByTimestampComparator());
+      this.pendingElements =
+          TreeMultiset.create(
+              new WindowedValueByTimestampComparator().compound(Ordering.usingToString()));
       this.objectTimers = new HashMap<>();
       currentWatermark = new AtomicReference<>(BoundedWindow.TIMESTAMP_MIN_VALUE);
     }
@@ -804,11 +809,15 @@ public class WatermarkManager {
       Map<AppliedPTransform<?, ?, ?>, ? extends Iterable<CommittedBundle<?>>> initialBundles) {
     for (Map.Entry<AppliedPTransform<?, ?, ?>, ? extends Iterable<CommittedBundle<?>>> rootEntry :
         initialBundles.entrySet()) {
-      TransformWatermarks rootWms = transformToWatermarks.get(rootEntry.getKey());
       for (CommittedBundle<?> initialBundle : rootEntry.getValue()) {
-        rootWms.addPending(initialBundle);
+        addAdditionalPending(rootEntry.getKey(), initialBundle);
       }
     }
+  }
+
+  public void addAdditionalPending(
+      AppliedPTransform<?, ?, ?> transform, CommittedBundle<?> additionalInputs) {
+    transformToWatermarks.get(transform).addPending(additionalInputs);
   }
 
   /**
@@ -832,7 +841,7 @@ public class WatermarkManager {
    *                     is no hold
    */
   public void updateWatermarks(
-      @Nullable CommittedBundle<?> completed,
+      CommittedBundle<?> completed,
       TimerUpdate timerUpdate,
       CommittedResult result,
       Instant earliestHold) {
@@ -865,8 +874,7 @@ public class WatermarkManager {
     updatePending(inputBundle, pending.getTimerUpdate(), result);
 
     TransformWatermarks transformWms = transformToWatermarks.get(transform);
-    transformWms.setEventTimeHold(inputBundle == null ? null : inputBundle.getKey(),
-        pending.getEarliestHold());
+    transformWms.setEventTimeHold(inputBundle.getKey(), pending.getEarliestHold());
   }
 
   /**

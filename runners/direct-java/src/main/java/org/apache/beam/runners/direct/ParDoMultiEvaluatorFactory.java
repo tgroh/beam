@@ -84,9 +84,7 @@ class ParDoMultiEvaluatorFactory implements TransformEvaluatorFactory {
       TransformEvaluator<InT> parDoEvaluator =
           ParDoEvaluator.create(
               evaluationContext,
-              stepContext,
-              inputBundle,
-              application,
+              stepContext, application,
               (OldDoFn) fnLocal.get(),
               application.getTransform().getSideInputs(),
               application.getTransform().getMainOutputTag(),
