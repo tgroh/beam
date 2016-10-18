@@ -49,6 +49,7 @@ import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.BigEndianLongCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
+import org.apache.beam.sdk.io.CountingInput;
 import org.apache.beam.sdk.io.CountingSource;
 import org.apache.beam.sdk.io.Read;
 import org.apache.beam.sdk.io.UnboundedSource;
@@ -66,6 +67,7 @@ import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollection;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
+import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.joda.time.ReadableInstant;
 import org.junit.Before;
@@ -221,6 +223,50 @@ public class UnboundedReadEvaluatorFactoryTest {
     assertThat(
         secondOutput.commit(Instant.now()).getElements(),
         Matchers.<WindowedValue<Long>>emptyIterable());
+  }
+
+  @Test
+  public void noElementsAvailableReaderIncludedInResidual() throws Exception {
+    TestPipeline p = TestPipeline.create();
+    // Read with a very slow rate so by the second read there are no more elements
+    PCollection<Long> pcollection =
+        p.apply(CountingInput.unbounded().withRate(1L, Duration.standardDays(1)));
+    AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
+
+    when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
+    Collection<CommittedBundle<?>> initialInputs =
+        new UnboundedReadEvaluatorFactory.InputProvider(context)
+            .getInitialInputs(sourceTransform, 1);
+
+    UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
+    when(context.createBundle(pcollection)).thenReturn(output);
+    CommittedBundle<?> inputBundle = Iterables.getOnlyElement(initialInputs);
+    TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> evaluator =
+        factory.forApplication(sourceTransform, inputBundle);
+
+    for (WindowedValue<?> value : inputBundle.getElements()) {
+      evaluator.processElement(
+          (WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>>) value);
+    }
+    TransformResult result = evaluator.finishBundle();
+
+    UncommittedBundle<Long> secondOutput = bundleFactory.createBundle(longs);
+    when(context.createBundle(longs)).thenReturn(secondOutput);
+    TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> secondEvaluator =
+        factory.forApplication(sourceTransform, inputBundle);
+    WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>> residual =
+        (WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>>)
+            Iterables.getOnlyElement(result.getUnprocessedElements());
+    secondEvaluator.processElement(residual);
+    TransformResult secondResult = secondEvaluator.finishBundle();
+    assertThat(
+        secondOutput.commit(Instant.now()).getElements(),
+        Matchers.<WindowedValue<Long>>emptyIterable());
+
+    UnboundedSourceShard<Long, TestCheckpointMark> residualShard =
+        (UnboundedSourceShard<Long, TestCheckpointMark>)
+            Iterables.getOnlyElement(secondResult.getUnprocessedElements()).getValue();
+    assertThat(residualShard.getExistingReader(), not(nullValue()));
   }
 
   @Test
