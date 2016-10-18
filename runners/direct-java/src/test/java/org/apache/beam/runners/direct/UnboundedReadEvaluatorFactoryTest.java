@@ -238,18 +238,20 @@ public class UnboundedReadEvaluatorFactoryTest {
         new UnboundedReadEvaluatorFactory.InputProvider(context)
             .getInitialInputs(sourceTransform, 1);
 
-    UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
-    when(context.createBundle(pcollection)).thenReturn(output);
+    // Process the initial shard. This might produce some output, and will produce a residual shard
+    // which should produce no output when read from within the following day.
+    when(context.createBundle(pcollection)).thenReturn(bundleFactory.createBundle(pcollection));
     CommittedBundle<?> inputBundle = Iterables.getOnlyElement(initialInputs);
     TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> evaluator =
         factory.forApplication(sourceTransform, inputBundle);
-
     for (WindowedValue<?> value : inputBundle.getElements()) {
       evaluator.processElement(
           (WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>>) value);
     }
     TransformResult result = evaluator.finishBundle();
 
+    // Read from the residual of the first read. This should not produce any output, but should
+    // include a residual shard in the result.
     UncommittedBundle<Long> secondOutput = bundleFactory.createBundle(longs);
     when(context.createBundle(longs)).thenReturn(secondOutput);
     TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> secondEvaluator =
@@ -259,10 +261,14 @@ public class UnboundedReadEvaluatorFactoryTest {
             Iterables.getOnlyElement(result.getUnprocessedElements());
     secondEvaluator.processElement(residual);
     TransformResult secondResult = secondEvaluator.finishBundle();
+
+    // Sanity check that nothing was output (The test would have to run for more than a day to do
+    // so correctly.)
     assertThat(
         secondOutput.commit(Instant.now()).getElements(),
         Matchers.<WindowedValue<Long>>emptyIterable());
 
+    // Test that even though the reader produced no outputs, there is still a residual shard.
     UnboundedSourceShard<Long, TestCheckpointMark> residualShard =
         (UnboundedSourceShard<Long, TestCheckpointMark>)
             Iterables.getOnlyElement(secondResult.getUnprocessedElements()).getValue();
