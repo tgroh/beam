@@ -29,7 +29,8 @@ import org.apache.beam.sdk.values.PCollection;
 import org.joda.time.Instant;
 
 /**
- * A {@link BundleFactory} that clones all elements added to it.
+ * A {@link BundleFactory} where a created {@link UncommittedBundle} clones all elements added to it
+ * using the coder of the {@link PCollection}.
  */
 class CloningBundleFactory implements BundleFactory {
   private static final CloningBundleFactory INSTANCE = new CloningBundleFactory();
@@ -45,6 +46,7 @@ class CloningBundleFactory implements BundleFactory {
 
   @Override
   public <T> UncommittedBundle<T> createRootBundle() {
+    // The DirectRunner is responsible for these elements, but they need not be encodable.
     return underlying.createRootBundle();
   }
 
