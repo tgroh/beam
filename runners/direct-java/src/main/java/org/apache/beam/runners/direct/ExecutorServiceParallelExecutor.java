@@ -316,14 +316,24 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
       return new AutoValue_ExecutorServiceParallelExecutor_ExecutorUpdate(
           Optional.of(bundle),
           consumers,
-          Optional.<Exception>absent());
+          Optional.<Exception>absent(),
+          Optional.<State>absent());
     }
 
     public static ExecutorUpdate fromException(Exception e) {
       return new AutoValue_ExecutorServiceParallelExecutor_ExecutorUpdate(
           Optional.<CommittedBundle<?>>absent(),
           Collections.<AppliedPTransform<?, ?, ?>>emptyList(),
-          Optional.of(e));
+          Optional.of(e),
+          Optional.<State>absent());
+    }
+
+    public static ExecutorUpdate cancel() {
+      return new AutoValue_ExecutorServiceParallelExecutor_ExecutorUpdate(
+          Optional.<CommittedBundle<?>>absent(),
+          Collections.<AppliedPTransform<?, ?, ?>>emptyList(),
+          Optional.<Exception>absent(),
+          Optional.of(State.CANCELLED));
     }
 
     /**
@@ -338,6 +348,8 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     public abstract Collection<AppliedPTransform<?, ?, ?>> getConsumers();
 
     public abstract Optional<? extends Exception> getException();
+
+    public abstract Optional<State> getStateUpdate();
   }
 
   /**
@@ -377,29 +389,33 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     public void run() {
       String oldName = Thread.currentThread().getName();
       Thread.currentThread().setName(runnableName);
+
+      boolean noWorkOutstanding = outstandingWork.get() == 0L;
+      ExecutorState startingState = state.get();
+      if (startingState == ExecutorState.ACTIVE) {
+        // The remainder of this call will add all available work to the Executor, and there will
+        // be no new work available
+        state.compareAndSet(ExecutorState.ACTIVE, ExecutorState.PROCESSING);
+      } else if (startingState == ExecutorState.PROCESSING && noWorkOutstanding) {
+        // The executor has consumed all new work and no new work was added
+        state.compareAndSet(ExecutorState.PROCESSING, ExecutorState.QUIESCING);
+      } else if (startingState == ExecutorState.QUIESCING && noWorkOutstanding) {
+        // The executor re-ran all blocked work and nothing could make progress.
+        state.compareAndSet(ExecutorState.QUIESCING, ExecutorState.QUIESCENT);
+      }
+
+      Collection<ExecutorUpdate> updates = new ArrayList<>();
+      // Pull all available updates off of the queue before adding additional work. This ensures
+      // both loops terminate.
+      ExecutorUpdate pendingUpdate = allUpdates.poll();
+      while (pendingUpdate != null) {
+        updates.add(pendingUpdate);
+        pendingUpdate = allUpdates.poll();
+      }
+
+      State updatedPipelineState = null;
       try {
-        boolean noWorkOutstanding = outstandingWork.get() == 0L;
-        ExecutorState startingState = state.get();
-        if (startingState == ExecutorState.ACTIVE) {
-          // The remainder of this call will add all available work to the Executor, and there will
-          // be no new work available
-          state.compareAndSet(ExecutorState.ACTIVE, ExecutorState.PROCESSING);
-        } else if (startingState == ExecutorState.PROCESSING && noWorkOutstanding) {
-          // The executor has consumed all new work and no new work was added
-          state.compareAndSet(ExecutorState.PROCESSING, ExecutorState.QUIESCING);
-        } else if (startingState == ExecutorState.QUIESCING && noWorkOutstanding) {
-          // The executor re-ran all blocked work and nothing could make progress.
-          state.compareAndSet(ExecutorState.QUIESCING, ExecutorState.QUIESCENT);
-        }
         fireTimers();
-        Collection<ExecutorUpdate> updates = new ArrayList<>();
-        // Pull all available updates off of the queue before adding additional work. This ensures
-        // both loops terminate.
-        ExecutorUpdate pendingUpdate = allUpdates.poll();
-        while (pendingUpdate != null) {
-          updates.add(pendingUpdate);
-          pendingUpdate = allUpdates.poll();
-        }
         for (ExecutorUpdate update : updates) {
           LOG.debug("Executor Update: {}", update);
           if (update.getBundle().isPresent()) {
@@ -412,7 +428,13 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
             }
           } else if (update.getException().isPresent()) {
             visibleUpdates.offer(VisibleExecutorUpdate.fromException(update.getException().get()));
-            exceptionThrown = true;
+            updatedPipelineState =
+                updatedPipelineState == null ? State.FAILED : updatedPipelineState;
+          } else if (update.getStateUpdate().isPresent()) {
+            updatedPipelineState =
+                updatedPipelineState == null ? update.getStateUpdate().get() : updatedPipelineState;
+          } else {
+            throw new IllegalStateException(String.format("Unknown Type of update: %s", update));
           }
         }
         addWorkIfNecessary();
@@ -428,7 +450,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
           visibleUpdates.poll();
         }
       } finally {
-        if (!shouldShutdown()) {
+        if (!shouldShutdown(updatedPipelineState)) {
           // The monitor thread should always be scheduled; but we only need to be scheduled once
           executorService.submit(this);
         }
@@ -471,9 +493,16 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
       }
     }
 
-    private boolean shouldShutdown() {
-      boolean shouldShutdown = exceptionThrown || evaluationContext.isDone();
-      if (shouldShutdown) {
+    private boolean shouldShutdown(State updatedState) {
+      State state = updatedState;
+      if (updatedState == null) {
+        if (evaluationContext.isDone()) {
+          state = State.DONE;
+        } else {
+          state = State.RUNNING;
+        }
+      }
+      if (state.isTerminal()) {
         LOG.debug("Pipeline has terminated. Shutting down.");
         executorService.shutdown();
         try {
@@ -487,7 +516,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
           }
         }
       }
-      return shouldShutdown;
+      return state.isTerminal();
     }
 
     /**
