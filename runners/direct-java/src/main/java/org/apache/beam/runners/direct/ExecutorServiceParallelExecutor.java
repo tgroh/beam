@@ -383,8 +383,6 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
         evaluationContext.getPipelineOptions().getAppName(),
         ExecutorServiceParallelExecutor.class.getSimpleName());
 
-    private boolean exceptionThrown = false;
-
     @Override
     public void run() {
       String oldName = Thread.currentThread().getName();
@@ -404,19 +402,10 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
         state.compareAndSet(ExecutorState.QUIESCING, ExecutorState.QUIESCENT);
       }
 
-      Collection<ExecutorUpdate> updates = new ArrayList<>();
-      // Pull all available updates off of the queue before adding additional work. This ensures
-      // both loops terminate.
-      ExecutorUpdate pendingUpdate = allUpdates.poll();
-      while (pendingUpdate != null) {
-        updates.add(pendingUpdate);
-        pendingUpdate = allUpdates.poll();
-      }
-
       State updatedPipelineState = null;
       try {
         fireTimers();
-        for (ExecutorUpdate update : updates) {
+        for (ExecutorUpdate update : getPendingUpdates()) {
           LOG.debug("Executor Update: {}", update);
           if (update.getBundle().isPresent()) {
             if (ExecutorState.ACTIVE == startingState
@@ -456,6 +445,18 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
         }
         Thread.currentThread().setName(oldName);
       }
+    }
+
+    private Collection<ExecutorUpdate> getPendingUpdates() {
+      Collection<ExecutorUpdate> updates = new ArrayList<>();
+      // Pull all available updates off of the queue before adding additional work. This ensures
+      // both loops terminate.
+      ExecutorUpdate pendingUpdate = allUpdates.poll();
+      while (pendingUpdate != null) {
+        updates.add(pendingUpdate);
+        pendingUpdate = allUpdates.poll();
+      }
+      return updates;
     }
 
     /**
