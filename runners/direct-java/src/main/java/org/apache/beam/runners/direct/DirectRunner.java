@@ -407,8 +407,7 @@ public class DirectRunner
     public State waitUntilFinish() {
       if (!state.isTerminal()) {
         try {
-          executor.awaitCompletion();
-          state = State.DONE;
+          state = executor.awaitCompletion();
         } catch (Exception e) {
           if (e instanceof InterruptedException) {
             Thread.currentThread().interrupt();

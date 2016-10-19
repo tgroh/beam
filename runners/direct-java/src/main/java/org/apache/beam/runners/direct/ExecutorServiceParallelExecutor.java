@@ -43,6 +43,7 @@ import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.PipelineResult.State;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.util.KeyedWorkItem;
@@ -234,7 +235,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   }
 
   @Override
-  public void awaitCompletion() throws Exception {
+  public State awaitCompletion() throws Exception {
     VisibleExecutorUpdate update;
     do {
       // Get an update; don't block forever if another thread has handled it
@@ -242,12 +243,12 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
       if (update == null && executorService.isShutdown()) {
         // there are no updates to process and no updates will ever be published because the
         // executor is shutdown
-        return;
+        return null;
       } else if (update != null && update.exception.isPresent()) {
         throw update.exception.get();
       }
     } while (update == null || !update.isDone());
-    executorService.shutdown();
+    return State.DONE;
   }
 
   /**

@@ -19,6 +19,7 @@ package org.apache.beam.runners.direct;
 
 import java.util.Collection;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
+import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 
@@ -43,5 +44,5 @@ interface PipelineExecutor {
    * @throws Throwable whenever an executor thread throws anything, transfers the throwable to the
    *                   waiting thread and rethrows it
    */
-  void awaitCompletion() throws Exception;
+  PipelineResult.State awaitCompletion() throws Exception;
 }
