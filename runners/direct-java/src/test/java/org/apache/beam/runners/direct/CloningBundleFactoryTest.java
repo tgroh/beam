@@ -133,6 +133,7 @@ public class CloningBundleFactoryTest {
 
     thrown.expect(UserCodeException.class);
     thrown.expectCause(isA(CoderException.class));
+    thrown.expectMessage("Encode not allowed");
     bundle.add(WindowedValue.valueInGlobalWindow(new Record()));
   }
 
@@ -144,6 +145,7 @@ public class CloningBundleFactoryTest {
 
     thrown.expect(UserCodeException.class);
     thrown.expectCause(isA(CoderException.class));
+    thrown.expectMessage("Decode not allowed");
     bundle.add(WindowedValue.valueInGlobalWindow(new Record()));
   }
 
@@ -156,6 +158,7 @@ public class CloningBundleFactoryTest {
 
     thrown.expect(UserCodeException.class);
     thrown.expectCause(isA(CoderException.class));
+    thrown.expectMessage("Encode not allowed");
     bundle.add(WindowedValue.valueInGlobalWindow(new Record()));
   }
 
@@ -168,6 +171,7 @@ public class CloningBundleFactoryTest {
 
     thrown.expect(UserCodeException.class);
     thrown.expectCause(isA(CoderException.class));
+    thrown.expectMessage("Decode not allowed");
     bundle.add(WindowedValue.valueInGlobalWindow(new Record()));
   }
 }

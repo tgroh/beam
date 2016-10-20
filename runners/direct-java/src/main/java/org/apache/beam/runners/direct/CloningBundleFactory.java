@@ -79,6 +79,9 @@ class CloningBundleFactory implements BundleFactory {
     @Override
     public UncommittedBundle<T> add(WindowedValue<T> element) {
       try {
+        // Use the cloned value to ensure that if the coder behaves poorly (e.g. a NoOpCoder that
+        // does not expect to be used) that is reflected in the values given to downstream
+        // transforms
         WindowedValue<T> clone = element.withValue(CoderUtils.clone(coder, element.getValue()));
         underlying.add(clone);
       } catch (CoderException e) {
