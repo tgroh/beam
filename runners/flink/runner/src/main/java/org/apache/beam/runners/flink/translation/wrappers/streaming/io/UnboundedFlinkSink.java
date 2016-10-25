@@ -50,6 +50,69 @@ public class UnboundedFlinkSink<T> extends Sink<T> {
   }
 
   @Override
+  public Coder<Object> getWriterResultCoder() {
+    return new Coder<Object>() {
+      @Override
+      public void encode(Object value, OutputStream outStream, Context context)
+          throws CoderException, IOException {
+      }
+
+      @Override
+      public Object decode(InputStream inStream, Context context)
+          throws CoderException, IOException {
+        return null;
+      }
+
+      @Override
+      public List<? extends Coder<?>> getCoderArguments() {
+        return null;
+      }
+
+      @Override
+      public CloudObject asCloudObject() {
+        return null;
+      }
+
+      @Override
+      public void verifyDeterministic() throws NonDeterministicException {
+
+      }
+
+      @Override
+      public boolean consistentWithEquals() {
+        return false;
+      }
+
+      @Override
+      public Object structuralValue(Object value) throws Exception {
+        return null;
+      }
+
+      @Override
+      public boolean isRegisterByteSizeObserverCheap(Object value, Context context) {
+        return false;
+      }
+
+      @Override
+      public void registerByteSizeObserver(Object value,
+          ElementByteSizeObserver observer,
+          Context context) throws Exception {
+
+      }
+
+      @Override
+      public String getEncodingId() {
+        return null;
+      }
+
+      @Override
+      public Collection<String> getAllowedEncodings() {
+        return null;
+      }
+    };
+  }
+
+  @Override
   public void validate(PipelineOptions options) {
   }
 
@@ -65,70 +128,6 @@ public class UnboundedFlinkSink<T> extends Sink<T> {
       public void finalize(Iterable<Object> writerResults, PipelineOptions options)
           throws Exception {
 
-      }
-
-      @Override
-      public Coder<Object> getWriterResultCoder() {
-        return new Coder<Object>() {
-          @Override
-          public void encode(Object value, OutputStream outStream, Context context)
-              throws CoderException, IOException {
-
-          }
-
-          @Override
-          public Object decode(InputStream inStream, Context context)
-              throws CoderException, IOException {
-            return null;
-          }
-
-          @Override
-          public List<? extends Coder<?>> getCoderArguments() {
-            return null;
-          }
-
-          @Override
-          public CloudObject asCloudObject() {
-            return null;
-          }
-
-          @Override
-          public void verifyDeterministic() throws NonDeterministicException {
-
-          }
-
-          @Override
-          public boolean consistentWithEquals() {
-            return false;
-          }
-
-          @Override
-          public Object structuralValue(Object value) throws Exception {
-            return null;
-          }
-
-          @Override
-          public boolean isRegisterByteSizeObserverCheap(Object value, Context context) {
-            return false;
-          }
-
-          @Override
-          public void registerByteSizeObserver(Object value,
-                                               ElementByteSizeObserver observer,
-                                               Context context) throws Exception {
-
-          }
-
-          @Override
-          public String getEncodingId() {
-            return null;
-          }
-
-          @Override
-          public Collection<String> getAllowedEncodings() {
-            return null;
-          }
-        };
       }
 
       @Override

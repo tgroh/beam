@@ -227,7 +227,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   }
 
   private void scheduleConsumers(ExecutorUpdate update) {
-    CommittedBundle<?> bundle = update.getBundle().get();
+   CommittedBundle<?> bundle = update.getBundle().get();
     for (AppliedPTransform<?, ?, ?> consumer : update.getConsumers()) {
       scheduleConsumption(consumer, bundle, defaultCompletionCallback);
     }

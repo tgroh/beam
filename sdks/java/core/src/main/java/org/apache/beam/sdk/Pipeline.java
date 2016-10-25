@@ -479,7 +479,7 @@ public class Pipeline {
   /**
    * Returns the configured {@link PipelineOptions}.
    */
-  public PipelineOptions getOptions() {
+  protected PipelineOptions getOptions() {
     return options;
   }
 

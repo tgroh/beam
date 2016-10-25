@@ -138,6 +138,11 @@ public abstract class Sink<T> implements Serializable, HasDisplayData {
   public abstract WriteOperation<T, ?> createWriteOperation(PipelineOptions options);
 
   /**
+   * Returns a coder for the writer result type.
+   */
+  public abstract Coder<?> getWriterResultCoder();
+
+  /**
    * {@inheritDoc}
    *
    * <p>By default, does not register any display data. Implementors may override this method
@@ -210,13 +215,6 @@ public abstract class Sink<T> implements Serializable, HasDisplayData {
      * Returns the Sink that this write operation writes to.
      */
     public abstract Sink<T> getSink();
-
-    /**
-     * Returns a coder for the writer result type.
-     */
-    public Coder<WriteT> getWriterResultCoder() {
-      return null;
-    }
   }
 
   /**

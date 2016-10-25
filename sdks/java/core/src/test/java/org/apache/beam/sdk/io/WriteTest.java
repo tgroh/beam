@@ -382,6 +382,12 @@ public class WriteTest {
     }
 
     @Override
+    public Coder<TestWriterResult> getWriterResultCoder() {
+      return SerializableCoder.of(TestWriterResult.class);
+    }
+
+
+    @Override
     public void validate(PipelineOptions options) {
       assertTestFlagPresent(options);
       validateCalled = true;
@@ -424,11 +430,6 @@ public class WriteTest {
       FINALIZED
     }
 
-    // Must be static in case the WriteOperation is serialized before the its coder is obtained.
-    // If this occurs, the value will be modified but not reflected in the WriteOperation that is
-    // executed by the runner, and the finalize method will fail.
-    private static volatile boolean coderCalled = false;
-
     private State state = State.INITIAL;
 
     private final TestSink sink;
@@ -455,8 +456,6 @@ public class WriteTest {
         throws Exception {
       assertEquals("test_value", options.as(WriteOptions.class).getTestFlag());
       assertEquals(State.INITIALIZED, state);
-      // The coder for the test writer results should've been called.
-      assertTrue(coderCalled);
       Set<String> idSet = new HashSet<>();
       int resultCount = 0;
       state = State.FINALIZED;
@@ -475,20 +474,12 @@ public class WriteTest {
     public Writer<String, TestWriterResult> createWriter(PipelineOptions options) {
       return new TestSinkWriter(this);
     }
-
-    @Override
-    public Coder<TestWriterResult> getWriterResultCoder() {
-      coderCalled = true;
-      return SerializableCoder.of(TestWriterResult.class);
-    }
-
     @Override
     public String toString() {
       return MoreObjects.toStringHelper(this)
           .add("id", id)
           .add("sink", sink)
           .add("state", state)
-          .add("coderCalled", coderCalled)
           .toString();
     }
 

@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.beam.runners.direct.WriteWithShardingFactory.KeyBasedOnCountFn;
+import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.VarLongCoder;
 import org.apache.beam.sdk.io.Sink;
 import org.apache.beam.sdk.io.TextIO;
@@ -279,6 +280,11 @@ public class WriteWithShardingFactoryTest {
 
     @Override
     public WriteOperation<Object, ?> createWriteOperation(PipelineOptions options) {
+      throw new IllegalArgumentException("Should not be used");
+    }
+
+    @Override
+    public Coder<?> getWriterResultCoder() {
       throw new IllegalArgumentException("Should not be used");
     }
   }

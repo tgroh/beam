@@ -30,7 +30,6 @@ import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.SerializableCoder;
 import org.apache.beam.sdk.io.Sink.WriteOperation;
 import org.apache.beam.sdk.io.Sink.Writer;
-import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.GroupByKey;
@@ -108,9 +107,10 @@ public class Write {
       checkArgument(IsBounded.BOUNDED == input.isBounded(),
           "%s can only be applied to a Bounded PCollection",
           Write.class.getSimpleName());
-      PipelineOptions options = input.getPipeline().getOptions();
-      sink.validate(options);
-      return createWrite(input, sink.createWriteOperation(options));
+//      PipelineOptions options = input.getPipeline().getOptions();
+//      sink.validate(options);
+
+      return createWrite(input, sink);
     }
 
     @Override
@@ -287,6 +287,23 @@ public class Write {
       }
     }
 
+    private <WriteT> PCollection<WriteOperation<T, WriteT>> createWriteOperation(
+        Pipeline p,
+        final Sink<T> sink) {
+      // A singleton collection of the WriteOperation, to be used as input to a ParDo to initialize
+      // the sink.
+      @SuppressWarnings("rawTypes") Coder operationCoder =
+          SerializableCoder.of(WriteOperation.class);
+      @SuppressWarnings("rawTypes") PCollection operation =
+          p.apply(Create.of(0)).apply(ParDo.of(new DoFn<Integer, WriteOperation<T, ?>>() {
+            @ProcessElement
+            public void createSingletonWrite(ProcessContext c) {
+              c.output(sink.createWriteOperation(c.getPipelineOptions()));
+            }
+          })).setCoder(operationCoder);
+      return operation;
+    }
+
     /**
      * A write is performed as sequence of three {@link ParDo}'s.
      *
@@ -298,8 +315,8 @@ public class Write {
      * <p>This singleton collection containing the WriteOperation is then used as a side input to a
      * ParDo over the PCollection of elements to write. In this bundle-writing phase,
      * {@link WriteOperation#createWriter} is called to obtain a {@link Writer}.
-     * {@link Writer#open} and {@link Writer#close} are called in {@link DoFn#startBundle} and
-     * {@link DoFn#finishBundle}, respectively, and {@link Writer#write} method is called for
+     * {@link Writer#open} and {@link Writer#close} are called in {@link DoFn.StartBundle} and
+     * {@link DoFn.FinishBundle}, respectively, and {@link Writer#write} method is called for
      * every element in the bundle. The output of this ParDo is a PCollection of
      * <i>writer result</i> objects (see {@link Sink} for a description of writer results)-one for
      * each bundle.
@@ -320,21 +337,11 @@ public class Write {
      * WriteOperation).
      */
     private <WriteT> PDone createWrite(
-        PCollection<T> input, WriteOperation<T, WriteT> writeOperation) {
+        PCollection<T> input, Sink<T> sink) {
       Pipeline p = input.getPipeline();
-
-      // A coder to use for the WriteOperation.
-      @SuppressWarnings("unchecked")
-      Coder<WriteOperation<T, WriteT>> operationCoder =
-          (Coder<WriteOperation<T, WriteT>>) SerializableCoder.of(writeOperation.getClass());
-
-      // A singleton collection of the WriteOperation, to be used as input to a ParDo to initialize
-      // the sink.
-      PCollection<WriteOperation<T, WriteT>> operationCollection =
-          p.apply(Create.of(writeOperation).withCoder(operationCoder));
-
+      PCollection<WriteOperation<T, WriteT>> writeOperation = createWriteOperation(p, sink);
       // Initialize the resource in a do-once ParDo on the WriteOperation.
-      operationCollection = operationCollection
+      PCollection<WriteOperation<T, WriteT>> operationCollection = writeOperation
           .apply("Initialize", ParDo.of(
               new DoFn<WriteOperation<T, WriteT>, WriteOperation<T, WriteT>>() {
             @ProcessElement
@@ -347,8 +354,7 @@ public class Write {
               // state.
               c.output(writeOperation);
             }
-          }))
-          .setCoder(operationCoder);
+          }));
 
       // Create a view of the WriteOperation to be used as a sideInput to the parallel write phase.
       final PCollectionView<WriteOperation<T, WriteT>> writeOperationView =
@@ -379,7 +385,7 @@ public class Write {
                 ParDo.of(new WriteShardedBundles<>(writeOperationView))
                     .withSideInputs(writeOperationView));
       }
-      results.setCoder(writeOperation.getWriterResultCoder());
+      results.setCoder((Coder<WriteT>) sink.getWriterResultCoder());
 
       final PCollectionView<Iterable<WriteT>> resultsView =
           results.apply(View.<WriteT>asIterable());

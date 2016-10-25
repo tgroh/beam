@@ -99,6 +99,11 @@ public class HDFSFileSink<K, V> extends Sink<KV<K, V>> {
     return new HDFSWriteOperation<>(this, path, formatClass);
   }
 
+  @Override
+  public Coder<String> getWriterResultCoder() {
+    return StringUtf8Coder.of();
+  }
+
   private Job jobInstance() throws IOException {
     Job job = Job.getInstance();
     // deserialize map to conf
@@ -196,12 +201,6 @@ public class HDFSFileSink<K, V> extends Sink<KV<K, V>> {
     public Sink<KV<K, V>> getSink() {
       return sink;
     }
-
-    @Override
-    public Coder<String> getWriterResultCoder() {
-      return StringUtf8Coder.of();
-    }
-
   }
 
   // =======================================================================

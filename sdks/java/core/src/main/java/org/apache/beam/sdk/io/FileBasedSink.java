@@ -22,6 +22,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.base.Strings.isNullOrEmpty;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Ordering;
 
 import java.io.File;
@@ -217,6 +218,14 @@ public abstract class FileBasedSink<T> extends Sink<T> {
    */
   @Override
   public abstract FileBasedWriteOperation<T> createWriteOperation(PipelineOptions options);
+
+  /**
+   * Provides a coder for {@link FileBasedSink.FileResult}.
+   */
+  @Override
+  public Coder<FileResult> getWriterResultCoder() {
+    return SerializableCoder.of(FileResult.class);
+  }
 
   @Override
   public void populateDisplayData(DisplayData.Builder builder) {
@@ -484,14 +493,6 @@ public abstract class FileBasedSink<T> extends Sink<T> {
       LOG.debug("{} temporary files matched {}", matches.size(), pattern);
       LOG.debug("Removing {} files.", matches.size());
       fileOperations.remove(matches);
-    }
-
-    /**
-     * Provides a coder for {@link FileBasedSink.FileResult}.
-     */
-    @Override
-    public Coder<FileResult> getWriterResultCoder() {
-      return SerializableCoder.of(FileResult.class);
     }
 
     /**
