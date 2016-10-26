@@ -520,7 +520,7 @@ public class BigQueryIO {
           }
         }
 
-        TableReference table = getTableWithDefaultProject(bqOptions);
+        TableReference table = getTableWithDefaultProject(bqOptions.getProject());
 
         checkState(
             table == null || query == null,
@@ -601,7 +601,7 @@ public class BigQueryIO {
               jobIdToken, query, queryTempTableRef, flattenResults, useLegacySql,
               extractDestinationDir, bqServices);
         } else {
-          TableReference inputTable = getTableWithDefaultProject(bqOptions);
+          TableReference inputTable = getTableWithDefaultProject(executingProject);
           source = BigQueryTableSource.create(
               jobIdToken, inputTable, extractDestinationDir, bqServices, executingProject);
         }
@@ -670,12 +670,12 @@ public class BigQueryIO {
        *
        * <p>If the table's project is not specified, use the executing project.
        */
-      @Nullable private TableReference getTableWithDefaultProject(BigQueryOptions bqOptions) {
+      @Nullable private TableReference getTableWithDefaultProject(String project) {
         TableReference table = getTable();
         if (table != null && Strings.isNullOrEmpty(table.getProjectId())) {
           // If user does not specify a project we assume the table to be located in
           // the default project.
-          table.setProjectId(bqOptions.getProject());
+          table.setProjectId(project);
         }
         return table;
       }
@@ -1678,7 +1678,7 @@ public class BigQueryIO {
 
       @Override
       public void validate(PCollection<TableRow> input) {
-        BigQueryOptions options = input.getPipeline().getOptions().as(BigQueryOptions.class);
+        BigQueryOptions bqOpts = input.getPipeline().getOptions().as(BigQueryOptions.class);
 
         // Exactly one of the table and table reference can be configured.
         checkState(
@@ -1694,11 +1694,12 @@ public class BigQueryIO {
             createDisposition != CreateDisposition.CREATE_IF_NEEDED || jsonSchema != null,
             "CreateDisposition is CREATE_IF_NEEDED, however no schema was provided.");
 
+        String project = bqOpts.getProject();
         // The user specified a table.
         if (jsonTableRef != null && validate) {
-          TableReference table = getTableWithDefaultProject(options);
+          TableReference table = getTableWithDefaultProject(project);
 
-          DatasetService datasetService = getBigQueryServices().getDatasetService(options);
+          DatasetService datasetService = getBigQueryServices().getDatasetService(bqOpts);
           // Check for destination table presence and emptiness for early failure notification.
           // Note that a presence check can fail when the table or dataset is created by an earlier
           // stage of the pipeline. For these cases the #withoutValidation method can be used to
@@ -1725,7 +1726,7 @@ public class BigQueryIO {
                   + " when using a tablespec function.");
         } else {
           // We will use a BigQuery load job -- validate the temp location.
-          String tempLocation = options.getTempLocation();
+          String tempLocation = bqOpts.getTempLocation();
           checkArgument(
               !Strings.isNullOrEmpty(tempLocation),
               "BigQueryIO.Write needs a GCS temp location to store temp files.");
@@ -1756,7 +1757,8 @@ public class BigQueryIO {
               new StreamWithDeDup(getTable(), tableRefFunction, getSchema(), bqServices));
         }
 
-        TableReference table = getTableWithDefaultProject(options);
+        String project = options.getProject();
+        TableReference table = getTableWithDefaultProject(project);
 
         String jobIdToken = "beam_job_" + randomUUIDString();
         String tempLocation = options.getTempLocation();
@@ -1937,12 +1939,12 @@ public class BigQueryIO {
        *
        * <p>If the table's project is not specified, use the executing project.
        */
-      @Nullable private TableReference getTableWithDefaultProject(BigQueryOptions bqOptions) {
+      @Nullable private TableReference getTableWithDefaultProject(String project) {
         TableReference table = getTable();
         if (table != null && Strings.isNullOrEmpty(table.getProjectId())) {
           // If user does not specify a project we assume the table to be located in
           // the default project.
-          table.setProjectId(bqOptions.getProject());
+          table.setProjectId(project);
         }
         return table;
       }
@@ -2609,13 +2611,13 @@ public class BigQueryIO {
     private transient String randomUUID;
     private transient long sequenceNo = 0L;
 
-    TagWithUniqueIdsAndTable(BigQueryOptions options, TableReference table,
+    TagWithUniqueIdsAndTable(String project, TableReference table,
         SerializableFunction<BoundedWindow, TableReference> tableRefFunction) {
       checkArgument(table == null ^ tableRefFunction == null,
           "Exactly one of table or tableRefFunction should be set");
       if (table != null) {
         if (table.getProjectId() == null) {
-          table.setProjectId(options.as(BigQueryOptions.class).getProject());
+          table.setProjectId(project);
         }
         this.tableSpec = toTableSpec(table);
       } else {
@@ -2706,10 +2708,10 @@ public class BigQueryIO {
 
       // To use this mechanism, each input TableRow is tagged with a generated
       // unique id, which is then passed to BigQuery and used to ignore duplicates.
-
-      PCollection<KV<ShardedKey<String>, TableRowInfo>> tagged = input.apply(ParDo.of(
-          new TagWithUniqueIdsAndTable(input.getPipeline().getOptions().as(BigQueryOptions.class),
-              tableReference, tableRefFunction)));
+      String project = input.getPipeline().getOptions().as(BigQueryOptions.class).getProject();
+      PCollection<KV<ShardedKey<String>, TableRowInfo>> tagged =
+          input.apply(
+              ParDo.of(new TagWithUniqueIdsAndTable(project, tableReference, tableRefFunction)));
 
       // To prevent having the same TableRow processed more than once with regenerated
       // different unique ids, this implementation relies on "checkpointing", which is
