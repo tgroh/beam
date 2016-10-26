@@ -95,8 +95,13 @@ public class HDFSFileSink<K, V> extends Sink<KV<K, V>> {
   }
 
   @Override
-  public Sink.WriteOperation<KV<K, V>, ?> createWriteOperation(PipelineOptions options) {
+  public Sink.WriteOperation<KV<K, V>, String> createWriteOperation(PipelineOptions options) {
     return new HDFSWriteOperation<>(this, path, formatClass);
+  }
+
+  @Override
+  public Coder<?> getWriterResultCoder() {
+    return StringUtf8Coder.of();
   }
 
   private Job jobInstance() throws IOException {
@@ -196,12 +201,6 @@ public class HDFSFileSink<K, V> extends Sink<KV<K, V>> {
     public Sink<KV<K, V>> getSink() {
       return sink;
     }
-
-    @Override
-    public Coder<String> getWriterResultCoder() {
-      return StringUtf8Coder.of();
-    }
-
   }
 
   // =======================================================================

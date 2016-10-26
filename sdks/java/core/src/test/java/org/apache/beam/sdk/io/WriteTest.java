@@ -370,8 +370,8 @@ public class WriteTest {
   // TestWriter each verify that the sequence of method calls is consistent with the specification
   // of the Write PTransform.
   private static class TestSink extends Sink<String> {
-    private boolean createCalled = false;
-    private boolean validateCalled = false;
+    private static volatile boolean createCalled = false;
+    private static volatile boolean validateCalled = false;
 
     @Override
     public WriteOperation<String, ?> createWriteOperation(PipelineOptions options) {
@@ -379,6 +379,12 @@ public class WriteTest {
       assertTestFlagPresent(options);
       createCalled = true;
       return new TestSinkWriteOperation(this);
+    }
+
+    @Override
+    public Coder<?> getWriterResultCoder() {
+      TestSinkWriteOperation.coderCalled = true;
+      return SerializableCoder.of(TestWriterResult.class);
     }
 
     @Override
@@ -474,12 +480,6 @@ public class WriteTest {
     @Override
     public Writer<String, TestWriterResult> createWriter(PipelineOptions options) {
       return new TestSinkWriter(this);
-    }
-
-    @Override
-    public Coder<TestWriterResult> getWriterResultCoder() {
-      coderCalled = true;
-      return SerializableCoder.of(TestWriterResult.class);
     }
 
     @Override

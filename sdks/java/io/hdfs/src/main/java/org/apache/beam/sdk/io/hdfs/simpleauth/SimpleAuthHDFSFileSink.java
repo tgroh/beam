@@ -47,7 +47,7 @@ public class SimpleAuthHDFSFileSink<K, V> extends HDFSFileSink<K, V> {
   }
 
   @Override
-  public WriteOperation<KV<K, V>, ?> createWriteOperation(PipelineOptions options) {
+  public WriteOperation<KV<K, V>, String> createWriteOperation(PipelineOptions options) {
     return new SimpleAuthHDFSWriteOperation<>(this, path, formatClass, username);
   }
 

@@ -105,13 +105,12 @@ public class WriteSinkITCase extends JavaProgramTestBase {
       return new MyWriteOperation();
     }
 
+    @Override
+    public Coder<String> getWriterResultCoder() {
+      return StringUtf8Coder.of();
+    }
+
     private class MyWriteOperation extends WriteOperation<String, String> {
-
-      @Override
-      public Coder<String> getWriterResultCoder() {
-        return StringUtf8Coder.of();
-      }
-
       @Override
       public void initialize(PipelineOptions options) throws Exception {
 
