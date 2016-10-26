@@ -23,12 +23,12 @@ import com.google.auto.value.AutoValue;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ComparisonChain;
+import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Multiset;
 import com.google.common.collect.Ordering;
-import com.google.common.collect.SortedMultiset;
-import com.google.common.collect.TreeMultiset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Objects;
-import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -201,20 +200,14 @@ public class WatermarkManager {
    */
   private static class AppliedPTransformInputWatermark implements Watermark {
     private final Collection<? extends Watermark> inputWatermarks;
-    private final SortedMultiset<WindowedValue<?>> pendingElements;
+    private final Multiset<WindowedValue<?>> pendingElements;
     private final Map<StructuralKey<?>, NavigableSet<TimerData>> objectTimers;
 
     private AtomicReference<Instant> currentWatermark;
 
     public AppliedPTransformInputWatermark(Collection<? extends Watermark> inputWatermarks) {
       this.inputWatermarks = inputWatermarks;
-      // The ordering must order elements by timestamp, and must not compare two distinct elements
-      // as equal. This is built on the assumption that any element added as a pending element will
-      // be consumed without modifications.
-      Ordering<WindowedValue<?>> pendingElementComparator =
-          new WindowedValueByTimestampComparator().compound(Ordering.arbitrary());
-      this.pendingElements =
-          TreeMultiset.create(pendingElementComparator);
+      this.pendingElements = HashMultiset.create();
       this.objectTimers = new HashMap<>();
       currentWatermark = new AtomicReference<>(BoundedWindow.TIMESTAMP_MIN_VALUE);
     }
@@ -246,9 +239,8 @@ public class WatermarkManager {
       for (Watermark inputWatermark : inputWatermarks) {
         minInputWatermark = INSTANT_ORDERING.min(minInputWatermark, inputWatermark.get());
       }
-      if (!pendingElements.isEmpty()) {
-        minInputWatermark = INSTANT_ORDERING.min(
-            minInputWatermark, pendingElements.firstEntry().getElement().getTimestamp());
+      for (WindowedValue<?> elem : pendingElements) {
+        minInputWatermark = INSTANT_ORDERING.min(minInputWatermark, elem.getTimestamp());
       }
       Instant newWatermark = INSTANT_ORDERING.max(oldWatermark, minInputWatermark);
       currentWatermark.set(newWatermark);
@@ -388,7 +380,7 @@ public class WatermarkManager {
     private final Map<StructuralKey<?>, NavigableSet<TimerData>> processingTimers;
     private final Map<StructuralKey<?>, NavigableSet<TimerData>> synchronizedProcessingTimers;
 
-    private final PriorityQueue<TimerData> pendingTimers;
+    private final Multiset<TimerData> pendingTimers;
 
     private AtomicReference<Instant> earliestHold;
 
@@ -397,7 +389,7 @@ public class WatermarkManager {
       this.pendingBundles = new HashSet<>();
       this.processingTimers = new HashMap<>();
       this.synchronizedProcessingTimers = new HashMap<>();
-      this.pendingTimers = new PriorityQueue<>();
+      this.pendingTimers = HashMultiset.create();
       Instant initialHold = BoundedWindow.TIMESTAMP_MAX_VALUE;
       for (Watermark wm : inputWms) {
         initialHold = INSTANT_ORDERING.min(initialHold, wm.get());
@@ -465,8 +457,8 @@ public class WatermarkManager {
           earliest = INSTANT_ORDERING.min(timers.first().getTimestamp(), earliest);
         }
       }
-      if (!pendingTimers.isEmpty()) {
-        earliest = INSTANT_ORDERING.min(pendingTimers.peek().getTimestamp(), earliest);
+      for (TimerData pendingTimer : pendingTimers) {
+        earliest = INSTANT_ORDERING.min(pendingTimer.getTimestamp(), earliest);
       }
       return earliest;
     }
