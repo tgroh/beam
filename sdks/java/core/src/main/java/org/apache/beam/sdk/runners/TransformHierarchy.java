@@ -67,6 +67,14 @@ public class TransformHierarchy {
     checkState(!transformStack.isEmpty());
   }
 
+  public void replaceNode(
+      TransformTreeNode original, TransformTreeNode replacementNode) {
+    original.getInput();
+    replacementNode.setOutput(original.getOutput());
+    replacementNode.setReplaced(original);
+    original.getOutput();
+  }
+
   /**
    * Adds an input to the given node.
    *

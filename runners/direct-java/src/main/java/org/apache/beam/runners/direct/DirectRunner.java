@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
+import java.lang.instrument.ClassFileTransformer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -60,8 +61,6 @@ import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollection.IsBounded;
 import org.apache.beam.sdk.values.PCollectionView;
-import org.apache.beam.sdk.values.PInput;
-import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
@@ -284,21 +283,11 @@ public class DirectRunner
   }
 
   @Override
-  public <OutputT extends POutput, InputT extends PInput> OutputT apply(
-      PTransform<InputT, OutputT> transform, InputT input) {
-    PTransformOverrideFactory overrideFactory = defaultTransformOverrides.get(transform.getClass());
-    if (overrideFactory != null) {
-      PTransform<InputT, OutputT> customTransform = overrideFactory.override(transform);
-      if (customTransform != transform) {
-        return Pipeline.applyTransform(transform.getName(), input, customTransform);
-      }
-    }
-    // If there is no override, or we should not apply the override, apply the original transform
-    return super.apply(transform, input);
-  }
-
-  @Override
   public DirectPipelineResult run(Pipeline pipeline) {
+    for (Map.Entry<Class<? extends PTransform>, PTransformOverrideFactory> override :
+        defaultTransformOverrides.entrySet()) {
+      pipeline.replaceMatches(ClassTransformFilter.of(override.getKey()), override.getValue());
+    }
     MetricsEnvironment.setMetricsSupported(true);
     ConsumerTrackingPipelineVisitor consumerTrackingVisitor = new ConsumerTrackingPipelineVisitor();
     pipeline.traverseTopologically(consumerTrackingVisitor);

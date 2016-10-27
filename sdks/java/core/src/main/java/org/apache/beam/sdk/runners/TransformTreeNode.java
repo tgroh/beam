@@ -63,6 +63,7 @@ public class TransformTreeNode {
   private POutput output;
 
   private boolean finishedSpecifying = false;
+  private TransformTreeNode replaced;
 
   /**
    * Creates a new TransformTreeNode with the given parent and transform.
@@ -189,6 +190,18 @@ public class TransformTreeNode {
     } else {
       return Collections.emptyList();
     }
+  }
+
+  public void setReplaced(TransformTreeNode replaced) {
+    this.replaced = replaced;
+  }
+
+  /**
+   * Returns the node that this node replaced, or null if this node was the original node.
+   */
+  @Nullable
+  public TransformTreeNode getReplaced() {
+    return replaced;
   }
 
   /**

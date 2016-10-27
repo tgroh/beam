@@ -30,6 +30,7 @@ import org.apache.beam.sdk.io.Read;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.runners.PipelineRunner;
+import org.apache.beam.sdk.runners.TransformFilter;
 import org.apache.beam.sdk.runners.TransformHierarchy;
 import org.apache.beam.sdk.runners.TransformTreeNode;
 import org.apache.beam.sdk.transforms.Aggregator;
@@ -404,6 +405,33 @@ public class Pipeline {
       output.recordAsOutput(applied);
       verifyOutputState(output, child);
       return output;
+    } finally {
+      transforms.popNode();
+    }
+  }
+
+  public void replaceMatches(TransformFilter filter, PTransformOverrideFactory value) {
+  }
+
+  private <InputT extends PInput, OutputT extends POutput> void replace(
+      TransformTreeNode original, PTransform<? super InputT, OutputT> replacement) {
+    InputT input = (InputT) original.getInput();
+    OutputT output = (OutputT) original.getOutput();
+    AppliedPTransform<?, ?, ?> originalApplication =
+        AppliedPTransform.of(
+            original.getFullName(), input, output, (PTransform) original.getTransform());
+
+    TransformTreeNode replacementNode =
+        new TransformTreeNode(
+            original.getEnclosingNode(), replacement, original.getFullName(), input);
+    LOG.debug("Replacing {} with {} in {}", original.getFullName(), replacement, this);
+    try {
+      transforms.pushNode(replacementNode);
+      OutputT newOutput = runner.apply(replacement, input);
+      AppliedPTransform<?, ?, ?> replacementApplication =
+          AppliedPTransform.of(replacementNode.getFullName(), input, output, replacement);
+      original.getOutput().replaceAsOutput(originalApplication, replacementApplication);
+      transforms.replaceNode(original, replacementNode);
     } finally {
       transforms.popNode();
     }
