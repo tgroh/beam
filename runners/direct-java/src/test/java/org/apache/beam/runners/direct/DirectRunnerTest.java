@@ -26,6 +26,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableMap;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -43,6 +44,7 @@ import org.apache.beam.sdk.coders.ListCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.coders.VarLongCoder;
 import org.apache.beam.sdk.io.CountingInput;
+import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Distribution;
 import org.apache.beam.sdk.metrics.DistributionResult;
@@ -125,6 +127,41 @@ public class DirectRunnerTest implements Serializable {
 
     DirectPipelineResult result = ((DirectPipelineResult) p.run());
     result.waitUntilFinish();
+  }
+
+  @Test
+  public void moderatelySizedWordCountShouldntBeSoSlow() throws Throwable {
+    Pipeline p = getPipeline();
+
+    PCollection<String> words =
+        p.apply(TextIO.Read.from("gs://apache-beam-samples/shakespeare/*"))
+            .apply(
+                "SplitInput",
+                ParDo.of(
+                    new DoFn<String, String>() {
+                      @ProcessElement
+                      public void splitWords(ProcessContext c) {
+                        for (String word : c.element().split("[^a-zA-Z0-9]")) {
+                          c.output(word);
+                        }
+                      }
+                    }));
+
+    PCollection<KV<String, Long>> counts = words.apply(Count.<String>perElement());
+    String tempPath = File.createTempFile("direct-wc", "count").getAbsolutePath();
+    counts
+        .apply(
+            "FormatOutput",
+            ParDo.of(
+                new DoFn<KV<String, Long>, String>() {
+                  @ProcessElement
+                  public void format(ProcessContext c) {
+                    c.output(String.format("%s: %s", c.element().getKey(), c.element().getValue()));
+                  }
+                }))
+        .apply(TextIO.Write.to(tempPath));
+
+    p.run();
   }
 
   private static AtomicInteger changed;

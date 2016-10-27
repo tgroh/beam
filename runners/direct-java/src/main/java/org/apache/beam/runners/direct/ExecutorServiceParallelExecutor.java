@@ -390,7 +390,6 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
           // The executor re-ran all blocked work and nothing could make progress.
           state.compareAndSet(ExecutorState.QUIESCING, ExecutorState.QUIESCENT);
         }
-        fireTimers();
         Collection<ExecutorUpdate> updates = new ArrayList<>();
         // Pull all available updates off of the queue before adding additional work. This ensures
         // both loops terminate.
@@ -414,6 +413,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
             exceptionThrown = true;
           }
         }
+        fireTimers();
         addWorkIfNecessary();
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
