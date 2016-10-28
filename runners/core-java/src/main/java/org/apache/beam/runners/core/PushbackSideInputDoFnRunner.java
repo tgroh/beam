@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.util.ReadyCheckingSideInputReader;
 import org.apache.beam.sdk.util.WindowedValue;
@@ -79,14 +78,14 @@ public class PushbackSideInputDoFnRunner<InputT, OutputT> implements DoFnRunner<
     for (WindowedValue<InputT> windowElem : elem.explodeWindows()) {
       BoundedWindow mainInputWindow = Iterables.getOnlyElement(windowElem.getWindows());
       boolean isReady = !notReadyWindows.contains(mainInputWindow);
-      for (PCollectionView<?> view : views) {
-        BoundedWindow sideInputWindow =
-            view.getWindowingStrategyInternal()
-                .getWindowFn()
-                .getSideInputWindow(mainInputWindow);
-        if (!sideInputReader.isReady(view, sideInputWindow)) {
-          isReady = false;
-          break;
+      if (isReady) {
+        for (PCollectionView<?> view : views) {
+          BoundedWindow sideInputWindow =
+              view.getWindowingStrategyInternal().getWindowFn().getSideInputWindow(mainInputWindow);
+          if (!sideInputReader.isReady(view, sideInputWindow)) {
+            isReady = false;
+            break;
+          }
         }
       }
       if (isReady) {
