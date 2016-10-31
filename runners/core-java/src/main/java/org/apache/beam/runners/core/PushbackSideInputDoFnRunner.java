@@ -77,18 +77,7 @@ public class PushbackSideInputDoFnRunner<InputT, OutputT> implements DoFnRunner<
     ImmutableList.Builder<WindowedValue<InputT>> pushedBack = ImmutableList.builder();
     for (WindowedValue<InputT> windowElem : elem.explodeWindows()) {
       BoundedWindow mainInputWindow = Iterables.getOnlyElement(windowElem.getWindows());
-      boolean isReady = !notReadyWindows.contains(mainInputWindow);
-      if (isReady) {
-        for (PCollectionView<?> view : views) {
-          BoundedWindow sideInputWindow =
-              view.getWindowingStrategyInternal().getWindowFn().getSideInputWindow(mainInputWindow);
-          if (!sideInputReader.isReady(view, sideInputWindow)) {
-            isReady = false;
-            break;
-          }
-        }
-      }
-      if (isReady) {
+      if (isReady(mainInputWindow)) {
         processElement(windowElem);
       } else {
         notReadyWindows.add(mainInputWindow);
@@ -96,6 +85,20 @@ public class PushbackSideInputDoFnRunner<InputT, OutputT> implements DoFnRunner<
       }
     }
     return pushedBack.build();
+  }
+
+  private boolean isReady(BoundedWindow mainInputWindow) {
+    if (notReadyWindows.contains(mainInputWindow)) {
+      return false;
+    }
+    for (PCollectionView<?> view : views) {
+      BoundedWindow sideInputWindow =
+          view.getWindowingStrategyInternal().getWindowFn().getSideInputWindow(mainInputWindow);
+      if (!sideInputReader.isReady(view, sideInputWindow)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @Override
