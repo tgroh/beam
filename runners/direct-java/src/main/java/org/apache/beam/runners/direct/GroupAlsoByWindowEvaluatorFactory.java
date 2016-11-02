@@ -57,7 +57,6 @@ import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TupleTag;
-import org.joda.time.Duration;
 import org.joda.time.Instant;
 
 /**
@@ -206,69 +205,41 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
      * elements.
      */
     public Iterable<WindowedValue<V>> dropExpiredWindows(
-        final K key, Iterable<WindowedValue<V>> elements, TimerInternals timerInternals) {
+        final K key, Iterable<WindowedValue<V>> elements, final TimerInternals timerInternals) {
       return FluentIterable.from(elements)
-          .transformAndConcat(new ExplodeWindowsFn<V>())
+          .transformAndConcat(
+              // Explode windows to filter out expired ones
+              new Function<WindowedValue<V>, Iterable<WindowedValue<V>>>() {
+                @Override
+                public Iterable<WindowedValue<V>> apply(WindowedValue<V> input) {
+                  return input.explodeWindows();
+                }
+              })
           .filter(
-              new ElementWindowIsExpiredPred<V>(
-                  key,
-                  timerInternals.currentInputWatermarkTime(),
-                  windowingStrategy.getAllowedLateness(),
-                  droppedDueToLateness));
-    }
-
-    private static class ExplodeWindowsFn<T>
-        implements Function<WindowedValue<T>, Iterable<WindowedValue<T>>> {
-      @Override
-      public Iterable<WindowedValue<T>> apply(WindowedValue<T> input) {
-        return input.explodeWindows();
-      }
-    }
-
-    private static class ElementWindowIsExpiredPred<T> implements Predicate<WindowedValue<T>> {
-      private final Object key;
-
-      private final Instant inputWM;
-      private final Duration allowedLateness;
-
-      private final Aggregator<Long, ?> droppedDueToLateness;
-
-      private ElementWindowIsExpiredPred(
-          Object key,
-          Instant inputWM,
-          Duration allowedLateness,
-          Aggregator<Long, ?> droppedDueToLateness) {
-        this.key = key;
-
-        this.inputWM = inputWM;
-        this.allowedLateness = allowedLateness;
-
-        this.droppedDueToLateness = droppedDueToLateness;
-      }
-
-      @Override
-      public boolean apply(WindowedValue<T> input) {
-        BoundedWindow window = Iterables.getOnlyElement(input.getWindows());
-        boolean expired = isExpired(window);
-        if (expired) {
-          // The element is too late for this window.
-          droppedDueToLateness.addValue(1L);
-          WindowTracing.debug(
-              "ReduceFnRunner.processElement: Dropping element at {} for key: {}; "
-                  + "window: {} since it is too far behind inputWatermark: {}",
-              input.getTimestamp(),
-              key,
-              window,
-              inputWM);
-        }
-        // Keep the element if the window is not expired.
-        return !expired;
-      }
-
-      /** Is {@code window} expired w.r.t. the garbage collection watermark? */
-      private boolean isExpired(BoundedWindow window) {
-        return window.maxTimestamp().plus(allowedLateness).isBefore(inputWM);
-      }
+              new Predicate<WindowedValue<V>>() {
+                @Override
+                public boolean apply(WindowedValue<V> input) {
+                  BoundedWindow window = Iterables.getOnlyElement(input.getWindows());
+                  boolean expired =
+                      window
+                          .maxTimestamp()
+                          .plus(windowingStrategy.getAllowedLateness())
+                          .isBefore(timerInternals.currentInputWatermarkTime());
+                  if (expired) {
+                    // The element is too late for this window.
+                    droppedDueToLateness.addValue(1L);
+                    WindowTracing.debug(
+                        "GroupAlsoByWindow: Dropping element at {} for key: {}; "
+                            + "window: {} since it is too far behind inputWatermark: {}",
+                        input.getTimestamp(),
+                        key,
+                        window,
+                        timerInternals.currentInputWatermarkTime());
+                  }
+                  // Keep the element if the window is not expired.
+                  return !expired;
+                }
+              });
     }
   }
 
