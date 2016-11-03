@@ -26,6 +26,8 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -43,6 +45,7 @@ import org.apache.beam.sdk.coders.ListCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.coders.VarLongCoder;
 import org.apache.beam.sdk.io.CountingInput;
+import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Distribution;
 import org.apache.beam.sdk.metrics.DistributionResult;
@@ -57,6 +60,7 @@ import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.FlatMapElements;
 import org.apache.beam.sdk.transforms.Flatten;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
@@ -125,6 +129,43 @@ public class DirectRunnerTest implements Serializable {
 
     DirectPipelineResult result = ((DirectPipelineResult) p.run());
     result.waitUntilFinish();
+  }
+
+  @Test
+  public void testWordCountPerf() throws Throwable {
+    Pipeline p = getPipeline();
+
+    PCollection<String> words =
+        p.apply(TextIO.Read.from("gs://apache-beam-samples/shakespeare/*"))
+            .apply(
+                FlatMapElements.via(
+                    new SimpleFunction<String, Iterable<String>>() {
+                      @Override
+                      public Iterable<String> apply(String input) {
+                        return Arrays.asList(input.split("[^a-zA-Z0-9]"));
+                      }
+                    }));
+    PCollection<KV<String, Long>> counts = words.apply(Count.<String>perElement());
+    PCollection<String> formats =
+        counts.apply(
+            MapElements.via(
+                new SimpleFunction<KV<String, Long>, String>() {
+                  @Override
+                  public String apply(KV<String, Long> input) {
+                    return String.format("%s: %s", input.getKey(), input.getValue());
+                  }
+                }));
+    PAssert.that(formats).satisfies(new SerializableFunction<Iterable<String>, Void>() {
+      @Override
+      public Void apply(Iterable<String> input) {
+        System.out.println("Assertion");
+        assertThat(Iterables.<String>contains(input, "glutton: 6"), is(true));
+        return null;
+      }
+    });
+    formats.apply(TextIO.Write.to(File.createTempFile("wordc", "outs.txt").getAbsolutePath()));
+
+    p.run().waitUntilFinish();
   }
 
   private static AtomicInteger changed;
