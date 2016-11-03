@@ -688,6 +688,11 @@ public class WatermarkManager {
   private final ConcurrentLinkedQueue<AppliedPTransform<?, ?, ?>> pendingRefreshes;
 
   /**
+   * A queue of timers that have fired but not been delivered via {@link #extractFiredTimers()}.
+   */
+  private final ConcurrentLinkedQueue<FiredTimers> pendingTimerDeliveries;
+
+  /**
    * Creates a new {@link WatermarkManager}. All watermarks within the newly created
    * {@link WatermarkManager} start at {@link BoundedWindow#TIMESTAMP_MIN_VALUE}, the
    * minimum watermark, with no watermark holds or pending elements.
@@ -711,6 +716,7 @@ public class WatermarkManager {
     this.consumers = consumers;
     this.pendingUpdates = new ConcurrentLinkedQueue<>();
     this.pendingRefreshes = new ConcurrentLinkedQueue<>();
+    this.pendingTimerDeliveries = new ConcurrentLinkedQueue<>();
 
     transformToWatermarks = new HashMap<>();
 
@@ -909,6 +915,9 @@ public class WatermarkManager {
     while (!pendingRefreshes.isEmpty()) {
       refreshWatermarks(pendingRefreshes.poll());
     }
+    // Needs to occur for all transforms, because the processing time clock advances independently
+    // of any data updates
+    refreshTimers();
   }
 
   private void refreshWatermarks(AppliedPTransform<?, ?, ?> toRefresh) {
@@ -923,16 +932,20 @@ public class WatermarkManager {
     pendingRefreshes.addAll(additionalRefreshes);
   }
 
+  private void refreshTimers() {
+    for (TransformWatermarks transformWatermarks : transformToWatermarks.values()) {
+      pendingTimerDeliveries.addAll(transformWatermarks.extractFiredTimers());
+    }
+  }
+
   /**
    * Returns a map of each {@link PTransform} that has pending timers to those timers. All of the
    * pending timers will be removed from this {@link WatermarkManager}.
    */
   public Collection<FiredTimers> extractFiredTimers() {
     Collection<FiredTimers> allTimers = new ArrayList<>();
-    for (Map.Entry<AppliedPTransform<?, ?, ?>, TransformWatermarks> watermarksEntry :
-        transformToWatermarks.entrySet()) {
-      Collection<FiredTimers> firedTimers = watermarksEntry.getValue().extractFiredTimers();
-      allTimers.addAll(firedTimers);
+    while (!pendingTimerDeliveries.isEmpty()) {
+      allTimers.add(pendingTimerDeliveries.poll());
     }
     return allTimers;
   }

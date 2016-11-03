@@ -1044,7 +1044,7 @@ public class WatermarkManagerTest implements Serializable {
     clock.set(BoundedWindow.TIMESTAMP_MAX_VALUE);
     assertThat(downstreamWms.getSynchronizedProcessingInputTime(), equalTo(upstreamHold));
 
-    manager.extractFiredTimers();
+    manager.refreshAll();
     // Pending processing time timers that have been fired but aren't completed hold the
     // synchronized processing time
     assertThat(downstreamWms.getSynchronizedProcessingInputTime(), equalTo(upstreamHold));
