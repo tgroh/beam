@@ -23,12 +23,12 @@ import com.google.auto.value.AutoValue;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ComparisonChain;
+import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Multiset;
 import com.google.common.collect.Ordering;
-import com.google.common.collect.SortedMultiset;
-import com.google.common.collect.TreeMultiset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -37,9 +37,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
@@ -200,20 +202,14 @@ public class WatermarkManager {
    */
   private static class AppliedPTransformInputWatermark implements Watermark {
     private final Collection<? extends Watermark> inputWatermarks;
-    private final SortedMultiset<WindowedValue<?>> pendingElements;
+    private final NavigableMap<Instant, Multiset<WindowedValue<?>>> pendingElements;
     private final Map<StructuralKey<?>, NavigableSet<TimerData>> objectTimers;
 
     private AtomicReference<Instant> currentWatermark;
 
     public AppliedPTransformInputWatermark(Collection<? extends Watermark> inputWatermarks) {
       this.inputWatermarks = inputWatermarks;
-      // The ordering must order elements by timestamp, and must not compare two distinct elements
-      // as equal. This is built on the assumption that any element added as a pending element will
-      // be consumed without modifications.
-      Ordering<WindowedValue<?>> pendingElementComparator =
-          new WindowedValueByTimestampComparator().compound(Ordering.arbitrary());
-      this.pendingElements =
-          TreeMultiset.create(pendingElementComparator);
+      pendingElements = new TreeMap<>();
       this.objectTimers = new HashMap<>();
       currentWatermark = new AtomicReference<>(BoundedWindow.TIMESTAMP_MIN_VALUE);
     }
@@ -246,8 +242,8 @@ public class WatermarkManager {
         minInputWatermark = INSTANT_ORDERING.min(minInputWatermark, inputWatermark.get());
       }
       if (!pendingElements.isEmpty()) {
-        minInputWatermark = INSTANT_ORDERING.min(
-            minInputWatermark, pendingElements.firstEntry().getElement().getTimestamp());
+        minInputWatermark =
+            INSTANT_ORDERING.min(minInputWatermark, pendingElements.firstEntry().getKey());
       }
       Instant newWatermark = INSTANT_ORDERING.max(oldWatermark, minInputWatermark);
       currentWatermark.set(newWatermark);
@@ -256,14 +252,27 @@ public class WatermarkManager {
 
     private synchronized void addPendingElements(Iterable<? extends WindowedValue<?>> newPending) {
       for (WindowedValue<?> pendingElement : newPending) {
-        pendingElements.add(pendingElement);
+        Instant ts = pendingElement.getTimestamp();
+        Multiset<WindowedValue<?>> pendingAtTs = pendingElements.get(ts);
+        if (pendingAtTs == null) {
+          pendingAtTs = HashMultiset.create();
+          pendingElements.put(ts, pendingAtTs);
+        }
+        pendingAtTs.add(pendingElement);
       }
     }
 
     private synchronized void removePendingElements(
         Iterable<? extends WindowedValue<?>> finishedElements) {
       for (WindowedValue<?> finishedElement : finishedElements) {
-        pendingElements.remove(finishedElement);
+        Instant ts = finishedElement.getTimestamp();
+        Multiset<WindowedValue<?>> pendingAtTs = pendingElements.get(ts);
+        if (pendingAtTs != null) {
+          pendingAtTs.remove(finishedElement);
+          if (pendingAtTs.isEmpty()) {
+            pendingElements.remove(ts);
+          }
+        }
       }
     }
 
