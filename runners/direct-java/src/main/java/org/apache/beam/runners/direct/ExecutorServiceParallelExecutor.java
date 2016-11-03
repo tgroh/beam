@@ -41,13 +41,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
-import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.util.KeyedWorkItem;
-import org.apache.beam.sdk.util.KeyedWorkItems;
-import org.apache.beam.sdk.util.TimeDomain;
 import org.apache.beam.sdk.util.TimerInternals.TimerData;
 import org.apache.beam.sdk.util.UserCodeException;
 import org.apache.beam.sdk.util.WindowedValue;
@@ -440,28 +437,22 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
      */
     private void fireTimers() throws Exception {
       try {
-        for (Map.Entry<
-               AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> transformTimers :
-            evaluationContext.extractFiredTimers().entrySet()) {
+        for (Map.Entry<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, KeyedWorkItem<?, ?>>>
+            transformTimers : evaluationContext.extractFiredTimers().entrySet()) {
           AppliedPTransform<?, ?, ?> transform = transformTimers.getKey();
-          for (Map.Entry<StructuralKey<?>, FiredTimers> keyTimers :
+          for (Map.Entry<StructuralKey<?>, KeyedWorkItem<?, ?>> keyTimers :
               transformTimers.getValue().entrySet()) {
-            for (TimeDomain domain : TimeDomain.values()) {
-              Collection<TimerData> delivery = keyTimers.getValue().getTimers(domain);
-              if (delivery.isEmpty()) {
-                continue;
-              }
-              KeyedWorkItem<?, Object> work =
-                  KeyedWorkItems.timersWorkItem(keyTimers.getKey().getKey(), delivery);
-              @SuppressWarnings({"unchecked", "rawtypes"})
-              CommittedBundle<?> bundle =
-                  evaluationContext
-                      .createKeyedBundle(keyTimers.getKey(), (PCollection) transform.getInput())
-                      .add(WindowedValue.valueInGlobalWindow(work))
-                      .commit(evaluationContext.now());
-              scheduleConsumption(transform, bundle, new TimerIterableCompletionCallback(delivery));
-              state.set(ExecutorState.ACTIVE);
-            }
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            CommittedBundle<?> bundle =
+                evaluationContext
+                    .createKeyedBundle(keyTimers.getKey(), (PCollection) transform.getInput())
+                    .add(WindowedValue.valueInGlobalWindow(keyTimers.getValue()))
+                    .commit(evaluationContext.now());
+            scheduleConsumption(
+                transform,
+                bundle,
+                new TimerIterableCompletionCallback(keyTimers.getValue().timersIterable()));
+            state.set(ExecutorState.ACTIVE);
           }
         }
       } catch (Exception e) {

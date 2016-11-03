@@ -36,7 +36,6 @@ import org.apache.beam.runners.direct.DirectExecutionContext.DirectStepContext;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.PCollectionViewWriter;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
-import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
 import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
@@ -53,6 +52,7 @@ import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.PaneInfo;
 import org.apache.beam.sdk.transforms.windowing.PaneInfo.Timing;
+import org.apache.beam.sdk.util.KeyedWorkItem;
 import org.apache.beam.sdk.util.SideInputReader;
 import org.apache.beam.sdk.util.TimeDomain;
 import org.apache.beam.sdk.util.TimerInternals.TimerData;
@@ -387,19 +387,17 @@ public class EvaluationContextTest {
     // Should cause the downstream timer to fire
     context.handleResult(null, ImmutableList.<TimerData>of(), advanceResult);
 
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> fired =
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, KeyedWorkItem<?, ?>>> fired =
         context.extractFiredTimers();
     assertThat(
         fired,
         Matchers.<AppliedPTransform<?, ?, ?>>hasKey(downstream.getProducingTransformInternal()));
-    Map<StructuralKey<?>, FiredTimers> downstreamFired =
+    Map<StructuralKey<?>, KeyedWorkItem<?, ?>> downstreamFired =
         fired.get(downstream.getProducingTransformInternal());
     assertThat(downstreamFired, Matchers.<Object>hasKey(key));
 
-    FiredTimers firedForKey = downstreamFired.get(key);
-    assertThat(firedForKey.getTimers(TimeDomain.PROCESSING_TIME), emptyIterable());
-    assertThat(firedForKey.getTimers(TimeDomain.SYNCHRONIZED_PROCESSING_TIME), emptyIterable());
-    assertThat(firedForKey.getTimers(TimeDomain.EVENT_TIME), contains(toFire));
+    KeyedWorkItem<?, ?> firedForKey = downstreamFired.get(key);
+    assertThat(firedForKey.timersIterable(), contains(toFire));
 
     // Don't reextract timers
     assertThat(context.extractFiredTimers().entrySet(), emptyIterable());
