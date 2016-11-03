@@ -37,7 +37,6 @@ import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.CommittedResult.OutputType;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
-import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
 import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate;
 import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate.TimerUpdateBuilder;
 import org.apache.beam.runners.direct.WatermarkManager.TransformWatermarks;
@@ -56,6 +55,7 @@ import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow;
 import org.apache.beam.sdk.transforms.windowing.PaneInfo;
+import org.apache.beam.sdk.util.KeyedWorkItem;
 import org.apache.beam.sdk.util.TimeDomain;
 import org.apache.beam.sdk.util.TimerInternals.TimerData;
 import org.apache.beam.sdk.util.WindowedValue;
@@ -915,12 +915,14 @@ public class WatermarkManagerTest implements Serializable {
         filteredDoubledWms.getSynchronizedProcessingOutputTime(),
         not(earlierThan(initialFilteredDoubledWm)));
 
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> firedTimers =
-        manager.extractFiredTimers();
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+        firedTimers = manager.extractFiredTimers();
     assertThat(
-        firedTimers.get(filtered.getProducingTransformInternal())
+        firedTimers
+            .get(filtered.getProducingTransformInternal())
             .get(key)
-            .getTimers(TimeDomain.PROCESSING_TIME),
+            .getValue()
+            .timersIterable(),
         contains(pastTimer));
     // Our timer has fired, but has not been completed, so it holds our synchronized processing WM
     assertThat(filteredWms.getSynchronizedProcessingOutputTime(), not(laterThan(startTime)));
@@ -1099,8 +1101,8 @@ public class WatermarkManagerTest implements Serializable {
 
   @Test
   public void extractFiredTimersReturnsFiredEventTimeTimers() {
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> initialTimers =
-        manager.extractFiredTimers();
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+        initialTimers = manager.extractFiredTimers();
     // Watermarks haven't advanced
     assertThat(initialTimers.entrySet(), emptyIterable());
 
@@ -1136,39 +1138,41 @@ public class WatermarkManagerTest implements Serializable {
         new Instant(1000L));
     manager.refreshAll();
 
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> firstTransformFiredTimers =
-        manager.extractFiredTimers();
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+        firstTransformFiredTimers = manager.extractFiredTimers();
     assertThat(
         firstTransformFiredTimers.get(filtered.getProducingTransformInternal()), not(nullValue()));
-    Map<StructuralKey<?>, FiredTimers> firstFilteredTimers =
+    Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>> firstFilteredTimers =
         firstTransformFiredTimers.get(filtered.getProducingTransformInternal());
     assertThat(firstFilteredTimers.get(key), not(nullValue()));
-    FiredTimers firstFired = firstFilteredTimers.get(key);
-    assertThat(firstFired.getTimers(TimeDomain.EVENT_TIME), contains(earliestTimer));
+    KeyedWorkItem<?, ?> firstFired = firstFilteredTimers.get(key).getValue();
+    assertThat(firstFired.timersIterable(), contains(earliestTimer));
 
-    manager.updateWatermarks(null,
+    manager.updateWatermarks(
+        null,
         TimerUpdate.empty(),
-        result(createdInts.getProducingTransformInternal(),
+        result(
+            createdInts.getProducingTransformInternal(),
             null,
             Collections.<CommittedBundle<?>>emptyList()),
         new Instant(50_000L));
     manager.refreshAll();
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> secondTransformFiredTimers =
-        manager.extractFiredTimers();
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+        secondTransformFiredTimers = manager.extractFiredTimers();
     assertThat(
         secondTransformFiredTimers.get(filtered.getProducingTransformInternal()), not(nullValue()));
-    Map<StructuralKey<?>, FiredTimers> secondFilteredTimers =
+    Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>> >secondFilteredTimers =
         secondTransformFiredTimers.get(filtered.getProducingTransformInternal());
     assertThat(secondFilteredTimers.get(key), not(nullValue()));
-    FiredTimers secondFired = secondFilteredTimers.get(key);
+    KeyedWorkItem<?, ?> secondFired = secondFilteredTimers.get(key).getValue();
     // Contains, in order, middleTimer and then lastTimer
-    assertThat(secondFired.getTimers(TimeDomain.EVENT_TIME), contains(middleTimer, lastTimer));
+    assertThat(secondFired.timersIterable(), contains(middleTimer, lastTimer));
   }
 
   @Test
   public void extractFiredTimersReturnsFiredProcessingTimeTimers() {
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> initialTimers =
-        manager.extractFiredTimers();
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+        initialTimers = manager.extractFiredTimers();
     // Watermarks haven't advanced
     assertThat(initialTimers.entrySet(), emptyIterable());
 
@@ -1198,46 +1202,49 @@ public class WatermarkManagerTest implements Serializable {
     manager.updateWatermarks(
         createdBundle,
         update,
-        result(filtered.getProducingTransformInternal(),
+        result(
+            filtered.getProducingTransformInternal(),
             createdBundle.withElements(Collections.<WindowedValue<Integer>>emptyList()),
             Collections.<CommittedBundle<?>>singleton(multiWindowedBundle(intsToFlatten))),
         new Instant(1000L));
     manager.refreshAll();
 
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> firstTransformFiredTimers =
-        manager.extractFiredTimers();
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+        firstTransformFiredTimers = manager.extractFiredTimers();
     assertThat(
         firstTransformFiredTimers.get(filtered.getProducingTransformInternal()), not(nullValue()));
-    Map<StructuralKey<?>, FiredTimers> firstFilteredTimers =
+    Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>> firstFilteredTimers =
         firstTransformFiredTimers.get(filtered.getProducingTransformInternal());
     assertThat(firstFilteredTimers.get(key), not(nullValue()));
-    FiredTimers firstFired = firstFilteredTimers.get(key);
-    assertThat(firstFired.getTimers(TimeDomain.PROCESSING_TIME), contains(earliestTimer));
+    KeyedWorkItem<?, ?> firstFired = firstFilteredTimers.get(key).getValue();
+    assertThat(firstFired.timersIterable(), contains(earliestTimer));
 
     clock.set(new Instant(50_000L));
-    manager.updateWatermarks(null,
+    manager.updateWatermarks(
+        null,
         TimerUpdate.empty(),
-        result(createdInts.getProducingTransformInternal(),
+        result(
+            createdInts.getProducingTransformInternal(),
             null,
             Collections.<CommittedBundle<?>>emptyList()),
         new Instant(50_000L));
     manager.refreshAll();
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> secondTransformFiredTimers =
-        manager.extractFiredTimers();
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+        secondTransformFiredTimers = manager.extractFiredTimers();
     assertThat(
         secondTransformFiredTimers.get(filtered.getProducingTransformInternal()), not(nullValue()));
-    Map<StructuralKey<?>, FiredTimers> secondFilteredTimers =
+    Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>> secondFilteredTimers =
         secondTransformFiredTimers.get(filtered.getProducingTransformInternal());
     assertThat(secondFilteredTimers.get(key), not(nullValue()));
-    FiredTimers secondFired = secondFilteredTimers.get(key);
+    KeyedWorkItem<?, ?> secondFired = secondFilteredTimers.get(key).getValue();
     // Contains, in order, middleTimer and then lastTimer
-    assertThat(secondFired.getTimers(TimeDomain.PROCESSING_TIME), contains(middleTimer, lastTimer));
+    assertThat(secondFired.timersIterable(), contains(middleTimer, lastTimer));
   }
 
   @Test
   public void extractFiredTimersReturnsFiredSynchronizedProcessingTimeTimers() {
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> initialTimers =
-        manager.extractFiredTimers();
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+        initialTimers = manager.extractFiredTimers();
     // Watermarks haven't advanced
     assertThat(initialTimers.entrySet(), emptyIterable());
 
@@ -1267,43 +1274,43 @@ public class WatermarkManagerTest implements Serializable {
     manager.updateWatermarks(
         createdBundle,
         update,
-        result(filtered.getProducingTransformInternal(),
+        result(
+            filtered.getProducingTransformInternal(),
             createdBundle.withElements(Collections.<WindowedValue<Integer>>emptyList()),
             Collections.<CommittedBundle<?>>singleton(multiWindowedBundle(intsToFlatten))),
         new Instant(1000L));
     manager.refreshAll();
 
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> firstTransformFiredTimers =
-        manager.extractFiredTimers();
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+        firstTransformFiredTimers = manager.extractFiredTimers();
     assertThat(
         firstTransformFiredTimers.get(filtered.getProducingTransformInternal()), not(nullValue()));
-    Map<StructuralKey<?>, FiredTimers> firstFilteredTimers =
+    Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>> firstFilteredTimers =
         firstTransformFiredTimers.get(filtered.getProducingTransformInternal());
     assertThat(firstFilteredTimers.get(key), not(nullValue()));
-    FiredTimers firstFired = firstFilteredTimers.get(key);
-    assertThat(
-        firstFired.getTimers(TimeDomain.SYNCHRONIZED_PROCESSING_TIME), contains(earliestTimer));
+    KeyedWorkItem<?, ?> firstFired = firstFilteredTimers.get(key).getValue();
+    assertThat(firstFired.timersIterable(), contains(earliestTimer));
 
     clock.set(new Instant(50_000L));
-    manager.updateWatermarks(null,
+    manager.updateWatermarks(
+        null,
         TimerUpdate.empty(),
-        result(createdInts.getProducingTransformInternal(),
+        result(
+            createdInts.getProducingTransformInternal(),
             null,
             Collections.<CommittedBundle<?>>emptyList()),
         new Instant(50_000L));
     manager.refreshAll();
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> secondTransformFiredTimers =
-        manager.extractFiredTimers();
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+        secondTransformFiredTimers = manager.extractFiredTimers();
     assertThat(
         secondTransformFiredTimers.get(filtered.getProducingTransformInternal()), not(nullValue()));
-    Map<StructuralKey<?>, FiredTimers> secondFilteredTimers =
+    Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>> secondFilteredTimers =
         secondTransformFiredTimers.get(filtered.getProducingTransformInternal());
     assertThat(secondFilteredTimers.get(key), not(nullValue()));
-    FiredTimers secondFired = secondFilteredTimers.get(key);
+    KeyedWorkItem<?, ?> secondFired = secondFilteredTimers.get(key).getValue();
     // Contains, in order, middleTimer and then lastTimer
-    assertThat(
-        secondFired.getTimers(TimeDomain.SYNCHRONIZED_PROCESSING_TIME),
-        contains(middleTimer, lastTimer));
+    assertThat(secondFired.timersIterable(), contains(middleTimer, lastTimer));
   }
 
   @Test

@@ -49,6 +49,8 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
+import org.apache.beam.sdk.util.KeyedWorkItem;
+import org.apache.beam.sdk.util.KeyedWorkItems;
 import org.apache.beam.sdk.util.TimeDomain;
 import org.apache.beam.sdk.util.TimerInternals;
 import org.apache.beam.sdk.util.TimerInternals.TimerData;
@@ -924,14 +926,16 @@ public class WatermarkManager {
    * Returns a map of each {@link PTransform} that has pending timers to those timers. All of the
    * pending timers will be removed from this {@link WatermarkManager}.
    */
-  public Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> extractFiredTimers() {
-    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, FiredTimers>> allTimers = new HashMap<>();
+  public Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+      extractFiredTimers() {
+    Map<AppliedPTransform<?, ?, ?>, Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>>>
+        allTimers = new HashMap<>();
     for (Map.Entry<AppliedPTransform<?, ?, ?>, TransformWatermarks> watermarksEntry :
         transformToWatermarks.entrySet()) {
-      Map<StructuralKey<?>, FiredTimers> keyFiredTimers =
+      Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>> fired =
           watermarksEntry.getValue().extractFiredTimers();
-      if (!keyFiredTimers.isEmpty()) {
-        allTimers.put(watermarksEntry.getKey(), keyFiredTimers);
+      if (!fired.isEmpty()) {
+        allTimers.put(watermarksEntry.getKey(), fired);
       }
     }
     return allTimers;
@@ -1128,22 +1132,29 @@ public class WatermarkManager {
       synchronizedProcessingInputWatermark.addPending(bundle);
     }
 
-    private Map<StructuralKey<?>, FiredTimers> extractFiredTimers() {
+    private Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>> extractFiredTimers() {
       Map<StructuralKey<?>, List<TimerData>> eventTimeTimers =
           inputWatermark.extractFiredEventTimeTimers();
       Map<StructuralKey<?>, List<TimerData>> processingTimers;
       Map<StructuralKey<?>, List<TimerData>> synchronizedTimers;
-      processingTimers = synchronizedProcessingInputWatermark.extractFiredDomainTimers(
-          TimeDomain.PROCESSING_TIME, clock.now());
-      synchronizedTimers = synchronizedProcessingInputWatermark.extractFiredDomainTimers(
-          TimeDomain.SYNCHRONIZED_PROCESSING_TIME, getSynchronizedProcessingInputTime());
+      processingTimers =
+          synchronizedProcessingInputWatermark.extractFiredDomainTimers(
+              TimeDomain.PROCESSING_TIME, clock.now());
+      synchronizedTimers =
+          synchronizedProcessingInputWatermark.extractFiredDomainTimers(
+              TimeDomain.SYNCHRONIZED_PROCESSING_TIME, getSynchronizedProcessingInputTime());
       Map<StructuralKey<?>, Map<TimeDomain, List<TimerData>>> groupedTimers = new HashMap<>();
       groupFiredTimers(groupedTimers, eventTimeTimers, processingTimers, synchronizedTimers);
 
-      Map<StructuralKey<?>, FiredTimers> keyFiredTimers = new HashMap<>();
+      Map<StructuralKey<?>, WindowedValue<KeyedWorkItem<?, ?>>> keyFiredTimers = new HashMap<>();
       for (Map.Entry<StructuralKey<?>, Map<TimeDomain, List<TimerData>>> firedTimers :
           groupedTimers.entrySet()) {
-        keyFiredTimers.put(firedTimers.getKey(), new FiredTimers(firedTimers.getValue()));
+        WindowedValue<KeyedWorkItem<?, ?>> timerWorkItem =
+            WindowedValue.<KeyedWorkItem<?, ?>>valueInGlobalWindow(
+                KeyedWorkItems.timersWorkItem(
+                    firedTimers.getKey().getKey(),
+                    Iterables.concat(firedTimers.getValue().values())));
+        keyFiredTimers.put(firedTimers.getKey(), timerWorkItem);
       }
       return keyFiredTimers;
     }
@@ -1324,39 +1335,6 @@ public class WatermarkManager {
           && Objects.equals(this.completedTimers, that.completedTimers)
           && Objects.equals(this.setTimers, that.setTimers)
           && Objects.equals(this.deletedTimers, that.deletedTimers);
-    }
-  }
-
-  /**
-   * A pair of {@link TimerData} and key which can be delivered to the appropriate
-   * {@link AppliedPTransform}. A timer fires at the transform that set it with a specific key when
-   * the time domain in which it lives progresses past a specified time, as determined by the
-   * {@link WatermarkManager}.
-   */
-  public static class FiredTimers {
-    private final Map<TimeDomain, ? extends Collection<TimerData>> timers;
-
-    private FiredTimers(Map<TimeDomain, ? extends Collection<TimerData>> timers) {
-      this.timers = timers;
-    }
-
-    /**
-     * Gets all of the timers that have fired within the provided {@link TimeDomain}. If no timers
-     * fired within the provided domain, return an empty collection.
-     *
-     * <p>Timers within a {@link TimeDomain} are guaranteed to be in order of increasing timestamp.
-     */
-    public Collection<TimerData> getTimers(TimeDomain domain) {
-      Collection<TimerData> domainTimers = timers.get(domain);
-      if (domainTimers == null) {
-        return Collections.emptyList();
-      }
-      return domainTimers;
-    }
-
-    @Override
-    public String toString() {
-      return MoreObjects.toStringHelper(FiredTimers.class).add("timers", timers).toString();
     }
   }
 
