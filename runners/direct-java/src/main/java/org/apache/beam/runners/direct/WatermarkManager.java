@@ -943,11 +943,11 @@ public class WatermarkManager {
    * pending timers will be removed from this {@link WatermarkManager}.
    */
   public Collection<FiredTimers> extractFiredTimers() {
-    Collection<FiredTimers> allTimers = new ArrayList<>();
+    Collection<FiredTimers> delivery = new ArrayList<>();
     while (!pendingTimerDeliveries.isEmpty()) {
-      allTimers.add(pendingTimerDeliveries.poll());
+      delivery.add(pendingTimerDeliveries.poll());
     }
-    return allTimers;
+    return delivery;
   }
 
   /**

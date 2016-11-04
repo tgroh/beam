@@ -22,13 +22,14 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import com.google.common.util.concurrent.MoreExecutors;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.CommittedResult.OutputType;
 import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupByKeyOnly;
@@ -85,6 +86,8 @@ class EvaluationContext {
   /** The current processing time and event time watermarks and timers. */
   private final WatermarkManager watermarkManager;
 
+  /** An {@link ExecutorService} for background runner tasks to utilize. */
+  private final ExecutorService backgroundTaskExecutor;
   /** Executes callbacks based on the progression of the watermark. */
   private final WatermarkCallbackExecutor callbackExecutor;
 
@@ -134,8 +137,23 @@ class EvaluationContext {
     this.mergedAggregators = AggregatorContainer.create();
     this.metrics = new DirectMetrics();
 
+    this.backgroundTaskExecutor = Executors.newFixedThreadPool(3);
     this.callbackExecutor =
-        WatermarkCallbackExecutor.create(MoreExecutors.directExecutor());
+        WatermarkCallbackExecutor.create(backgroundTaskExecutor);
+
+    backgroundTaskExecutor.submit(
+        new Runnable() {
+          @Override
+          public void run() {
+            String oldName = Thread.currentThread().getName();
+            Thread.currentThread().setName("ContextRefresher");
+            // Relinquish the core, so the refresh does not consume a single core in the presence of
+            // competing work
+            forceRefresh();
+            backgroundTaskExecutor.submit(this);
+            Thread.currentThread().setName(oldName);
+          }
+        });
   }
 
   public void initialize(
@@ -392,7 +410,6 @@ class EvaluationContext {
    * for each time they are set.
    */
   public Collection<FiredTimers> extractFiredTimers() {
-    forceRefresh();
     return watermarkManager.extractFiredTimers();
   }
 

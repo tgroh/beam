@@ -383,6 +383,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
           // be no new work available
           state.compareAndSet(ExecutorState.ACTIVE, ExecutorState.PROCESSING);
         } else if (startingState == ExecutorState.PROCESSING && noWorkOutstanding) {
+          evaluationContext.forceRefresh();
           // The executor has consumed all new work and no new work was added
           state.compareAndSet(ExecutorState.PROCESSING, ExecutorState.QUIESCING);
         } else if (startingState == ExecutorState.QUIESCING && noWorkOutstanding) {

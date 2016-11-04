@@ -90,8 +90,6 @@ public class EvaluationContextTest {
   private Collection<AppliedPTransform<?, ?, ?>> rootTransforms;
   private Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers;
 
-  private BundleFactory bundleFactory;
-
   @Before
   public void setup() {
     DirectRunner runner =
@@ -108,8 +106,6 @@ public class EvaluationContextTest {
     p.traverseTopologically(cVis);
     rootTransforms = cVis.getRootTransforms();
     valueToConsumers = cVis.getValueToConsumers();
-
-    bundleFactory = ImmutableListBundleFactory.create();
 
     context =
         EvaluationContext.create(
@@ -343,7 +339,7 @@ public class EvaluationContextTest {
     context.handleResult(null, ImmutableList.<TimerData>of(), finishedResult);
 
     final CountDownLatch callLatch = new CountDownLatch(1);
-    context.extractFiredTimers();
+    context.forceRefresh();
     Runnable callback =
         new Runnable() {
           @Override
@@ -387,6 +383,7 @@ public class EvaluationContextTest {
     // Should cause the downstream timer to fire
     context.handleResult(null, ImmutableList.<TimerData>of(), advanceResult);
 
+    context.forceRefresh();
     Collection<FiredTimers> fired = context.extractFiredTimers();
     assertThat(
         Iterables.getOnlyElement(fired).getKey(),
@@ -420,7 +417,7 @@ public class EvaluationContextTest {
         null,
         ImmutableList.<TimerData>of(),
         StepTransformResult.withoutHold(unbounded.getProducingTransformInternal()).build());
-    context.extractFiredTimers();
+    context.forceRefresh();
     assertThat(context.isDone(unbounded.getProducingTransformInternal()), is(true));
   }
 
@@ -433,6 +430,7 @@ public class EvaluationContextTest {
         null,
         ImmutableList.<TimerData>of(),
         StepTransformResult.withoutHold(unbounded.getProducingTransformInternal()).build());
+    context.forceRefresh();
     assertThat(context.isDone(unbounded.getProducingTransformInternal()), is(false));
   }
 
@@ -445,7 +443,7 @@ public class EvaluationContextTest {
         null,
         ImmutableList.<TimerData>of(),
         StepTransformResult.withoutHold(created.getProducingTransformInternal()).build());
-    context.extractFiredTimers();
+    context.forceRefresh();
     assertThat(context.isDone(created.getProducingTransformInternal()), is(true));
   }
 
@@ -478,7 +476,7 @@ public class EvaluationContextTest {
           ImmutableList.<TimerData>of(),
           StepTransformResult.withoutHold(consumers).build());
     }
-    context.extractFiredTimers();
+    context.forceRefresh();
     assertThat(context.isDone(), is(true));
   }
 
@@ -499,14 +497,14 @@ public class EvaluationContextTest {
         context.createBundle(created).commit(Instant.now()),
         ImmutableList.<TimerData>of(),
         StepTransformResult.withoutHold(downstream.getProducingTransformInternal()).build());
-    context.extractFiredTimers();
+    context.forceRefresh();
     assertThat(context.isDone(), is(false));
 
     context.handleResult(
         context.createBundle(created).commit(Instant.now()),
         ImmutableList.<TimerData>of(),
         StepTransformResult.withoutHold(view.getProducingTransformInternal()).build());
-    context.extractFiredTimers();
+    context.forceRefresh();
     assertThat(context.isDone(), is(false));
   }
 
