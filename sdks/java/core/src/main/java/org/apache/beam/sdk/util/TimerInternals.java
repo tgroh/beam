@@ -231,7 +231,7 @@ public interface TimerInternals {
     public int compareTo(TimerData o) {
       ComparisonChain chain =
           ComparisonChain.start().compare(timestamp, o.getTimestamp()).compare(domain, o.domain);
-      if (chain.result() == 0) {
+      if (chain.result() == 0 && !this.namespace.equals(o.namespace)) {
         // Obtaining the stringKey may be expensive; only do so if required
         chain = chain.compare(namespace.stringKey(), o.namespace.stringKey());
       }
