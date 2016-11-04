@@ -240,7 +240,7 @@ public class WatermarkManager {
      * </ul>
      */
     @Override
-    public synchronized WatermarkUpdate refresh() {
+    public WatermarkUpdate refresh() {
       Instant oldWatermark = currentWatermark.get();
       Instant minInputWatermark = BoundedWindow.TIMESTAMP_MAX_VALUE;
       for (Watermark inputWatermark : inputWatermarks) {
@@ -255,15 +255,15 @@ public class WatermarkManager {
       return WatermarkUpdate.fromTimestamps(oldWatermark, newWatermark);
     }
 
-    private synchronized void addPendingElements(CommittedBundle<?> newPending) {
+    private void addPendingElements(CommittedBundle<?> newPending) {
       pendingElements.add(newPending);
     }
 
-    private synchronized void removePendingElements(CommittedBundle<?> finishedElements) {
+    private void removePendingElements(CommittedBundle<?> finishedElements) {
       pendingElements.remove(finishedElements);
     }
 
-    private synchronized void updateTimers(TimerUpdate update) {
+    private void updateTimers(TimerUpdate update) {
       NavigableSet<TimerData> keyTimers = objectTimers.get(update.key);
       if (keyTimers == null) {
         keyTimers = new TreeSet<>();
@@ -282,12 +282,12 @@ public class WatermarkManager {
       // We don't keep references to timers that have been fired and delivered via #getFiredTimers()
     }
 
-    private synchronized Map<StructuralKey<?>, List<TimerData>> extractFiredEventTimeTimers() {
+    private Map<StructuralKey<?>, List<TimerData>> extractFiredEventTimeTimers() {
       return extractFiredTimers(currentWatermark.get(), objectTimers);
     }
 
     @Override
-    public synchronized String toString() {
+    public String toString() {
       return MoreObjects.toStringHelper(AppliedPTransformInputWatermark.class)
           .add("pendingElements", pendingElements)
           .add("currentWatermark", currentWatermark)
@@ -314,7 +314,7 @@ public class WatermarkManager {
       currentWatermark = new AtomicReference<>(BoundedWindow.TIMESTAMP_MIN_VALUE);
     }
 
-    public synchronized void updateHold(Object key, Instant newHold) {
+    public void updateHold(Object key, Instant newHold) {
       if (newHold == null) {
         holds.removeHold(key);
       } else {
@@ -343,7 +343,7 @@ public class WatermarkManager {
      * </ul>
      */
     @Override
-    public synchronized WatermarkUpdate refresh() {
+    public WatermarkUpdate refresh() {
       Instant oldWatermark = currentWatermark.get();
       Instant newWatermark = INSTANT_ORDERING.min(inputWatermark.get(), holds.getMinHold());
       newWatermark = INSTANT_ORDERING.max(oldWatermark, newWatermark);
@@ -352,7 +352,7 @@ public class WatermarkManager {
     }
 
     @Override
-    public synchronized String toString() {
+    public String toString() {
       return MoreObjects.toStringHelper(AppliedPTransformOutputWatermark.class)
           .add("holds", holds)
           .add("currentWatermark", currentWatermark)
@@ -419,7 +419,7 @@ public class WatermarkManager {
      * processing time must be.
      */
     @Override
-    public synchronized WatermarkUpdate refresh() {
+    public WatermarkUpdate refresh() {
       Instant oldHold = earliestHold.get();
       Instant minTime = THE_END_OF_TIME.get();
       for (Watermark input : inputWms) {
@@ -435,11 +435,11 @@ public class WatermarkManager {
       return WatermarkUpdate.fromTimestamps(oldHold, minTime);
     }
 
-    public synchronized void addPending(CommittedBundle<?> bundle) {
+    public void addPending(CommittedBundle<?> bundle) {
       pendingBundles.add(bundle);
     }
 
-    public synchronized void removePending(CommittedBundle<?> bundle) {
+    public void removePending(CommittedBundle<?> bundle) {
       pendingBundles.remove(bundle);
     }
 
@@ -448,7 +448,7 @@ public class WatermarkManager {
      * either the earliest timestamp across timers that have not been completed, or the earliest
      * timestamp across timers that have been delivered but have not been completed.
      */
-    public synchronized Instant getEarliestTimerTimestamp() {
+    public Instant getEarliestTimerTimestamp() {
       Instant earliest = THE_END_OF_TIME.get();
       for (NavigableSet<TimerData> timers : processingTimers.values()) {
         if (!timers.isEmpty()) {
@@ -466,7 +466,7 @@ public class WatermarkManager {
       return earliest;
     }
 
-    private synchronized void updateTimers(TimerUpdate update) {
+    private void updateTimers(TimerUpdate update) {
       Map<TimeDomain, NavigableSet<TimerData>> timerMap = timerMap(update.key);
       for (TimerData addedTimer : update.setTimers) {
         NavigableSet<TimerData> timerQueue = timerMap.get(addedTimer.getDomain());
@@ -486,7 +486,7 @@ public class WatermarkManager {
       }
     }
 
-    private synchronized Map<StructuralKey<?>, List<TimerData>> extractFiredDomainTimers(
+    private Map<StructuralKey<?>, List<TimerData>> extractFiredDomainTimers(
         TimeDomain domain, Instant firingTime) {
       Map<StructuralKey<?>, List<TimerData>> firedTimers;
       switch (domain) {
@@ -531,7 +531,7 @@ public class WatermarkManager {
     }
 
     @Override
-    public synchronized String toString() {
+    public String toString() {
       return MoreObjects.toStringHelper(SynchronizedProcessingTimeInputWatermark.class)
           .add("earliestHold", earliestHold)
           .toString();
@@ -586,7 +586,7 @@ public class WatermarkManager {
      * processing time must be.
      */
     @Override
-    public synchronized WatermarkUpdate refresh() {
+    public WatermarkUpdate refresh() {
       // Hold the output synchronized processing time to the input watermark, which takes into
       // account buffered bundles, and the earliest pending timer, which determines what to hold
       // downstream timers to.
@@ -598,7 +598,7 @@ public class WatermarkManager {
     }
 
     @Override
-    public synchronized String toString() {
+    public String toString() {
       return MoreObjects.toStringHelper(SynchronizedProcessingTimeOutputWatermark.class)
           .add("latestRefresh", latestRefresh)
           .toString();
@@ -973,13 +973,18 @@ public class WatermarkManager {
    * pending timers will be removed from this {@link WatermarkManager}.
    */
   public Collection<FiredTimers> extractFiredTimers() {
-    Collection<FiredTimers> allTimers = new ArrayList<>();
-    for (Map.Entry<AppliedPTransform<?, ?, ?>, TransformWatermarks> watermarksEntry :
-        transformToWatermarks.entrySet()) {
-      Collection<FiredTimers> firedTimers = watermarksEntry.getValue().extractFiredTimers();
-      allTimers.addAll(firedTimers);
+    refreshLock.lock();
+    try {
+      Collection<FiredTimers> allTimers = new ArrayList<>();
+      for (Map.Entry<AppliedPTransform<?, ?, ?>, TransformWatermarks> watermarksEntry : transformToWatermarks
+          .entrySet()) {
+        Collection<FiredTimers> firedTimers = watermarksEntry.getValue().extractFiredTimers();
+        allTimers.addAll(firedTimers);
+      }
+      return allTimers;
+    } finally {
+      refreshLock.unlock();
     }
-    return allTimers;
   }
 
   /**
@@ -1135,7 +1140,7 @@ public class WatermarkManager {
      * <p>The returned value is guaranteed to be monotonically increasing, and outside of the
      * presence of holds, will increase as the system time progresses.
      */
-    public synchronized Instant getSynchronizedProcessingInputTime() {
+    public Instant getSynchronizedProcessingInputTime() {
       latestSynchronizedInputWm = INSTANT_ORDERING.max(
           latestSynchronizedInputWm,
           INSTANT_ORDERING.min(clock.now(), synchronizedProcessingInputWatermark.get()));
@@ -1148,7 +1153,7 @@ public class WatermarkManager {
      * <p>The returned value is guaranteed to be monotonically increasing, and outside of the
      * presence of holds, will increase as the system time progresses.
      */
-    public synchronized Instant getSynchronizedProcessingOutputTime() {
+    public Instant getSynchronizedProcessingOutputTime() {
       latestSynchronizedOutputWm = INSTANT_ORDERING.max(
           latestSynchronizedOutputWm,
           INSTANT_ORDERING.min(clock.now(), synchronizedProcessingOutputWatermark.get()));
