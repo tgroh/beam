@@ -261,7 +261,6 @@ public class UnboundedReadEvaluatorFactoryTest {
             Iterables.getOnlyElement(result.getUnprocessedElements());
     secondEvaluator.processElement(residual);
 
-    Instant beforeFinish = Instant.now();
     TransformResult secondResult = secondEvaluator.finishBundle();
 
     // Sanity check that nothing was output (The test would have to run for more than a day to do
@@ -270,15 +269,14 @@ public class UnboundedReadEvaluatorFactoryTest {
         secondOutput.commit(Instant.now()).getElements(),
         Matchers.<WindowedValue<Long>>emptyIterable());
 
-    // Test that even though the reader produced no outputs, there is still a residual shard.
-    WindowedValue<?> unprocessed = Iterables.getOnlyElement(secondResult.getUnprocessedElements());
-    assertThat(
-        unprocessed.getTimestamp(), Matchers.<ReadableInstant>greaterThanOrEqualTo(beforeFinish));
+    // Test that even though the reader produced no outputs, there is still a residual shard with
+    // the updated watermark.
+    WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>> unprocessed =
+        (WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>>)
+            Iterables.getOnlyElement(secondResult.getUnprocessedElements());
     assertThat(
         unprocessed.getTimestamp(), Matchers.<ReadableInstant>greaterThan(residual.getTimestamp()));
-    UnboundedSourceShard<Long, TestCheckpointMark> residualShard =
-        (UnboundedSourceShard<Long, TestCheckpointMark>) unprocessed.getValue();
-    assertThat(residualShard.getExistingReader(), not(nullValue()));
+    assertThat(unprocessed.getValue().getExistingReader(), not(nullValue()));
   }
 
   @Test
