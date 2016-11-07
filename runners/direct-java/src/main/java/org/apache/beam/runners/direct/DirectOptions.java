@@ -64,7 +64,7 @@ public interface DirectOptions extends PipelineOptions, ApplicationNameOptions {
   boolean isEnforceEncodability();
   void setEnforceEncodability(boolean test);
 
-  @Default.InstanceFactory(AvailableParallelismFactory.class)
+  @Default.InstanceFactory(TripleAvailableParallelismFactory.class)
   @Description(
       "Controls the amount of target parallelism the DirectRunner will use. Defaults to"
           + " the greater of the number of available processors and 3. Must be a value greater"
@@ -77,12 +77,10 @@ public interface DirectOptions extends PipelineOptions, ApplicationNameOptions {
    * from the {@link #create(PipelineOptions)} method. Uses {@link Runtime#getRuntime()} to obtain
    * the {@link Runtime}.
    */
-  class AvailableParallelismFactory implements DefaultValueFactory<Integer> {
-    private static final int MIN_PARALLELISM = 3;
-
+  class TripleAvailableParallelismFactory implements DefaultValueFactory<Integer> {
     @Override
     public Integer create(PipelineOptions options) {
-      return Math.max(Runtime.getRuntime().availableProcessors(), MIN_PARALLELISM);
+      return 3 * Runtime.getRuntime().availableProcessors();
     }
   }
 }

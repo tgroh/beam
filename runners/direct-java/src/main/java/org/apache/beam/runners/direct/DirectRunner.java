@@ -253,14 +253,11 @@ public class DirectRunner
             consumerTrackingVisitor.getStepNames(),
             consumerTrackingVisitor.getViews());
 
-    // independent executor service for each run
-    ExecutorService executorService = executorServiceSupplier.get();
-
     RootInputProvider rootInputProvider = RootProviderRegistry.defaultRegistry(context);
     TransformEvaluatorRegistry registry = TransformEvaluatorRegistry.defaultRegistry(context);
     PipelineExecutor executor =
         ExecutorServiceParallelExecutor.create(
-            executorService,
+            options.getTargetParallelism(),
             consumerTrackingVisitor.getValueToConsumers(),
             keyedPValueVisitor.getKeyedPValues(),
             rootInputProvider,

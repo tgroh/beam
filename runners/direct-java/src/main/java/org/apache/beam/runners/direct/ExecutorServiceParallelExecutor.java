@@ -36,6 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -63,6 +64,7 @@ import org.slf4j.LoggerFactory;
 final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   private static final Logger LOG = LoggerFactory.getLogger(ExecutorServiceParallelExecutor.class);
 
+  private final int targetParallelism;
   private final ExecutorService executorService;
 
   private final Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers;
@@ -99,7 +101,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   private final AtomicLong outstandingWork = new AtomicLong();
 
   public static ExecutorServiceParallelExecutor create(
-      ExecutorService executorService,
+      int targetParallelism,
       Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers,
       Set<PValue> keyedPValues,
       RootInputProvider rootInputProvider,
@@ -109,7 +111,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
               transformEnforcements,
       EvaluationContext context) {
     return new ExecutorServiceParallelExecutor(
-        executorService,
+        targetParallelism,
         valueToConsumers,
         keyedPValues,
         rootInputProvider,
@@ -119,7 +121,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   }
 
   private ExecutorServiceParallelExecutor(
-      ExecutorService executorService,
+      int targetParallelism,
       Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers,
       Set<PValue> keyedPValues,
       RootInputProvider rootInputProvider,
@@ -127,7 +129,8 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
       @SuppressWarnings("rawtypes")
       Map<Class<? extends PTransform>, Collection<ModelEnforcementFactory>> transformEnforcements,
       EvaluationContext context) {
-    this.executorService = executorService;
+    this.targetParallelism = targetParallelism;
+    this.executorService = Executors.newFixedThreadPool(targetParallelism);
     this.valueToConsumers = valueToConsumers;
     this.keyedPValues = keyedPValues;
     this.rootInputProvider = rootInputProvider;
@@ -165,7 +168,9 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     for (AppliedPTransform<?, ?, ?> root : roots) {
       ConcurrentLinkedQueue<CommittedBundle<?>> pending = new ConcurrentLinkedQueue<>();
       try {
-        Collection<CommittedBundle<?>> initialInputs = rootInputProvider.getInitialInputs(root, 1);
+        // Always try to split into at least 3 elements, but more if there aren't that many roots
+        Collection<CommittedBundle<?>> initialInputs =
+            rootInputProvider.getInitialInputs(root, Math.max(targetParallelism / roots.size(), 3));
         pending.addAll(initialInputs);
       } catch (Exception e) {
         throw UserCodeException.wrap(e);
