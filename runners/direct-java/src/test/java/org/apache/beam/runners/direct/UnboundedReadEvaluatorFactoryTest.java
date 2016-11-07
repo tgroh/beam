@@ -260,6 +260,8 @@ public class UnboundedReadEvaluatorFactoryTest {
         (WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>>)
             Iterables.getOnlyElement(result.getUnprocessedElements());
     secondEvaluator.processElement(residual);
+
+    Instant beforeFinish = Instant.now();
     TransformResult secondResult = secondEvaluator.finishBundle();
 
     // Sanity check that nothing was output (The test would have to run for more than a day to do
@@ -269,9 +271,13 @@ public class UnboundedReadEvaluatorFactoryTest {
         Matchers.<WindowedValue<Long>>emptyIterable());
 
     // Test that even though the reader produced no outputs, there is still a residual shard.
+    WindowedValue<?> unprocessed = Iterables.getOnlyElement(secondResult.getUnprocessedElements());
+    assertThat(
+        unprocessed.getTimestamp(), Matchers.<ReadableInstant>greaterThanOrEqualTo(beforeFinish));
+    assertThat(
+        unprocessed.getTimestamp(), Matchers.<ReadableInstant>greaterThan(residual.getTimestamp()));
     UnboundedSourceShard<Long, TestCheckpointMark> residualShard =
-        (UnboundedSourceShard<Long, TestCheckpointMark>)
-            Iterables.getOnlyElement(secondResult.getUnprocessedElements()).getValue();
+        (UnboundedSourceShard<Long, TestCheckpointMark>) unprocessed.getValue();
     assertThat(residualShard.getExistingReader(), not(nullValue()));
   }
 
@@ -377,6 +383,8 @@ public class UnboundedReadEvaluatorFactoryTest {
   }
 
   private static class TestUnboundedSource<T> extends UnboundedSource<T, TestCheckpointMark> {
+    private static int getWatermarkCalls = 0;
+
     static int readerClosedCount;
     static int readerAdvancedCount;
     private final Coder<T> coder;
@@ -447,7 +455,8 @@ public class UnboundedReadEvaluatorFactoryTest {
 
       @Override
       public Instant getWatermark() {
-        return Instant.now();
+        getWatermarkCalls++;
+        return new Instant(index + getWatermarkCalls);
       }
 
       @Override
