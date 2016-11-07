@@ -120,6 +120,10 @@ import org.joda.time.Instant;
  * </pre>
  */
 public class WatermarkManager {
+  // The number of updates to apply in #tryApplyPendingUpdates
+  private static final int MAX_INCREMENTAL_UPDATES = 10;
+
+
   /**
    * The watermark of some {@link Pipeline} element, usually a {@link PTransform} or a
    * {@link PCollection}.
@@ -848,7 +852,7 @@ public class WatermarkManager {
   private void tryApplyPendingUpdates() {
     if (refreshLock.tryLock()) {
       try {
-        applyNUpdates(10);
+        applyNUpdates(MAX_INCREMENTAL_UPDATES);
       } finally {
         refreshLock.unlock();
       }
@@ -859,7 +863,7 @@ public class WatermarkManager {
    * Applies all pending updates to this {@link WatermarkManager}, causing the pending state
    * of all {@link TransformWatermarks} to be advanced as far as possible.
    */
-  private void applyPendingUpdates() {
+  private void applyAllPendingUpdates() {
     refreshLock.lock();
     try {
       applyNUpdates(-1);
@@ -936,7 +940,7 @@ public class WatermarkManager {
   synchronized void refreshAll() {
     refreshLock.lock();
     try {
-      applyPendingUpdates();
+      applyAllPendingUpdates();
       Set<AppliedPTransform<?, ?, ?>> toRefresh = pendingRefreshes;
       while (!toRefresh.isEmpty()) {
         toRefresh = refreshAllOf(toRefresh);
