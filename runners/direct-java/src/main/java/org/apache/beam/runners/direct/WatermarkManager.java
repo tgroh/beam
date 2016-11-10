@@ -35,9 +35,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
@@ -243,7 +246,7 @@ public class WatermarkManager {
      * </ul>
      */
     @Override
-    public synchronized WatermarkUpdate refresh() {
+    public WatermarkUpdate refresh() {
       Instant oldWatermark = currentWatermark.get();
       Instant minInputWatermark = BoundedWindow.TIMESTAMP_MAX_VALUE;
       for (Watermark inputWatermark : inputWatermarks) {
@@ -258,15 +261,15 @@ public class WatermarkManager {
       return WatermarkUpdate.fromTimestamps(oldWatermark, newWatermark);
     }
 
-    private synchronized void addPending(CommittedBundle<?> newPending) {
+    private void addPending(CommittedBundle<?> newPending) {
       pendingElements.add(newPending);
     }
 
-    private synchronized void removePending(CommittedBundle<?> completed) {
+    private void removePending(CommittedBundle<?> completed) {
       pendingElements.remove(completed);
     }
 
-    private synchronized void updateTimers(TimerUpdate update) {
+    private void updateTimers(TimerUpdate update) {
       NavigableSet<TimerData> keyTimers = objectTimers.get(update.key);
       if (keyTimers == null) {
         keyTimers = new TreeSet<>();
@@ -285,7 +288,7 @@ public class WatermarkManager {
       // We don't keep references to timers that have been fired and delivered via #getFiredTimers()
     }
 
-    private synchronized Map<StructuralKey<?>, List<TimerData>> extractFiredEventTimeTimers() {
+    private Map<StructuralKey<?>, List<TimerData>> extractFiredEventTimeTimers() {
       return extractFiredTimers(currentWatermark.get(), objectTimers);
     }
 
@@ -317,7 +320,7 @@ public class WatermarkManager {
       currentWatermark = new AtomicReference<>(BoundedWindow.TIMESTAMP_MIN_VALUE);
     }
 
-    public synchronized void updateHold(Object key, Instant newHold) {
+    public void updateHold(Object key, Instant newHold) {
       if (newHold == null) {
         holds.removeHold(key);
       } else {
@@ -346,7 +349,7 @@ public class WatermarkManager {
      * </ul>
      */
     @Override
-    public synchronized WatermarkUpdate refresh() {
+    public WatermarkUpdate refresh() {
       Instant oldWatermark = currentWatermark.get();
       Instant newWatermark = INSTANT_ORDERING.min(inputWatermark.get(), holds.getMinHold());
       newWatermark = INSTANT_ORDERING.max(oldWatermark, newWatermark);
@@ -422,7 +425,7 @@ public class WatermarkManager {
      * processing time must be.
      */
     @Override
-    public synchronized WatermarkUpdate refresh() {
+    public WatermarkUpdate refresh() {
       Instant oldHold = earliestHold.get();
       Instant minTime = THE_END_OF_TIME.get();
       for (Watermark input : inputWms) {
@@ -438,11 +441,11 @@ public class WatermarkManager {
       return WatermarkUpdate.fromTimestamps(oldHold, minTime);
     }
 
-    public synchronized void addPending(CommittedBundle<?> bundle) {
+    public void addPending(CommittedBundle<?> bundle) {
       pendingBundles.add(bundle);
     }
 
-    public synchronized void removePending(CommittedBundle<?> bundle) {
+    public void removePending(CommittedBundle<?> bundle) {
       pendingBundles.remove(bundle);
     }
 
@@ -451,7 +454,7 @@ public class WatermarkManager {
      * either the earliest timestamp across timers that have not been completed, or the earliest
      * timestamp across timers that have been delivered but have not been completed.
      */
-    public synchronized Instant getEarliestTimerTimestamp() {
+    public Instant getEarliestTimerTimestamp() {
       Instant earliest = THE_END_OF_TIME.get();
       for (NavigableSet<TimerData> timers : processingTimers.values()) {
         if (!timers.isEmpty()) {
@@ -469,7 +472,7 @@ public class WatermarkManager {
       return earliest;
     }
 
-    private synchronized void updateTimers(TimerUpdate update) {
+    private void updateTimers(TimerUpdate update) {
       Map<TimeDomain, NavigableSet<TimerData>> timerMap = timerMap(update.key);
       for (TimerData addedTimer : update.setTimers) {
         NavigableSet<TimerData> timerQueue = timerMap.get(addedTimer.getDomain());
@@ -489,7 +492,7 @@ public class WatermarkManager {
       }
     }
 
-    private synchronized Map<StructuralKey<?>, List<TimerData>> extractFiredDomainTimers(
+    private Map<StructuralKey<?>, List<TimerData>> extractFiredDomainTimers(
         TimeDomain domain, Instant firingTime) {
       Map<StructuralKey<?>, List<TimerData>> firedTimers;
       switch (domain) {
@@ -589,7 +592,7 @@ public class WatermarkManager {
      * processing time must be.
      */
     @Override
-    public synchronized WatermarkUpdate refresh() {
+    public WatermarkUpdate refresh() {
       // Hold the output synchronized processing time to the input watermark, which takes into
       // account buffered bundles, and the earliest pending timer, which determines what to hold
       // downstream timers to.
@@ -681,6 +684,18 @@ public class WatermarkManager {
   private final ConcurrentLinkedQueue<PendingWatermarkUpdate> pendingUpdates;
 
   /**
+   * Timers that have fired in the {@link TimeDomain#EVENT_TIME} and {@link
+   * TimeDomain#SYNCHRONIZED_PROCESSING_TIME} domains.
+   */
+  @GuardedBy("refreshLock")
+  private final Queue<FiredTimers> pendingDataTimers;
+  /**
+   * Timers by the time they will fire in the {@link TimeDomain#PROCESSING_TIME} domain.
+   */
+  @GuardedBy("refreshLock")
+  private final NavigableMap<Instant, Collection<FiredTimers>> pendingProcessingTimers;
+
+  /**
    * A lock used to control concurrency for updating pending values.
    */
   private final Lock refreshLock;
@@ -715,6 +730,8 @@ public class WatermarkManager {
     this.clock = clock;
     this.consumers = consumers;
     this.pendingUpdates = new ConcurrentLinkedQueue<>();
+    this.pendingDataTimers = new ConcurrentLinkedQueue<>();
+    this.pendingProcessingTimers = new TreeMap<>();
 
     this.refreshLock = new ReentrantLock();
     this.pendingRefreshes = new HashSet<>();
@@ -937,7 +954,7 @@ public class WatermarkManager {
    * Refresh the watermarks contained within this {@link WatermarkManager}, causing all
    * watermarks to be advanced as far as possible.
    */
-  synchronized void refreshAll() {
+  void refreshAll() {
     refreshLock.lock();
     try {
       applyAllPendingUpdates();
