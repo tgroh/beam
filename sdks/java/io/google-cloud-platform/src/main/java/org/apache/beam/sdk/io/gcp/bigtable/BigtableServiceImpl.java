@@ -61,11 +61,6 @@ class BigtableServiceImpl implements BigtableService {
   private final BigtableOptions options;
 
   @Override
-  public BigtableOptions getBigtableOptions() {
-    return options;
-  }
-
-  @Override
   public BigtableWriterImpl openForWriting(String tableId) throws IOException {
     BigtableSession session = new BigtableSession(options);
     BigtableTableName tableName = options.getInstanceName().toTableName(tableId);
