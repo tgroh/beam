@@ -31,6 +31,7 @@ import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Uninterruptibles;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,6 +39,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.apache.beam.runners.direct.BoundedReadEvaluatorFactory.BoundedSourceShard;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
@@ -438,6 +440,7 @@ public class BoundedReadEvaluatorFactoryTest {
           dynamicallySplit.await();
           while (initialSource.equals(getCurrentSource())) {
             // Spin until the current source is updated
+            Uninterruptibles.sleepUninterruptibly(1L, TimeUnit.MILLISECONDS);
           }
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
