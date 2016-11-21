@@ -24,6 +24,7 @@ import org.apache.beam.runners.direct.DirectRunner.PCollectionViewWriter;
 import org.apache.beam.runners.direct.StepTransformResult.Builder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.VoidCoder;
+import org.apache.beam.sdk.runners.PTransformFactory;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -94,10 +95,10 @@ class ViewEvaluatorFactory implements TransformEvaluatorFactory {
   }
 
   public static class ViewOverrideFactory<ElemT, ViewT>
-      implements PTransformOverrideFactory<
-          PCollection<ElemT>, PCollectionView<ViewT>, CreatePCollectionView<ElemT, ViewT>> {
+      implements PTransformFactory<
+                      PCollection<ElemT>, PCollectionView<ViewT>, CreatePCollectionView<ElemT, ViewT>> {
     @Override
-    public PTransform<PCollection<ElemT>, PCollectionView<ViewT>> override(
+    public PTransform<PCollection<ElemT>, PCollectionView<ViewT>> create(
         CreatePCollectionView<ElemT, ViewT> transform) {
       return new DirectCreatePCollectionView<>(transform);
     }

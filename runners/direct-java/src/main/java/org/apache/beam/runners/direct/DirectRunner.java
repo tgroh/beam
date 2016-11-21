@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
-import java.lang.instrument.ClassFileTransformer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -47,6 +46,7 @@ import org.apache.beam.sdk.io.Write;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.runners.PTransformFactory;
 import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.transforms.Aggregator;
@@ -79,9 +79,9 @@ public class DirectRunner
    * type of transform it is overriding.
    */
   @SuppressWarnings("rawtypes")
-  private static Map<Class<? extends PTransform>, PTransformOverrideFactory>
+  private static Map<Class<? extends PTransform>, PTransformFactory>
       defaultTransformOverrides =
-          ImmutableMap.<Class<? extends PTransform>, PTransformOverrideFactory>builder()
+          ImmutableMap.<Class<? extends PTransform>, PTransformFactory>builder()
               .put(CreatePCollectionView.class, new ViewOverrideFactory())
               .put(GroupByKey.class, new DirectGroupByKeyOverrideFactory())
               .put(TestStream.class, new DirectTestStreamFactory())
@@ -284,9 +284,9 @@ public class DirectRunner
 
   @Override
   public DirectPipelineResult run(Pipeline pipeline) {
-    for (Map.Entry<Class<? extends PTransform>, PTransformOverrideFactory> override :
+    for (Map.Entry<Class<? extends PTransform>, PTransformFactory> override :
         defaultTransformOverrides.entrySet()) {
-      pipeline.replaceMatches(ClassTransformFilter.of(override.getKey()), override.getValue());
+      pipeline.replaceMatches(ClassPTransformFilter.of(override.getKey()), override.getValue());
     }
     MetricsEnvironment.setMetricsSupported(true);
     ConsumerTrackingPipelineVisitor consumerTrackingVisitor = new ConsumerTrackingPipelineVisitor();
