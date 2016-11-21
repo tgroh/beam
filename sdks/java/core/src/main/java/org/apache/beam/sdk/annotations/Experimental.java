@@ -85,6 +85,9 @@ public @interface Experimental {
     SPLITTABLE_DO_FN,
 
     /** Metrics-related experimental APIs. */
-    METRICS
+    METRICS,
+
+    /** Runner-API related experimental APIs. */
+    RUNNER_API
   }
 }
