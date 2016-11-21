@@ -21,6 +21,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import org.apache.beam.runners.core.GBKIntoKeyedWorkItems;
 import org.apache.beam.sdk.coders.KvCoder;
+import org.apache.beam.sdk.runners.PTransformFactory;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.util.KeyedWorkItem;
 import org.apache.beam.sdk.util.KeyedWorkItemCoder;
@@ -30,12 +31,11 @@ import org.apache.beam.sdk.values.PCollection;
 
 /** Provides an implementation of {@link GBKIntoKeyedWorkItems} for the Direct Runner. */
 class DirectGBKIntoKeyedWorkItemsOverrideFactory<KeyT, InputT>
-    implements PTransformOverrideFactory<
-        PCollection<KV<KeyT, InputT>>, PCollection<KeyedWorkItem<KeyT, InputT>>,
-        GBKIntoKeyedWorkItems<KeyT, InputT>> {
+    implements PTransformFactory<
+                PCollection<KV<KeyT, InputT>>, PCollection<KeyedWorkItem<KeyT, InputT>>,
+                GBKIntoKeyedWorkItems<KeyT, InputT>> {
   @Override
-  public PTransform<PCollection<KV<KeyT, InputT>>, PCollection<KeyedWorkItem<KeyT, InputT>>>
-      override(GBKIntoKeyedWorkItems<KeyT, InputT> transform) {
+  public PTransform<PCollection<KV<KeyT, InputT>>, PCollection<KeyedWorkItem<KeyT, InputT>>> create(GBKIntoKeyedWorkItems<KeyT, InputT> transform) {
     return new DirectGBKIntoKeyedWorkItems<>(transform.getName());
   }
 

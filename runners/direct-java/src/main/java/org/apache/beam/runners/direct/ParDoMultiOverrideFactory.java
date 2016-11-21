@@ -18,16 +18,18 @@
 package org.apache.beam.runners.direct;
 
 import org.apache.beam.runners.core.SplittableParDo;
+import org.apache.beam.sdk.runners.PTransformFactory;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.ParDo.Bound;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignatures;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionTuple;
 
 /**
- * A {@link PTransformOverrideFactory} that provides overrides for applications of a {@link ParDo}
+ * A {@link PTransformFactory} that provides overrides for applications of a {@link ParDo}
  * in the direct runner. Currently overrides applications of <a
  * href="https://s.apache.org/splittable-do-fn">Splittable DoFn</a>.
  */

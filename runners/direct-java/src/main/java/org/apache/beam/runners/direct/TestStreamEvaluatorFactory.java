@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
+import org.apache.beam.sdk.runners.PTransformFactory;
 import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.testing.TestStream.ElementEvent;
@@ -156,9 +157,9 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory {
   }
 
   static class DirectTestStreamFactory<T>
-      implements PTransformOverrideFactory<PBegin, PCollection<T>, TestStream<T>> {
+      implements PTransformFactory<PBegin, PCollection<T>, TestStream<T>> {
     @Override
-    public PTransform<PBegin, PCollection<T>> override(TestStream<T> transform) {
+    public PTransform<PBegin, PCollection<T>> create(TestStream<T> transform) {
       return new DirectTestStream<>(transform);
     }
 
