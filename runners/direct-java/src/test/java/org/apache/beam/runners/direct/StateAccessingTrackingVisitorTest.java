@@ -45,65 +45,60 @@ import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-/**
- * Tests for {@link KeyedPValueTrackingVisitor}.
- */
+/** Tests for {@link StateAccessingTrackingVisitor}. */
 @RunWith(JUnit4.class)
-public class KeyedPValueTrackingVisitorTest {
+public class StateAccessingTrackingVisitorTest {
   @Rule public ExpectedException thrown = ExpectedException.none();
 
-  private KeyedPValueTrackingVisitor visitor;
+  private StateAccessingTrackingVisitor visitor;
   private Pipeline p;
 
   @Before
   public void setup() {
     p = TestPipeline.create();
     @SuppressWarnings("rawtypes")
-    Set<Class<? extends PTransform>> producesKeyed =
-        ImmutableSet.<Class<? extends PTransform>>of(PrimitiveKeyer.class, CompositeKeyer.class);
-    visitor = KeyedPValueTrackingVisitor.create(producesKeyed);
+    Set<Class<? extends PTransform>> consumesKeyed =
+        ImmutableSet.<Class<? extends PTransform>>of(
+            PrimitiveKeyConsumer.class);
+    visitor = StateAccessingTrackingVisitor.create(consumesKeyed);
   }
 
   @Test
   public void primitiveProducesKeyedOutputUnkeyedInputKeyedOutput() {
     PCollection<Integer> keyed =
-        p.apply(Create.<Integer>of(1, 2, 3)).apply(new PrimitiveKeyer<Integer>());
+        p.apply(Create.<Integer>of(1, 2, 3)).apply(new PrimitiveKeyConsumer<Integer>());
 
     p.traverseTopologically(visitor);
-    assertThat(visitor.getKeyedPValues(), hasItem(keyed));
+    assertThat(
+        visitor.getStateAccessingTransforms(), hasItem(keyed.getProducingTransformInternal()));
   }
 
   @Test
   public void primitiveProducesKeyedOutputKeyedInputKeyedOutut() {
     PCollection<Integer> keyed =
         p.apply(Create.<Integer>of(1, 2, 3))
-            .apply("firstKey", new PrimitiveKeyer<Integer>())
-            .apply("secondKey", new PrimitiveKeyer<Integer>());
+            .apply("firstKey", new PrimitiveKeyConsumer<Integer>())
+            .apply("secondKey", new PrimitiveKeyConsumer<Integer>());
 
     p.traverseTopologically(visitor);
-    assertThat(visitor.getKeyedPValues(), hasItem(keyed));
+    assertThat(
+        visitor.getStateAccessingTransforms(), hasItem(keyed.getProducingTransformInternal()));
   }
 
   @Test
-  public void compositeProducesKeyedOutputUnkeyedInputKeyedOutput() {
-    PCollection<Integer> keyed =
-        p.apply(Create.<Integer>of(1, 2, 3)).apply(new CompositeKeyer<Integer>());
+  public void compositeConsumesKeyedThrows() {
+    @SuppressWarnings("rawtypes")
+    Set<Class<? extends PTransform>> consumesKeyed =
+        ImmutableSet.<Class<? extends PTransform>>of(CompositeKeyConsumer.class);
+    visitor = StateAccessingTrackingVisitor.create(consumesKeyed);
+    p.apply(Create.<Integer>of(1, 2, 3))
+        .apply("CompositeKeyed", new CompositeKeyConsumer<Integer>());
 
+    thrown.expect(IllegalStateException.class);
+    thrown.expectMessage(CompositeKeyConsumer.class.getSimpleName());
+    thrown.expectMessage("CompositeKeyed");
     p.traverseTopologically(visitor);
-    assertThat(visitor.getKeyedPValues(), hasItem(keyed));
   }
-
-  @Test
-  public void compositeProducesKeyedOutputKeyedInputKeyedOutut() {
-    PCollection<Integer> keyed =
-        p.apply(Create.<Integer>of(1, 2, 3))
-            .apply("firstKey", new CompositeKeyer<Integer>())
-            .apply("secondKey", new CompositeKeyer<Integer>());
-
-    p.traverseTopologically(visitor);
-    assertThat(visitor.getKeyedPValues(), hasItem(keyed));
-  }
-
 
   @Test
   public void noInputUnkeyedOutput() {
@@ -113,18 +108,22 @@ public class KeyedPValueTrackingVisitorTest {
                 .withCoder(KvCoder.of(VarIntCoder.of(), IterableCoder.of(VoidCoder.of()))));
 
     p.traverseTopologically(visitor);
-    assertThat(visitor.getKeyedPValues(), not(hasItem(unkeyed)));
+    assertThat(
+        visitor.getStateAccessingTransforms(),
+        not(hasItem(unkeyed.getProducingTransformInternal())));
   }
 
   @Test
   public void keyedInputNotProducesKeyedOutputUnkeyedOutput() {
     PCollection<Integer> onceKeyed =
         p.apply(Create.<Integer>of(1, 2, 3))
-            .apply(new PrimitiveKeyer<Integer>())
+            .apply(new PrimitiveKeyConsumer<Integer>())
             .apply(ParDo.of(new IdentityFn<Integer>()));
 
     p.traverseTopologically(visitor);
-    assertThat(visitor.getKeyedPValues(), not(hasItem(onceKeyed)));
+    assertThat(
+        visitor.getStateAccessingTransforms(),
+        not(hasItem(onceKeyed.getProducingTransformInternal())));
   }
 
   @Test
@@ -133,7 +132,9 @@ public class KeyedPValueTrackingVisitorTest {
         p.apply(Create.<Integer>of(1, 2, 3)).apply(ParDo.of(new IdentityFn<Integer>()));
 
     p.traverseTopologically(visitor);
-    assertThat(visitor.getKeyedPValues(), not(hasItem(unkeyed)));
+    assertThat(
+        visitor.getStateAccessingTransforms(),
+        not(hasItem(unkeyed.getProducingTransformInternal())));
   }
 
   @Test
@@ -149,7 +150,7 @@ public class KeyedPValueTrackingVisitorTest {
 
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage("already been finalized");
-    thrown.expectMessage(KeyedPValueTrackingVisitor.class.getSimpleName());
+    thrown.expectMessage(StateAccessingTrackingVisitor.class.getSimpleName());
     p.traverseTopologically(visitor);
   }
 
@@ -157,11 +158,11 @@ public class KeyedPValueTrackingVisitorTest {
   public void getKeyedPValuesBeforeTraverseThrows() {
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage("completely traversed");
-    thrown.expectMessage("getKeyedPValues");
-    visitor.getKeyedPValues();
+    thrown.expectMessage("getStateAccessingTransforms");
+    visitor.getStateAccessingTransforms();
   }
 
-  private static class PrimitiveKeyer<K> extends PTransform<PCollection<K>, PCollection<K>> {
+  private static class PrimitiveKeyConsumer<K> extends PTransform<PCollection<K>, PCollection<K>> {
     @Override
     public PCollection<K> apply(PCollection<K> input) {
       return PCollection.<K>createPrimitiveOutputInternal(
@@ -170,10 +171,10 @@ public class KeyedPValueTrackingVisitorTest {
     }
   }
 
-  private static class CompositeKeyer<K> extends PTransform<PCollection<K>, PCollection<K>> {
+  private static class CompositeKeyConsumer<K> extends PTransform<PCollection<K>, PCollection<K>> {
     @Override
     public PCollection<K> apply(PCollection<K> input) {
-      return input.apply(new PrimitiveKeyer<K>()).apply(ParDo.of(new IdentityFn<K>()));
+      return input.apply(new PrimitiveKeyConsumer<K>()).apply(ParDo.of(new IdentityFn<K>()));
     }
   }
 

@@ -23,8 +23,11 @@ import java.util.HashSet;
 import java.util.Set;
 import org.apache.beam.sdk.Pipeline.PipelineVisitor;
 import org.apache.beam.sdk.runners.TransformTreeNode;
+import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.values.PInput;
+import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
 
 /**
@@ -37,21 +40,21 @@ import org.apache.beam.sdk.values.PValue;
  */
 // TODO: Handle Key-preserving transforms when appropriate and more aggressively make PTransforms
 // unkeyed
-class KeyedPValueTrackingVisitor implements PipelineVisitor {
+class StateAccessingTrackingVisitor extends PipelineVisitor.Defaults {
   @SuppressWarnings("rawtypes")
-  private final Set<Class<? extends PTransform>> producesKeyedOutputs;
-  private final Set<PValue> keyedValues;
+  private final Set<Class<? extends PTransform>> accessesState;
+  private final Set<AppliedPTransform<?, ?, ?>> matched;
   private boolean finalized;
 
-  public static KeyedPValueTrackingVisitor create(
+  public static StateAccessingTrackingVisitor create(
       @SuppressWarnings("rawtypes") Set<Class<? extends PTransform>> producesKeyedOutputs) {
-    return new KeyedPValueTrackingVisitor(producesKeyedOutputs);
+    return new StateAccessingTrackingVisitor(producesKeyedOutputs);
   }
 
-  private KeyedPValueTrackingVisitor(
+  private StateAccessingTrackingVisitor(
       @SuppressWarnings("rawtypes") Set<Class<? extends PTransform>> producesKeyedOutputs) {
-    this.producesKeyedOutputs = producesKeyedOutputs;
-    this.keyedValues = new HashSet<>();
+    this.accessesState = producesKeyedOutputs;
+    this.matched = new HashSet<>();
   }
 
   @Override
@@ -59,7 +62,7 @@ class KeyedPValueTrackingVisitor implements PipelineVisitor {
     checkState(
         !finalized,
         "Attempted to use a %s that has already been finalized on a pipeline (visiting node %s)",
-        KeyedPValueTrackingVisitor.class.getSimpleName(),
+        StateAccessingTrackingVisitor.class.getSimpleName(),
         node);
     return CompositeBehavior.ENTER_TRANSFORM;
   }
@@ -69,28 +72,31 @@ class KeyedPValueTrackingVisitor implements PipelineVisitor {
     checkState(
         !finalized,
         "Attempted to use a %s that has already been finalized on a pipeline (visiting node %s)",
-        KeyedPValueTrackingVisitor.class.getSimpleName(),
+        StateAccessingTrackingVisitor.class.getSimpleName(),
         node);
     if (node.isRootNode()) {
       finalized = true;
-    } else if (producesKeyedOutputs.contains(node.getTransform().getClass())) {
-      keyedValues.addAll(node.getExpandedOutputs());
+    } else {
+      checkState(!accessesState.contains(node.getTransform().getClass()),
+          "Composite Transform Types should not be listed as accessing state: %s in node %s",
+          node.getTransform().getClass().getSimpleName(),
+          node.getFullName());
     }
   }
 
   @Override
-  public void visitPrimitiveTransform(TransformTreeNode node) {}
-
-  @Override
-  public void visitValue(PValue value, TransformTreeNode producer) {
-    if (producesKeyedOutputs.contains(producer.getTransform().getClass())) {
-      keyedValues.addAll(value.expand());
+  public void visitPrimitiveTransform(TransformTreeNode node) {
+    if (accessesState.contains(node.getTransform().getClass())) {
+      matched.add(
+          AppliedPTransform.<PInput, POutput, PTransform>of(
+              node.getFullName(), node.getInput(), node.getOutput(), node.getTransform()));
     }
   }
 
-  public Set<PValue> getKeyedPValues() {
+  public Set<AppliedPTransform<?, ?, ?>> getStateAccessingTransforms() {
     checkState(
-        finalized, "can't call getKeyedPValues before a Pipeline has been completely traversed");
-    return keyedValues;
+        finalized,
+        "can't call getStateAccessingTransforms before a Pipeline has been completely traversed");
+    return matched;
   }
 }

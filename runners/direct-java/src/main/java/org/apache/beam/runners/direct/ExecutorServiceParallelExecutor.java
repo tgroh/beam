@@ -70,7 +70,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   private final ExecutorService executorService;
 
   private final Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers;
-  private final Set<PValue> keyedPValues;
+  private final Set<AppliedPTransform<?, ?, ?>> stateAccessingTransforms;
   private final RootProviderRegistry rootProviderRegistry;
   private final TransformEvaluatorRegistry registry;
   @SuppressWarnings("rawtypes")
@@ -105,7 +105,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   public static ExecutorServiceParallelExecutor create(
       int targetParallelism,
       Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers,
-      Set<PValue> keyedPValues,
+      Set<AppliedPTransform<?, ?, ?>> stateAccessingTransforms,
       RootProviderRegistry rootProviderRegistry,
       TransformEvaluatorRegistry registry,
       @SuppressWarnings("rawtypes")
@@ -115,7 +115,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     return new ExecutorServiceParallelExecutor(
         targetParallelism,
         valueToConsumers,
-        keyedPValues,
+        stateAccessingTransforms,
         rootProviderRegistry,
         registry,
         transformEnforcements,
@@ -125,7 +125,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   private ExecutorServiceParallelExecutor(
       int targetParallelism,
       Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers,
-      Set<PValue> keyedPValues,
+      Set<AppliedPTransform<?, ?, ?>> stateAccessingTransforms,
       RootProviderRegistry rootProviderRegistry,
       TransformEvaluatorRegistry registry,
       @SuppressWarnings("rawtypes")
@@ -134,7 +134,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
     this.targetParallelism = targetParallelism;
     this.executorService = Executors.newFixedThreadPool(targetParallelism);
     this.valueToConsumers = valueToConsumers;
-    this.keyedPValues = keyedPValues;
+    this.stateAccessingTransforms = stateAccessingTransforms;
     this.rootProviderRegistry = rootProviderRegistry;
     this.registry = registry;
     this.transformEnforcements = transformEnforcements;
@@ -198,7 +198,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
       final CompletionCallback onComplete) {
     TransformExecutorService transformExecutor;
 
-    if (isKeyed(bundle.getPCollection())) {
+    if (stateAccessingTransforms.contains(transform)) {
       final StepAndKey stepAndKey = StepAndKey.of(transform, bundle.getKey());
       // This executor will remain reachable until it has executed all scheduled transforms.
       // The TransformExecutors keep a strong reference to the Executor, the ExecutorService keeps
@@ -226,10 +226,6 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
             transformExecutor);
     outstandingWork.incrementAndGet();
     transformExecutor.schedule(callable);
-  }
-
-  private boolean isKeyed(PValue pvalue) {
-    return keyedPValues.contains(pvalue);
   }
 
   private void scheduleConsumers(ExecutorUpdate update) {

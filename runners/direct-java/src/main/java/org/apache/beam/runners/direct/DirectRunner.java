@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.core.GBKIntoKeyedWorkItems;
-import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupByKeyOnly;
+import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupAlsoByWindow;
 import org.apache.beam.runners.direct.DirectRunner.DirectPipelineResult;
 import org.apache.beam.runners.direct.TestStreamEvaluatorFactory.DirectTestStreamFactory;
 import org.apache.beam.runners.direct.ViewEvaluatorFactory.ViewOverrideFactory;
@@ -307,11 +307,10 @@ public class DirectRunner
       unfinalized.finishSpecifying();
     }
     @SuppressWarnings("rawtypes")
-    KeyedPValueTrackingVisitor keyedPValueVisitor =
-        KeyedPValueTrackingVisitor.create(
-            ImmutableSet.<Class<? extends PTransform>>of(
-                GroupByKey.class, DirectGroupByKeyOnly.class));
-    pipeline.traverseTopologically(keyedPValueVisitor);
+    StateAccessingTrackingVisitor statefulTransformVisitor =
+        StateAccessingTrackingVisitor.create(
+            ImmutableSet.<Class<? extends PTransform>>of(DirectGroupAlsoByWindow.class));
+    pipeline.traverseTopologically(statefulTransformVisitor);
 
     DisplayDataValidator.validatePipeline(pipeline);
 
@@ -331,7 +330,7 @@ public class DirectRunner
         ExecutorServiceParallelExecutor.create(
             options.getTargetParallelism(),
             consumerTrackingVisitor.getValueToConsumers(),
-            keyedPValueVisitor.getKeyedPValues(),
+            statefulTransformVisitor.getStateAccessingTransforms(),
             rootInputProvider,
             registry,
             Enforcement.defaultModelEnforcements(enabledEnforcements),
