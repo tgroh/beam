@@ -20,6 +20,7 @@ package org.apache.beam.sdk.runners;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
+import com.google.common.base.MoreObjects;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -113,6 +114,15 @@ public class TransformTreeNode {
     parts.add(node);
   }
 
+  public void replaceComposite(TransformTreeNode original, TransformTreeNode replacementNode) {
+    checkState(
+        parts.remove(original),
+        "Tried to replace a node %s that was not enclosed by %s",
+        original,
+        this);
+    parts.add(replacementNode);
+  }
+
   /**
    * Returns true if this node represents a composite transform that does not perform
    * processing of its own, but merely encapsulates a sub-pipeline (which may be empty).
@@ -193,7 +203,13 @@ public class TransformTreeNode {
   }
 
   public void setReplaced(TransformTreeNode replaced) {
+    checkState(
+        this.input.equals(replaced.getInput()),
+        "Tried to replace a node with different input (old: %s new: %s)",
+        replaced.getInput(),
+        this.input);
     this.replaced = replaced;
+    this.output = replaced.getOutput();
   }
 
   /**
@@ -266,5 +282,13 @@ public class TransformTreeNode {
     if (output != null) {
       output.finishSpecifyingOutput();
     }
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(TransformTreeNode.class)
+        .add("fullName", fullName)
+        .add("transform", transform)
+        .toString();
   }
 }

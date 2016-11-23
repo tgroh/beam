@@ -69,10 +69,9 @@ public class TransformHierarchy {
 
   public void replaceNode(
       TransformTreeNode original, TransformTreeNode replacementNode) {
-    original.getInput();
-    replacementNode.setOutput(original.getOutput());
+    TransformTreeNode enclosing = original.getEnclosingNode();
     replacementNode.setReplaced(original);
-    original.getOutput();
+    enclosing.replaceComposite(original, replacementNode);
   }
 
   /**
