@@ -25,6 +25,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.apache.beam.sdk.io.Write;
 import org.apache.beam.sdk.io.Write.Bound;
 import org.apache.beam.sdk.runners.PTransformFactory;
+import org.apache.beam.sdk.runners.PTransformMatcher;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.Flatten;
@@ -134,6 +135,29 @@ class WriteWithShardingFactory<InputT>
       int floorLogRecs = Double.valueOf(Math.log10(totalRecords)).intValue();
       int shards = Math.max(floorLogRecs, MIN_SHARDS_FOR_LOG) + randomExtraShards;
       return shards;
+    }
+  }
+
+  static class Matcher implements PTransformMatcher {
+    public static Matcher create() {
+      return new Matcher();
+    }
+
+    private Matcher() {}
+
+    @Override
+    public Match match(PTransform<?, ?> transform) {
+      if (transform instanceof Write.Bound) {
+        Write.Bound<?> pt = (Write.Bound) transform;
+        if (pt.getNumShards() == 0) {
+          return Match.REPLACE;
+        }
+      }
+      if (transform instanceof DynamicallyReshardedWrite) {
+        // This transform contains a write, but this matcher is not applicable
+        return Match.SKIP;
+      }
+      return Match.CONTINUE;
     }
   }
 }
