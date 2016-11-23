@@ -21,6 +21,16 @@ import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
 
+/**
+ * A factory for creating replacement {@link PTransform PTransforms} from an original {@link
+ * PTransform}.
+ *
+ * <p>The type signature of a {@link PTransformFactory} is used as an aid to the author to ensure
+ * the types of the input and output align, but does not restrict the calls made by the Pipeline to
+ * that
+ *
+ * @param <TransformT> the type of the overridden {@link PTransform}.
+ */
 public interface PTransformFactory<
     InputT extends PInput,
     OutputT extends POutput,

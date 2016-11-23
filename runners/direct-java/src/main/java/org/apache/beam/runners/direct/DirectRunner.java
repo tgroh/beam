@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.core.GBKIntoKeyedWorkItems;
+import org.apache.beam.runners.core.pipeline.ClassPTransformMatcher;
 import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupByKeyOnly;
 import org.apache.beam.runners.direct.DirectRunner.DirectPipelineResult;
 import org.apache.beam.runners.direct.TestStreamEvaluatorFactory.DirectTestStreamFactory;
@@ -42,11 +43,11 @@ import org.apache.beam.sdk.Pipeline.PipelineExecutionException;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.io.Read;
-import org.apache.beam.sdk.io.Write;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.runners.PTransformFactory;
+import org.apache.beam.sdk.runners.PTransformMatcher;
 import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.transforms.Aggregator;
@@ -74,23 +75,19 @@ public class DirectRunner
     extends PipelineRunner<DirectPipelineResult> {
   /**
    * The default set of transform overrides to use in the {@link DirectRunner}.
-   *
-   * <p>A transform override must have a single-argument constructor that takes an instance of the
-   * type of transform it is overriding.
    */
   @SuppressWarnings("rawtypes")
-  private static Map<Class<? extends PTransform>, PTransformFactory>
-      defaultTransformOverrides =
-          ImmutableMap.<Class<? extends PTransform>, PTransformFactory>builder()
-              .put(CreatePCollectionView.class, new ViewOverrideFactory())
-              .put(GroupByKey.class, new DirectGroupByKeyOverrideFactory())
-              .put(TestStream.class, new DirectTestStreamFactory())
-              .put(Write.Bound.class, new WriteWithShardingFactory())
-              .put(ParDo.Bound.class, new ParDoOverrideFactory())
-              .put(
-                  GBKIntoKeyedWorkItems.class,
-                  new DirectGBKIntoKeyedWorkItemsOverrideFactory())
-              .build();
+  private static Map<PTransformMatcher, PTransformFactory> defaultTransformOverrides =
+      ImmutableMap.<PTransformMatcher, PTransformFactory>builder()
+          .put(ClassPTransformMatcher.of(CreatePCollectionView.class), new ViewOverrideFactory())
+          .put(ClassPTransformMatcher.of(GroupByKey.class), new DirectGroupByKeyOverrideFactory())
+          .put(ClassPTransformMatcher.of(TestStream.class), new DirectTestStreamFactory())
+          .put(ClassPTransformMatcher.of(ParDo.Bound.class), new ParDoOverrideFactory())
+          .put(
+              ClassPTransformMatcher.of(GBKIntoKeyedWorkItems.class),
+              new DirectGBKIntoKeyedWorkItemsOverrideFactory())
+          .put(WriteWithShardingFactory.Matcher.create(), new WriteWithShardingFactory())
+          .build();
 
   /**
    * Part of a {@link PCollection}. Elements are output to a bundle, which will cause them to be
@@ -284,10 +281,7 @@ public class DirectRunner
 
   @Override
   public DirectPipelineResult run(Pipeline pipeline) {
-    for (Map.Entry<Class<? extends PTransform>, PTransformFactory> override :
-        defaultTransformOverrides.entrySet()) {
-      pipeline.replaceMatches(ClassPTransformFilter.of(override.getKey()), override.getValue());
-    }
+    performSurgery(pipeline);
     MetricsEnvironment.setMetricsSupported(true);
     ConsumerTrackingPipelineVisitor consumerTrackingVisitor = new ConsumerTrackingPipelineVisitor();
     pipeline.traverseTopologically(consumerTrackingVisitor);
@@ -342,6 +336,18 @@ public class DirectRunner
       }
     }
     return result;
+  }
+
+  private void performSurgery(Pipeline pipeline) {
+    boolean unstable = true;
+    while (unstable) {
+      unstable = false;
+      for (Map.Entry<PTransformMatcher, PTransformFactory> override : defaultTransformOverrides
+          .entrySet()) {
+        boolean replaced = pipeline.replaceMatches(override.getKey(), override.getValue());
+        unstable |= replaced;
+      }
+    }
   }
 
   /**
