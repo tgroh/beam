@@ -17,10 +17,13 @@
  */
 package org.apache.beam.sdk;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -404,6 +407,39 @@ public class Pipeline {
       output.recordAsOutput(applied);
       verifyOutputState(output, child);
       return output;
+    } finally {
+      transforms.popNode();
+    }
+  }
+
+  private <InputT extends PInput, OutputT extends POutput> void replace(
+      TransformTreeNode original, PTransform<? super InputT, OutputT> replacement) {
+    InputT input = (InputT) original.getInput();
+    OutputT output = (OutputT) original.getOutput();
+    Map<String, PValue> outputsByName = new HashMap<>();
+    Map<PValue, AppliedPTransform<?, ?, ?>> namesToProducingTransform = new HashMap<>();
+    for (PValue outputValue : output.expand()) {
+      outputsByName.put(outputValue.getName(), outputValue);
+      namesToProducingTransform.put(outputValue, outputValue.getProducingTransformInternal());
+    }
+
+    TransformTreeNode replacementNode =
+        new TransformTreeNode(
+            original.getEnclosingNode(), replacement, original.getFullName(), input);
+    LOG.debug("Replacing {} with {} in {}", original.getFullName(), replacement, this);
+    try {
+      transforms.pushNode(replacementNode);
+      OutputT newOutput = runner.apply(replacement, input);
+      for (PValue value : newOutput.expand()) {
+        PValue oldValue = outputsByName.get(value.getName());
+        checkState(oldValue != null,
+            "Outputs of a replacement PTransform must be equivalent to the original transform");
+        oldValue.replaceAsOutput(
+            namesToProducingTransform.get(oldValue), value.getProducingTransformInternal());
+      }
+      AppliedPTransform<?, ?, ?> replacementApplication =
+          AppliedPTransform.of(replacementNode.getFullName(), input, output, replacement);
+      transforms.replaceNode(original, replacementNode);
     } finally {
       transforms.popNode();
     }
