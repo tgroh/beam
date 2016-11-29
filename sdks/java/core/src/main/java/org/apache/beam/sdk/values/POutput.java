@@ -19,7 +19,6 @@ package org.apache.beam.sdk.values;
 
 import java.util.Collection;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 
 /**
@@ -46,19 +45,6 @@ public interface POutput {
    * <p>Not intended to be invoked directly by user code.
    */
   Collection<? extends PValue> expand();
-
-  /**
-   * Records that this {@code POutput} is an output of the given
-   * {@code PTransform}.
-   *
-   * <p>For a compound {@code POutput}, it is advised to call
-   * this method on each component {@code POutput}.
-   *
-   * <p>This is not intended to be invoked by user code, but
-   * is automatically invoked as part of applying the
-   * producing {@link PTransform}.
-   */
-  void recordAsOutput(AppliedPTransform<?, ?, ?> transform);
 
   /**
    * As part of applying the producing {@link PTransform}, finalizes this

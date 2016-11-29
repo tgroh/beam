@@ -145,7 +145,7 @@ public abstract class TypedPValue<T> extends PValueBase implements PValue {
     CannotProvideCoderException inferFromTokenException = null;
     if (token != null) {
       try {
-          return registry.getDefaultCoder(token);
+        return registry.getDefaultCoder(token);
       } catch (CannotProvideCoderException exc) {
         inferFromTokenException = exc;
         // Attempt to detect when the token came from a TupleTag used for a ParDo side output,

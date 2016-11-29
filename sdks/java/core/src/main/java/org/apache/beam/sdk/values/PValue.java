@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.values;
 
-import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 
 /**
@@ -29,11 +28,4 @@ public interface PValue extends POutput, PInput {
    * Returns the name of this {@link PValue}.
    */
   String getName();
-
-  /**
-   * Returns the {@link AppliedPTransform} that this {@link PValue} is an output of.
-   *
-   * <p>For internal use only.
-   */
-  AppliedPTransform<?, ?, ?> getProducingTransformInternal();
 }

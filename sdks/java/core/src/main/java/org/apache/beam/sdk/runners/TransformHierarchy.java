@@ -19,6 +19,7 @@ package org.apache.beam.sdk.runners;
 
 import static com.google.common.base.Preconditions.checkState;
 
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -35,7 +36,7 @@ import org.apache.beam.sdk.values.PValue;
  */
 public class TransformHierarchy {
   private final Deque<TransformTreeNode> transformStack = new LinkedList<>();
-  private final Map<PInput, TransformTreeNode> producingTransformNode = new HashMap<>();
+  private final Map<POutput, TransformTreeNode> producingTransformNode = new HashMap<>();
 
   /**
    * Create a {@code TransformHierarchy} containing a root node.
@@ -88,8 +89,12 @@ public class TransformHierarchy {
   public void setOutput(TransformTreeNode producer, POutput output) {
     producer.setOutput(output);
 
-    for (PValue o : output.expand()) {
+    Collection<? extends PValue> expanded = output.expand();
+    for (PValue o : expanded) {
       producingTransformNode.put(o, producer);
+    }
+    if (!(expanded.size() == 1 && expanded.iterator().next().equals(output))) {
+      producingTransformNode.put(output, producer);
     }
   }
 
@@ -99,5 +104,9 @@ public class TransformHierarchy {
   public void visit(Pipeline.PipelineVisitor visitor,
                     Set<PValue> visitedNodes) {
     transformStack.peekFirst().visit(visitor, visitedNodes);
+  }
+
+  public TransformTreeNode getProducer(POutput output) {
+    return producingTransformNode.get(output);
   }
 }

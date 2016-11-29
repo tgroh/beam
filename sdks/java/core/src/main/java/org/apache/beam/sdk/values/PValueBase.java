@@ -20,7 +20,6 @@ package org.apache.beam.sdk.values;
 import java.util.Collection;
 import java.util.Collections;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.util.StringUtils;
 
@@ -95,27 +94,6 @@ public abstract class PValueBase extends POutputValueBase implements PValue {
    * properties, e.g., name, can no longer be changed.
    */
   private boolean finishedSpecifying = false;
-
-  @Override
-  public void recordAsOutput(AppliedPTransform<?, ?, ?> transform) {
-    recordAsOutput(transform, "out");
-  }
-
-  /**
-   * Records that this {@link POutputValueBase} is an output with the
-   * given name of the given {@link AppliedPTransform} in the given
-   * {@link Pipeline}.
-   *
-   * <p>To be invoked only by {@link POutput#recordAsOutput}
-   * implementations.  Not to be invoked directly by user code.
-   */
-  protected void recordAsOutput(AppliedPTransform<?, ?, ?> transform,
-                                String outName) {
-    super.recordAsOutput(transform);
-    if (name == null) {
-      name = transform.getFullName() + "." + outName;
-    }
-  }
 
   /**
    * Returns whether this {@link PValueBase} has been finalized, and

@@ -186,7 +186,6 @@ public class Pipeline {
     }
   }
 
-
   /////////////////////////////////////////////////////////////////////////////
   // Below here are operations that aren't normally called by users.
 
@@ -201,11 +200,14 @@ public class Pipeline {
     return coderRegistry;
   }
 
-  /**
-   * Sets the {@link CoderRegistry} that this {@link Pipeline} uses.
-   */
+  /** Sets the {@link CoderRegistry} that this {@link Pipeline} uses. */
   public void setCoderRegistry(CoderRegistry coderRegistry) {
     this.coderRegistry = coderRegistry;
+  }
+
+  public AppliedPTransform<?, ?, ?> getProducingTransform(POutput output) {
+    TransformTreeNode producingNode = transforms.getProducer(output);
+    return AppliedPTransform.fromTransformTreeNode(producingNode);
   }
 
   /**

@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.util.WindowingStrategy;
@@ -234,18 +233,6 @@ public class PCollectionTuple implements PInput, POutput {
   @Override
   public Collection<? extends PValue> expand() {
     return pcollectionMap.values();
-  }
-
-  @Override
-  public void recordAsOutput(AppliedPTransform<?, ?, ?> transform) {
-    int i = 0;
-    for (Map.Entry<TupleTag<?>, PCollection<?>> entry
-             : pcollectionMap.entrySet()) {
-      TupleTag<?> tag = entry.getKey();
-      PCollection<?> pc = entry.getValue();
-      pc.recordAsOutput(transform, tag.getOutName(i));
-      i++;
-    }
   }
 
   @Override
