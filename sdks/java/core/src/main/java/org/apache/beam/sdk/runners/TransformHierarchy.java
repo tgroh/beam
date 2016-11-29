@@ -19,12 +19,14 @@ package org.apache.beam.sdk.runners;
 
 import static com.google.common.base.Preconditions.checkState;
 
-import java.util.Deque;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.Pipeline.PipelineVisitor;
+import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
@@ -34,70 +36,70 @@ import org.apache.beam.sdk.values.PValue;
  * associated {@link PValue}s.
  */
 public class TransformHierarchy {
-  private final Deque<TransformTreeNode> transformStack = new LinkedList<>();
-  private final Map<PInput, TransformTreeNode> producingTransformNode = new HashMap<>();
+  private final TransformTreeNode root;
+  private final Map<POutput, TransformTreeNode> producers;
+  // Maintain a stack based on the enclosing nodes
+  private TransformTreeNode current;
 
-  /**
-   * Create a {@code TransformHierarchy} containing a root node.
-   */
   public TransformHierarchy() {
-    // First element in the stack is the root node, holding all child nodes.
-    transformStack.add(new TransformTreeNode(null, null, "", null));
+    root = TransformTreeNode.root(this);
+    current = root;
+    producers = new HashMap<>();
+  }
+
+  public void addNode(String name, PInput input, PTransform<?, ?> transform) {
+    // Inputs must be completely specified before they are consumed by a transform.
+    input.finishSpecifying();
+    TransformTreeNode next =
+        TransformTreeNode.subtransform(current, transform, name, input);
+    current = next;
+  }
+
+  public void setOutput(POutput output) {
+    for (PValue value : output.expand()) {
+      if (!producers.containsKey(value)) {
+        producers.put(value, current);
+      }
+    }
+    output.generateName(current.getTransform(), current.getFullName());
+    current.setOutput(output);
   }
 
   /**
-   * Returns the last TransformTreeNode on the stack.
+   * Pops the current node off the top of the stack, finishing it.
    */
+  public void finishNode() {
+    current.finishSpecifying();
+    current = current.getEnclosingNode();
+    checkState(current != null, "Can't pop the root node of a TransformHierarchy");
+  }
+
+  TransformTreeNode getProducer(PValue produced) {
+    return producers.get(produced);
+  }
+
+  /**
+   * Returns all producing transforms for the {@link PValue PValues} contained
+   * in {@code output}.
+   */
+  List<TransformTreeNode> getProducingTransforms(POutput output) {
+    List<TransformTreeNode> producingTransforms = new ArrayList<>();
+    for (PValue value : output.expand()) {
+      TransformTreeNode producer = getProducer(value);
+      if (producer != null) {
+        producingTransforms.add(producer);
+      }
+    }
+    return producingTransforms;
+  }
+
+  public Set<PValue> visit(PipelineVisitor visitor) {
+    Set<PValue> visitedValues = new HashSet<>();
+    root.visit(visitor, visitedValues);
+    return visitedValues;
+  }
+
   public TransformTreeNode getCurrent() {
-    return transformStack.peek();
-  }
-
-  /**
-   * Add a TransformTreeNode to the stack.
-   */
-  public void pushNode(TransformTreeNode current) {
-    transformStack.push(current);
-  }
-
-  /**
-   * Removes the last TransformTreeNode from the stack.
-   */
-  public void popNode() {
-    transformStack.pop();
-    checkState(!transformStack.isEmpty());
-  }
-
-  /**
-   * Adds an input to the given node.
-   *
-   * <p>This forces the producing node to be finished.
-   */
-  public void addInput(TransformTreeNode node, PInput input) {
-    for (PValue i : input.expand()) {
-      TransformTreeNode producer = producingTransformNode.get(i);
-      checkState(producer != null, "Producer unknown for input: %s", i);
-
-      producer.finishSpecifying();
-      node.addInputProducer(i, producer);
-    }
-  }
-
-  /**
-   * Sets the output of a transform node.
-   */
-  public void setOutput(TransformTreeNode producer, POutput output) {
-    producer.setOutput(output);
-
-    for (PValue o : output.expand()) {
-      producingTransformNode.put(o, producer);
-    }
-  }
-
-  /**
-   * Visits all nodes in the transform hierarchy, in transitive order.
-   */
-  public void visit(Pipeline.PipelineVisitor visitor,
-                    Set<PValue> visitedNodes) {
-    transformStack.peekFirst().visit(visitor, visitedNodes);
+    return current;
   }
 }

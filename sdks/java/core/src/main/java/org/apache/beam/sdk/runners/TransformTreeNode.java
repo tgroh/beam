@@ -17,14 +17,12 @@
  */
 package org.apache.beam.sdk.runners;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.Pipeline.PipelineVisitor;
@@ -39,6 +37,7 @@ import org.apache.beam.sdk.values.PValue;
  * for initialization and ordered visitation.
  */
 public class TransformTreeNode {
+  private final TransformHierarchy hierarchy;
   private final TransformTreeNode enclosingNode;
 
   // The PTransform for this node, which may be a composite PTransform.
@@ -51,10 +50,6 @@ public class TransformTreeNode {
   // Nodes for sub-transforms of a composite transform.
   private final Collection<TransformTreeNode> parts = new ArrayList<>();
 
-  // Inputs to the transform, in expanded form and mapped to the producer
-  // of the input.
-  private final Map<PValue, TransformTreeNode> inputs = new HashMap<>();
-
   // Input to the transform, in unexpanded form.
   private final PInput input;
 
@@ -64,26 +59,39 @@ public class TransformTreeNode {
 
   private boolean finishedSpecifying = false;
 
+  public static TransformTreeNode root(TransformHierarchy hierarchy) {
+    return new TransformTreeNode(hierarchy, null, null, "", null);
+  }
+
+  public static TransformTreeNode subtransform(
+      TransformTreeNode enclosing, PTransform<?, ?> transform, String fullName, PInput input) {
+    checkNotNull(enclosing);
+    checkNotNull(transform);
+    checkNotNull(fullName);
+    checkNotNull(input);
+    return new TransformTreeNode(enclosing.hierarchy, enclosing, transform, fullName, input);
+  }
+
   /**
    * Creates a new TransformTreeNode with the given parent and transform.
    *
-   * <p>EnclosingNode and transform may both be null for
-   * a root-level node, which holds all other nodes.
+   * <p>EnclosingNode and transform may both be null for a root-level node, which holds all other
+   * nodes.
    *
    * @param enclosingNode the composite node containing this node
    * @param transform the PTransform tracked by this node
    * @param fullName the fully qualified name of the transform
    * @param input the unexpanded input to the transform
    */
-  public TransformTreeNode(@Nullable TransformTreeNode enclosingNode,
-                           @Nullable PTransform<?, ?> transform,
-                           String fullName,
-                           @Nullable PInput input) {
+  private TransformTreeNode(
+      TransformHierarchy hierarchy,
+      @Nullable TransformTreeNode enclosingNode,
+      @Nullable PTransform<?, ?> transform,
+      String fullName,
+      @Nullable PInput input) {
+    this.hierarchy = hierarchy;
     this.enclosingNode = enclosingNode;
     this.transform = transform;
-    checkArgument((enclosingNode == null && transform == null)
-        || (enclosingNode != null && transform != null),
-        "EnclosingNode and transform must both be specified, or both be null");
     this.fullName = fullName;
     this.input = input;
   }
@@ -125,9 +133,11 @@ public class TransformTreeNode {
 
   private boolean returnsOthersOutput() {
     PTransform<?, ?> transform = getTransform();
-    for (PValue output : getExpandedOutputs()) {
-      if (!output.getProducingTransformInternal().getTransform().equals(transform)) {
-        return true;
+    if (output != null) {
+      for (PValue outputValue : output.expand()) {
+        if (!outputValue.getProducingTransformInternal().getTransform().equals(transform)) {
+          return true;
+        }
       }
     }
     return false;
@@ -142,14 +152,6 @@ public class TransformTreeNode {
   }
 
   /**
-   * Adds an input to the transform node.
-   */
-  public void addInputProducer(PValue expandedInput, TransformTreeNode producer) {
-    checkState(!finishedSpecifying);
-    inputs.put(expandedInput, producer);
-  }
-
-  /**
    * Returns the transform input, in unexpanded form.
    */
   public PInput getInput() {
@@ -157,19 +159,43 @@ public class TransformTreeNode {
   }
 
   /**
-   * Returns a mapping of inputs to the producing nodes for all inputs to
-   * the transform.
-   */
-  public Map<PValue, TransformTreeNode> getInputs() {
-    return Collections.unmodifiableMap(inputs);
-  }
-
-  /**
    * Adds an output to the transform node.
    */
   public void setOutput(POutput output) {
     checkState(!finishedSpecifying);
-    checkState(this.output == null);
+    checkState(this.output == null, "Tried to specify more than one output for %s", getFullName());
+
+    // Validate that a primitive transform produces only primitive output, and a composite transform
+    // does not produce primitive output.
+    List<TransformTreeNode> producingTransforms = hierarchy.getProducingTransforms(output);
+    if (isCompositeNode()) {
+      for (TransformTreeNode producingTransform : producingTransforms) {
+        // Using == because object identity indicates that the transforms
+        // are the same node in the pipeline
+        if (this == producingTransform ) {
+          throw new IllegalStateException(
+              "Output of composite transform "
+                  + transform
+                  + " is registered as being produced by it,"
+                  + " but the output of every composite transform should be"
+                  + " produced by a primitive transform contained therein.");
+        }
+      }
+    } else {
+      for (TransformTreeNode producingTransform : producingTransforms) {
+        // Using != because object identity indicates that the transforms
+        // are the same node in the pipeline
+        if (this != producingTransform) {
+          throw new IllegalArgumentException(
+              "Output of non-composite transform "
+                  + transform
+                  + " is registered as being produced by"
+                  + " a different transform: "
+                  + producingTransform);
+        }
+      }
+    }
+
     this.output = output;
   }
 
@@ -178,17 +204,6 @@ public class TransformTreeNode {
    */
   public POutput getOutput() {
     return output;
-  }
-
-  /**
-   * Returns the transform outputs, in expanded form.
-   */
-  public Collection<? extends PValue> getExpandedOutputs() {
-    if (output != null) {
-      return output.expand();
-    } else {
-      return Collections.emptyList();
-    }
   }
 
   /**
@@ -204,10 +219,12 @@ public class TransformTreeNode {
       finishSpecifying();
     }
 
-    // Visit inputs.
-    for (Map.Entry<PValue, TransformTreeNode> entry : inputs.entrySet()) {
-      if (visitedValues.add(entry.getKey())) {
-        visitor.visitValue(entry.getKey(), entry.getValue());
+    if (!isRootNode()) {
+      // Visit inputs.
+      for (PValue inputValue : input.expand()) {
+        if (visitedValues.add(inputValue)) {
+          visitor.visitValue(inputValue, hierarchy.getProducer(inputValue));
+        }
       }
     }
 
@@ -224,10 +241,12 @@ public class TransformTreeNode {
       visitor.visitPrimitiveTransform(this);
     }
 
-    // Visit outputs.
-    for (PValue pValue : getExpandedOutputs()) {
-      if (visitedValues.add(pValue)) {
-        visitor.visitValue(pValue, this);
+    if (!isRootNode()) {
+      // Visit outputs.
+      for (PValue pValue : output.expand()) {
+        if (visitedValues.add(pValue)) {
+          visitor.visitValue(pValue, this);
+        }
       }
     }
   }
@@ -243,15 +262,5 @@ public class TransformTreeNode {
       return;
     }
     finishedSpecifying = true;
-
-    for (TransformTreeNode input : inputs.values()) {
-      if (input != null) {
-        input.finishSpecifying();
-      }
-    }
-
-    if (output != null) {
-      output.finishSpecifyingOutput();
-    }
   }
 }

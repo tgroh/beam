@@ -53,7 +53,7 @@ public class TransformHierarchyTest {
 
   @Before
   public void setup() {
-    hierarchy = new TransformHierarchy();
+    hierarchy = new TransformHierarchy(nodes);
     pipeline = TestPipeline.create();
   }
 
