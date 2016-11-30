@@ -67,9 +67,22 @@ public class TransformHierarchy {
    * @return the added node
    */
   public Node addNode(String name, PInput input, PTransform<?, ?> transform) {
+    checkNotNull(
+        transform, "A %s must be provided for all Nodes", PTransform.class.getSimpleName());
+    checkNotNull(
+        name, "A name must be provided for all %s Nodes", PTransform.class.getSimpleName());
+    checkNotNull(
+        input, "An input must be provided for all %s Nodes", PTransform.class.getSimpleName());
     // Inputs must be completely specified before they are consumed by a transform.
     input.finishSpecifying();
-    current = subTransform(current, transform, name, input);
+    for (PValue inputValue : input.expand()) {
+      checkState(producers.get(inputValue) != null, "Producer unknown for input %s", inputValue);
+      inputValue.finishSpecifying();
+    }
+    Node node = new Node(current, transform, name, input);
+    current.addComposite(node);
+    current = node;
+    // subTansform.addInput(current, input);
     return current;
   }
 
@@ -84,9 +97,9 @@ public class TransformHierarchy {
         producers.put(value, current);
       }
     }
+    current.setOutput(output);
     // TODO: Replace with a "generateDefaultNames" method.
     output.recordAsOutput(current.toAppliedPTransform());
-    current.setOutput(output);
   }
 
   /**
@@ -125,17 +138,6 @@ public class TransformHierarchy {
 
   public Node getCurrent() {
     return current;
-  }
-
-  private Node subTransform(
-      Node enclosing, PTransform<?, ?> transform, String fullName, PInput input) {
-    checkNotNull(enclosing);
-    checkNotNull(transform);
-    checkNotNull(fullName);
-    checkNotNull(input);
-    Node node = new Node(enclosing, transform, fullName, input);
-    current.addComposite(node);
-    return node;
   }
 
   public class Node {
@@ -221,7 +223,7 @@ public class TransformHierarchy {
       PTransform<?, ?> transform = getTransform();
       if (output != null) {
         for (PValue outputValue : output.expand()) {
-          if (!outputValue.getProducingTransformInternal().getTransform().equals(transform)) {
+          if (!producers.get(outputValue).getTransform().equals(transform)) {
             return true;
           }
         }
@@ -258,6 +260,8 @@ public class TransformHierarchy {
     public void setOutput(POutput output) {
       checkState(!finishedSpecifying);
       checkState(this.output == null, "Tried to specify more than one output for %s", getFullName());
+      // TODO: Add a test that validation occurs in projection
+      this.output = output;
 
       // Validate that a primitive transform produces only primitive output, and a composite transform
       // does not produce primitive output.
@@ -289,8 +293,6 @@ public class TransformHierarchy {
           }
         }
       }
-
-      this.output = output;
     }
 
     /**

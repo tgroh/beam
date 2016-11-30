@@ -348,15 +348,13 @@ public class Pipeline {
    *
    * @see Pipeline#apply
    */
-  private <InputT extends PInput, OutputT extends POutput>
-  OutputT applyInternal(String name, InputT input,
-      PTransform<? super InputT, OutputT> transform) {
+  private <InputT extends PInput, OutputT extends POutput> OutputT applyInternal(
+      String name, InputT input, PTransform<? super InputT, OutputT> transform) {
     String namePrefix = transforms.getCurrent().getFullName();
     String uniqueName = uniquifyInternal(namePrefix, name);
 
-    boolean nameIsUnique = uniqueName.equals(name);
+    boolean nameIsUnique = uniqueName.equals(buildName(namePrefix, name));
 
-    String fullName = buildName(namePrefix, uniqueName);
     if (!nameIsUnique) {
       switch (getOptions().getStableUniqueNames()) {
         case OFF:
@@ -365,12 +363,12 @@ public class Pipeline {
           LOG.warn(
               "Transform {} does not have a stable unique name. "
                   + "This will prevent updating of pipelines.",
-              fullName);
+              uniqueName);
           break;
         case ERROR:
           throw new IllegalStateException(
               "Transform "
-                  + fullName
+                  + uniqueName
                   + " does not have a stable unique name. "
                   + "This will prevent updating of pipelines.");
         default:
@@ -381,7 +379,7 @@ public class Pipeline {
 
     LOG.debug("Adding {} to {}", transform, this);
     try {
-      transforms.addNode(fullName, input, transform);
+      transforms.addNode(uniqueName, input, transform);
       transform.validate(input);
       OutputT output = runner.apply(transform, input);
       transforms.setOutput(output);
@@ -418,7 +416,7 @@ public class Pipeline {
     while (true) {
       String candidate = buildName(namePrefix, name);
       if (usedFullNames.add(candidate)) {
-        return name;
+        return candidate;
       }
       // A duplicate!  Retry.
       name = origName + suffixNum++;
