@@ -24,6 +24,7 @@ import com.google.common.collect.SetMultimap;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.Enforcement;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
+import org.apache.beam.runners.direct.Relations.Producers;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.transforms.DoFn;
@@ -46,17 +47,20 @@ import org.joda.time.Instant;
  */
 class ImmutabilityCheckingBundleFactory implements BundleFactory {
   /**
-   * Create a new {@link ImmutabilityCheckingBundleFactory} that uses the underlying
-   * {@link BundleFactory} to create the output bundle.
+   * Create a new {@link ImmutabilityCheckingBundleFactory} that uses the underlying {@link
+   * BundleFactory} to create the output bundle.
    */
-  public static ImmutabilityCheckingBundleFactory create(BundleFactory underlying) {
-    return new ImmutabilityCheckingBundleFactory(underlying);
+  public static ImmutabilityCheckingBundleFactory create(
+      BundleFactory underlying, Producers producers) {
+    return new ImmutabilityCheckingBundleFactory(underlying, producers);
   }
 
   private final BundleFactory underlying;
+  private final Producers producers;
 
-  private ImmutabilityCheckingBundleFactory(BundleFactory underlying) {
+  private ImmutabilityCheckingBundleFactory(BundleFactory underlying, Producers producers) {
     this.underlying = checkNotNull(underlying);
+    this.producers = checkNotNull(producers);
   }
 
   /**
@@ -72,7 +76,7 @@ class ImmutabilityCheckingBundleFactory implements BundleFactory {
 
   @Override
   public <T> UncommittedBundle<T> createBundle(PCollection<T> output) {
-    if (Enforcement.IMMUTABILITY.appliesTo(output.getProducingTransformInternal().getTransform())) {
+    if (Enforcement.IMMUTABILITY.appliesTo(producers.get(output).getTransform())) {
       return new ImmutabilityEnforcingBundle<>(underlying.createBundle(output));
     }
     return underlying.createBundle(output);
@@ -81,13 +85,13 @@ class ImmutabilityCheckingBundleFactory implements BundleFactory {
   @Override
   public <K, T> UncommittedBundle<T> createKeyedBundle(
       StructuralKey<K> key, PCollection<T> output) {
-    if (Enforcement.IMMUTABILITY.appliesTo(output.getProducingTransformInternal().getTransform())) {
+    if (Enforcement.IMMUTABILITY.appliesTo(producers.get(output).getTransform())) {
       return new ImmutabilityEnforcingBundle<>(underlying.createKeyedBundle(key, output));
     }
     return underlying.createKeyedBundle(key, output);
   }
 
-  private static class ImmutabilityEnforcingBundle<T> implements UncommittedBundle<T> {
+  private class ImmutabilityEnforcingBundle<T> implements UncommittedBundle<T> {
     private final UncommittedBundle<T> underlying;
     private final SetMultimap<WindowedValue<T>, MutationDetector> mutationDetectors;
     private Coder<T> coder;
@@ -125,7 +129,7 @@ class ImmutabilityCheckingBundleFactory implements BundleFactory {
                 String.format(
                     "PTransform %s mutated value %s after it was output (new value was %s)."
                         + " Values must not be mutated in any way after being output.",
-                    underlying.getPCollection().getProducingTransformInternal().getFullName(),
+                    producers.get(underlying.getPCollection()).getFullName(),
                     exn.getSavedValue(),
                     exn.getNewValue()),
                 exn.getSavedValue(),

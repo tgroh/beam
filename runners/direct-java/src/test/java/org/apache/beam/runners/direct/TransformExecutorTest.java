@@ -37,15 +37,15 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.beam.runners.direct.CommittedResult.OutputType;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
-import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.Create;
-import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.transforms.Create.Values;
 import org.apache.beam.sdk.transforms.WithKeys;
 import org.apache.beam.sdk.util.IllegalMutationException;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.KV;
+import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.hamcrest.Matchers;
 import org.joda.time.Instant;
@@ -62,8 +62,14 @@ import org.mockito.MockitoAnnotations;
 @RunWith(JUnit4.class)
 public class TransformExecutorTest {
   @Rule public ExpectedException thrown = ExpectedException.none();
+
   private PCollection<String> created;
+  private AppliedPTransform<PBegin, PCollection<String>, Values<String>> createdProducer;
+
   private PCollection<KV<Integer, String>> downstream;
+  private AppliedPTransform<
+          PCollection<String>, PCollection<KV<Integer, String>>, WithKeys<Integer, String>>
+      downstreamProducer;
 
   private CountDownLatch evaluatorCompleted;
 
@@ -87,8 +93,12 @@ public class TransformExecutorTest {
     completionCallback = new RegisteringCompletionCallback(evaluatorCompleted);
 
     TestPipeline p = TestPipeline.create();
-    created = p.apply(Create.of("foo", "spam", "third"));
-    downstream = created.apply(WithKeys.<Integer, String>of(3));
+    Create.Values<String> createValues = Create.of("foo", "spam", "third");
+    created = p.apply(createValues);
+    createdProducer = AppliedPTransform.of("Create", p.begin(), created, createValues);
+    WithKeys<Integer, String> withKeys = WithKeys.<Integer, String>of(3);
+    downstream = created.apply(withKeys);
+    downstreamProducer = AppliedPTransform.of("WithKeys", created, downstream, withKeys);
 
     when(evaluationContext.getMetrics()).thenReturn(metrics);
   }
@@ -96,7 +106,7 @@ public class TransformExecutorTest {
   @Test
   public void callWithNullInputBundleFinishesBundleAndCompletes() throws Exception {
     final TransformResult<Object> result =
-        StepTransformResult.withoutHold(created.getProducingTransformInternal()).build();
+        StepTransformResult.withoutHold(createdProducer).build();
     final AtomicBoolean finishCalled = new AtomicBoolean(false);
     TransformEvaluator<Object> evaluator =
         new TransformEvaluator<Object>() {
@@ -112,7 +122,7 @@ public class TransformExecutorTest {
           }
         };
 
-    when(registry.forApplication(created.getProducingTransformInternal(), null))
+    when(registry.forApplication(createdProducer, null))
         .thenReturn(evaluator);
 
     TransformExecutor<Object> executor =
@@ -121,7 +131,7 @@ public class TransformExecutorTest {
             registry,
             Collections.<ModelEnforcementFactory>emptyList(),
             null,
-            created.getProducingTransformInternal(),
+            createdProducer,
             completionCallback,
             transformEvaluationState);
     executor.run();
@@ -133,7 +143,7 @@ public class TransformExecutorTest {
 
   @Test
   public void nullTransformEvaluatorTerminates() throws Exception {
-    when(registry.forApplication(created.getProducingTransformInternal(), null)).thenReturn(null);
+    when(registry.forApplication(createdProducer, null)).thenReturn(null);
 
     TransformExecutor<Object> executor =
         TransformExecutor.create(
@@ -141,7 +151,7 @@ public class TransformExecutorTest {
             registry,
             Collections.<ModelEnforcementFactory>emptyList(),
             null,
-            created.getProducingTransformInternal(),
+            createdProducer,
             completionCallback,
             transformEvaluationState);
     executor.run();
@@ -154,7 +164,7 @@ public class TransformExecutorTest {
   @Test
   public void inputBundleProcessesEachElementFinishesAndCompletes() throws Exception {
     final TransformResult<String> result =
-        StepTransformResult.<String>withoutHold(downstream.getProducingTransformInternal()).build();
+        StepTransformResult.<String>withoutHold(downstreamProducer).build();
     final Collection<WindowedValue<String>> elementsProcessed = new ArrayList<>();
     TransformEvaluator<String> evaluator =
         new TransformEvaluator<String>() {
@@ -175,7 +185,7 @@ public class TransformExecutorTest {
     WindowedValue<String> third = WindowedValue.valueInGlobalWindow("third");
     CommittedBundle<String> inputBundle =
         bundleFactory.createBundle(created).add(foo).add(spam).add(third).commit(Instant.now());
-    when(registry.<String>forApplication(downstream.getProducingTransformInternal(), inputBundle))
+    when(registry.<String>forApplication(downstreamProducer, inputBundle))
         .thenReturn(evaluator);
 
     TransformExecutor<String> executor =
@@ -184,7 +194,7 @@ public class TransformExecutorTest {
             registry,
             Collections.<ModelEnforcementFactory>emptyList(),
             inputBundle,
-            downstream.getProducingTransformInternal(),
+            downstreamProducer,
             completionCallback,
             transformEvaluationState);
 
@@ -200,7 +210,7 @@ public class TransformExecutorTest {
   @Test
   public void processElementThrowsExceptionCallsback() throws Exception {
     final TransformResult<String> result =
-        StepTransformResult.<String>withoutHold(downstream.getProducingTransformInternal()).build();
+        StepTransformResult.<String>withoutHold(downstreamProducer).build();
     final Exception exception = new Exception();
     TransformEvaluator<String> evaluator =
         new TransformEvaluator<String>() {
@@ -218,7 +228,7 @@ public class TransformExecutorTest {
     WindowedValue<String> foo = WindowedValue.valueInGlobalWindow("foo");
     CommittedBundle<String> inputBundle =
         bundleFactory.createBundle(created).add(foo).commit(Instant.now());
-    when(registry.<String>forApplication(downstream.getProducingTransformInternal(), inputBundle))
+    when(registry.<String>forApplication(downstreamProducer, inputBundle))
         .thenReturn(evaluator);
 
     TransformExecutor<String> executor =
@@ -227,7 +237,7 @@ public class TransformExecutorTest {
             registry,
             Collections.<ModelEnforcementFactory>emptyList(),
             inputBundle,
-            downstream.getProducingTransformInternal(),
+            downstreamProducer,
             completionCallback,
             transformEvaluationState);
     Executors.newSingleThreadExecutor().submit(executor);
@@ -254,7 +264,7 @@ public class TransformExecutorTest {
 
     CommittedBundle<String> inputBundle =
         bundleFactory.createBundle(created).commit(Instant.now());
-    when(registry.<String>forApplication(downstream.getProducingTransformInternal(), inputBundle))
+    when(registry.<String>forApplication(downstreamProducer, inputBundle))
         .thenReturn(evaluator);
 
     TransformExecutor<String> executor =
@@ -263,7 +273,7 @@ public class TransformExecutorTest {
             registry,
             Collections.<ModelEnforcementFactory>emptyList(),
             inputBundle,
-            downstream.getProducingTransformInternal(),
+            downstreamProducer,
             completionCallback,
             transformEvaluationState);
     Executors.newSingleThreadExecutor().submit(executor);
@@ -277,7 +287,7 @@ public class TransformExecutorTest {
   @Test
   public void callWithEnforcementAppliesEnforcement() throws Exception {
     final TransformResult<Object> result =
-        StepTransformResult.withoutHold(downstream.getProducingTransformInternal()).build();
+        StepTransformResult.withoutHold(downstreamProducer).build();
 
     TransformEvaluator<Object> evaluator =
         new TransformEvaluator<Object>() {
@@ -294,7 +304,7 @@ public class TransformExecutorTest {
     WindowedValue<String> barElem = WindowedValue.valueInGlobalWindow("bar");
     CommittedBundle<String> inputBundle =
         bundleFactory.createBundle(created).add(fooElem).add(barElem).commit(Instant.now());
-    when(registry.forApplication(downstream.getProducingTransformInternal(), inputBundle))
+    when(registry.forApplication(downstreamProducer, inputBundle))
         .thenReturn(evaluator);
 
     TestEnforcementFactory enforcement = new TestEnforcementFactory();
@@ -304,7 +314,7 @@ public class TransformExecutorTest {
             registry,
             Collections.<ModelEnforcementFactory>singleton(enforcement),
             inputBundle,
-            downstream.getProducingTransformInternal(),
+            downstreamProducer,
             completionCallback,
             transformEvaluationState);
 
@@ -321,19 +331,8 @@ public class TransformExecutorTest {
 
   @Test
   public void callWithEnforcementThrowsOnFinishPropagates() throws Exception {
-    PCollection<byte[]> pcBytes =
-        created.apply(
-            new PTransform<PCollection<String>, PCollection<byte[]>>() {
-              @Override
-              public PCollection<byte[]> apply(PCollection<String> input) {
-                return PCollection.<byte[]>createPrimitiveOutputInternal(
-                        input.getPipeline(), input.getWindowingStrategy(), input.isBounded())
-                    .setCoder(ByteArrayCoder.of());
-              }
-            });
-
     final TransformResult<Object> result =
-        StepTransformResult.withoutHold(pcBytes.getProducingTransformInternal()).build();
+        StepTransformResult.withoutHold(downstreamProducer).build();
     final CountDownLatch testLatch = new CountDownLatch(1);
     final CountDownLatch evaluatorLatch = new CountDownLatch(1);
 
@@ -344,32 +343,26 @@ public class TransformExecutorTest {
 
           @Override
           public TransformResult<Object> finishBundle() throws Exception {
-            testLatch.countDown();
-            evaluatorLatch.await();
             return result;
           }
         };
 
-    WindowedValue<byte[]> fooBytes = WindowedValue.valueInGlobalWindow("foo".getBytes());
-    CommittedBundle<byte[]> inputBundle =
-        bundleFactory.createBundle(pcBytes).add(fooBytes).commit(Instant.now());
-    when(registry.forApplication(pcBytes.getProducingTransformInternal(), inputBundle))
-        .thenReturn(evaluator);
+    CommittedBundle<KV<Integer, String>> inputBundle =
+        bundleFactory.createBundle(downstreamProducer.getOutput()).commit(Instant.now());
+    when(registry.forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
 
-    TransformExecutor<byte[]> executor =
+    TransformExecutor<KV<Integer, String>> executor =
         TransformExecutor.create(
             evaluationContext,
             registry,
-            Collections.<ModelEnforcementFactory>singleton(ImmutabilityEnforcementFactory.create()),
+            Collections.<ModelEnforcementFactory>singleton(
+                new ThrowingEnforcementFactory(ThrowingEnforcementFactory.When.AFTER_FINISH)),
             inputBundle,
-            pcBytes.getProducingTransformInternal(),
+            downstreamProducer,
             completionCallback,
             transformEvaluationState);
 
     Future<?> task = Executors.newSingleThreadExecutor().submit(executor);
-    testLatch.await();
-    fooBytes.getValue()[0] = 'b';
-    evaluatorLatch.countDown();
 
     thrown.expectCause(isA(IllegalMutationException.class));
     task.get();
@@ -377,19 +370,8 @@ public class TransformExecutorTest {
 
   @Test
   public void callWithEnforcementThrowsOnElementPropagates() throws Exception {
-    PCollection<byte[]> pcBytes =
-        created.apply(
-            new PTransform<PCollection<String>, PCollection<byte[]>>() {
-              @Override
-              public PCollection<byte[]> apply(PCollection<String> input) {
-                return PCollection.<byte[]>createPrimitiveOutputInternal(
-                        input.getPipeline(), input.getWindowingStrategy(), input.isBounded())
-                    .setCoder(ByteArrayCoder.of());
-              }
-            });
-
     final TransformResult<Object> result =
-        StepTransformResult.withoutHold(pcBytes.getProducingTransformInternal()).build();
+        StepTransformResult.withoutHold(downstreamProducer).build();
     final CountDownLatch testLatch = new CountDownLatch(1);
     final CountDownLatch evaluatorLatch = new CountDownLatch(1);
 
@@ -407,26 +389,28 @@ public class TransformExecutorTest {
           }
         };
 
-    WindowedValue<byte[]> fooBytes = WindowedValue.valueInGlobalWindow("foo".getBytes());
-    CommittedBundle<byte[]> inputBundle =
-        bundleFactory.createBundle(pcBytes).add(fooBytes).commit(Instant.now());
-    when(registry.forApplication(pcBytes.getProducingTransformInternal(), inputBundle))
+    WindowedValue<KV<Integer, String>> theKv =
+        WindowedValue.valueInGlobalWindow(KV.of(1, "one"));
+    CommittedBundle<KV<Integer, String>> inputBundle =
+        bundleFactory
+            .createBundle(downstream)
+            .add(theKv)
+            .commit(Instant.now());
+    when(registry.forApplication(downstreamProducer, inputBundle))
         .thenReturn(evaluator);
 
-    TransformExecutor<byte[]> executor =
+    TransformExecutor<KV<Integer, String>> executor =
         TransformExecutor.create(
             evaluationContext,
             registry,
-            Collections.<ModelEnforcementFactory>singleton(ImmutabilityEnforcementFactory.create()),
+            Collections.<ModelEnforcementFactory>singleton(
+                new ThrowingEnforcementFactory(ThrowingEnforcementFactory.When.AFTER_ELEMENT)),
             inputBundle,
-            pcBytes.getProducingTransformInternal(),
+            downstreamProducer,
             completionCallback,
             transformEvaluationState);
 
     Future<?> task = Executors.newSingleThreadExecutor().submit(executor);
-    testLatch.await();
-    fooBytes.getValue()[0] = 'b';
-    evaluatorLatch.countDown();
 
     thrown.expectCause(isA(IllegalMutationException.class));
     task.get();
@@ -507,6 +491,49 @@ public class TransformExecutorTest {
         TransformResult<T> result,
         Iterable<? extends CommittedBundle<?>> outputs) {
       finishedBundles.add(result);
+    }
+  }
+
+  private static class ThrowingEnforcementFactory implements ModelEnforcementFactory {
+    enum When {
+      BEFORE_ELEMENT,
+      AFTER_ELEMENT,
+      AFTER_FINISH
+    }
+    private final When when;
+
+    private ThrowingEnforcementFactory(When when) {
+      this.when = when;
+    }
+
+    @Override
+    public <T> ModelEnforcement<T> forBundle(
+        CommittedBundle<T> input, AppliedPTransform<?, ?, ?> consumer) {
+      return new ModelEnforcement<T>() {
+        @Override
+        public void beforeElement(WindowedValue<T> element) {
+          if (when == When.BEFORE_ELEMENT) {
+            throw new RuntimeException(when.toString());
+          }
+        }
+
+        @Override
+        public void afterElement(WindowedValue<T> element) {
+          if (when == When.AFTER_ELEMENT) {
+            throw new RuntimeException(when.toString());
+          }
+        }
+
+        @Override
+        public void afterFinish(
+            CommittedBundle<T> input,
+            TransformResult<T> result,
+            Iterable<? extends CommittedBundle<?>> outputs) {
+          if (when == When.AFTER_FINISH) {
+            throw new RuntimeException(when.toString());
+          }
+        }
+      };
     }
   }
 }

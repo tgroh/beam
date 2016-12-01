@@ -26,10 +26,12 @@ import static org.mockito.Mockito.when;
 import com.google.common.collect.ImmutableList;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.PCollectionViewWriter;
+import org.apache.beam.runners.direct.ViewEvaluatorFactory.WriteView;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VoidCoder;
 import org.apache.beam.sdk.testing.TestPipeline;
+import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.Values;
@@ -64,8 +66,9 @@ public class ViewEvaluatorFactoryTest {
             .setCoder(KvCoder.of(VoidCoder.of(), StringUtf8Coder.of()))
             .apply(GroupByKey.<Void, String>create())
             .apply(Values.<Iterable<String>>create());
+    WriteView<String, Iterable<String>> writeView = new WriteView<>(createView);
     PCollectionView<Iterable<String>> view =
-        concat.apply(new ViewEvaluatorFactory.WriteView<>(createView));
+        concat.apply("WriteView", writeView);
 
     EvaluationContext context = mock(EvaluationContext.class);
     TestViewWriter<String, Iterable<String>> viewWriter = new TestViewWriter<>();
@@ -73,9 +76,12 @@ public class ViewEvaluatorFactoryTest {
 
     CommittedBundle<String> inputBundle =
         bundleFactory.createBundle(input).commit(Instant.now());
+    AppliedPTransform<
+            PCollection<Iterable<String>>, PCollectionView<Iterable<String>>,
+            WriteView<String, Iterable<String>>>
+        writeApplication = AppliedPTransform.of("WriteView", concat, view, writeView);
     TransformEvaluator<Iterable<String>> evaluator =
-        new ViewEvaluatorFactory(context)
-            .forApplication(view.getProducingTransformInternal(), inputBundle);
+        new ViewEvaluatorFactory(context).forApplication(writeApplication, inputBundle);
 
     evaluator.processElement(
         WindowedValue.<Iterable<String>>valueInGlobalWindow(ImmutableList.of("foo", "bar")));

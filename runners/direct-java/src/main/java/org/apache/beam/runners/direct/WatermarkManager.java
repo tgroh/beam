@@ -49,6 +49,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
+import org.apache.beam.runners.direct.Relations.Consumers;
+import org.apache.beam.runners.direct.Relations.Producers;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -669,10 +671,16 @@ public class WatermarkManager {
   private final Clock clock;
 
   /**
+   * A map from each {@link PCollection} to the {@link AppliedPTransform PTransform applicaiton}
+   * that produces it.
+   */
+  private final Producers producers;
+
+  /**
    * A map from each {@link PCollection} to all {@link AppliedPTransform PTransform applications}
    * that consume that {@link PCollection}.
    */
-  private final Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> consumers;
+  private final Consumers consumers;
 
   /**
    * The input and output watermark of each {@link AppliedPTransform}.
@@ -708,15 +716,18 @@ public class WatermarkManager {
   public static WatermarkManager create(
       Clock clock,
       Collection<AppliedPTransform<?, ?, ?>> rootTransforms,
-      Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> consumers) {
-    return new WatermarkManager(clock, rootTransforms, consumers);
+      Producers producers,
+      Consumers consumers) {
+    return new WatermarkManager(clock, rootTransforms, producers, consumers);
   }
 
   private WatermarkManager(
       Clock clock,
       Collection<AppliedPTransform<?, ?, ?>> rootTransforms,
-      Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> consumers) {
+      Producers producers,
+      Consumers consumers) {
     this.clock = clock;
+    this.producers = producers;
     this.consumers = consumers;
     this.pendingUpdates = new ConcurrentLinkedQueue<>();
 
@@ -727,10 +738,10 @@ public class WatermarkManager {
 
     for (AppliedPTransform<?, ?, ?> rootTransform : rootTransforms) {
       getTransformWatermark(rootTransform);
-    }
-    for (Collection<AppliedPTransform<?, ?, ?>> intermediateTransforms : consumers.values()) {
-      for (AppliedPTransform<?, ?, ?> transform : intermediateTransforms) {
-        getTransformWatermark(transform);
+      for (PValue output : rootTransform.getOutput().expand()) {
+        for (AppliedPTransform<?, ?, ?> transform : consumers.get(output)) {
+          getTransformWatermark(transform);
+        }
       }
     }
   }
@@ -769,8 +780,7 @@ public class WatermarkManager {
     }
     for (PValue pvalue : inputs) {
       Watermark producerOutputWatermark =
-          getTransformWatermark(pvalue.getProducingTransformInternal())
-              .synchronizedProcessingOutputWatermark;
+          getTransformWatermark(producers.get(pvalue)).synchronizedProcessingOutputWatermark;
       inputWmsBuilder.add(producerOutputWatermark);
     }
     return inputWmsBuilder.build();
@@ -784,7 +794,7 @@ public class WatermarkManager {
     }
     for (PValue pvalue : inputs) {
       Watermark producerOutputWatermark =
-          getTransformWatermark(pvalue.getProducingTransformInternal()).outputWatermark;
+          getTransformWatermark(producers.get(pvalue)).outputWatermark;
       inputWatermarksBuilder.add(producerOutputWatermark);
     }
     List<Watermark> inputCollectionWatermarks = inputWatermarksBuilder.build();

@@ -91,6 +91,7 @@ public class EvaluationContextTest {
   private Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers;
 
   private BundleFactory bundleFactory;
+  private Map<PValue, AppliedPTransform<?, ?, ?>> producers;
 
   @Before
   public void setup() {
@@ -107,7 +108,8 @@ public class EvaluationContextTest {
     ConsumerTrackingPipelineVisitor cVis = new ConsumerTrackingPipelineVisitor();
     p.traverseTopologically(cVis);
     rootTransforms = cVis.getRootTransforms();
-    valueToConsumers = cVis.getValueToConsumers();
+    producers = cVis.getProducers();
+    valueToConsumers = cVis.getConsumers();
 
     bundleFactory = ImmutableListBundleFactory.create();
 
@@ -118,7 +120,7 @@ public class EvaluationContextTest {
             ImmutableListBundleFactory.create(),
             rootTransforms,
             valueToConsumers,
-            cVis.getStepNames(),
+            cVis.getStepNames(), producers,
             cVis.getViews());
   }
 
@@ -505,7 +507,7 @@ public class EvaluationContextTest {
     context.handleResult(
         context.createBundle(created).commit(Instant.now()),
         ImmutableList.<TimerData>of(),
-        StepTransformResult.withoutHold(view.getProducingTransformInternal()).build());
+        StepTransformResult.withoutHold(producers.get(view)).build());
     context.extractFiredTimers();
     assertThat(context.isDone(), is(false));
   }

@@ -120,6 +120,14 @@ public class WatermarkManagerTest implements Serializable {
             createdInts.getProducingTransformInternal(),
             intsToFlatten.getProducingTransformInternal());
 
+    Map<PValue, AppliedPTransform<?, ?, ?>> producers = new HashMap<>();
+    producers.put(createdInts, createdInts.getProducingTransformInternal());
+    producers.put(intsToFlatten, intsToFlatten.getProducingTransformInternal());
+    producers.put(filtered, filtered.getProducingTransformInternal());
+    producers.put(filteredTimesTwo, filteredTimesTwo.getProducingTransformInternal());
+    producers.put(keyed, keyed.getProducingTransformInternal());
+    producers.put(flattened, flattened.getProducingTransformInternal());
+
     Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> consumers = new HashMap<>();
     consumers.put(
         createdInts,
@@ -140,7 +148,7 @@ public class WatermarkManagerTest implements Serializable {
 
     clock = MockClock.fromInstant(new Instant(1000));
 
-    manager = WatermarkManager.create(clock, rootTransforms, consumers);
+    manager = WatermarkManager.create(clock, rootTransforms, producers, consumers);
     bundleFactory = ImmutableListBundleFactory.create();
   }
 
@@ -307,6 +315,11 @@ public class WatermarkManagerTest implements Serializable {
         PCollectionList.of(created).and(created).apply(Flatten.<Integer>pCollections());
     AppliedPTransform<?, ?, ?> theFlatten = multiConsumer.getProducingTransformInternal();
 
+    Map<PValue, AppliedPTransform<?, ?, ?>> valueToProducer =
+        ImmutableMap.<PValue, AppliedPTransform<?, ?, ?>>builder()
+            .put(created, created.getProducingTransformInternal())
+            .put(multiConsumer, theFlatten)
+            .build();
     Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers =
         ImmutableMap.<PValue, Collection<AppliedPTransform<?, ?, ?>>>builder()
             .put(created, ImmutableList.<AppliedPTransform<?, ?, ?>>of(theFlatten, theFlatten))
@@ -318,6 +331,7 @@ public class WatermarkManagerTest implements Serializable {
             clock,
             Collections.<AppliedPTransform<?, ?, ?>>singleton(
                 created.getProducingTransformInternal()),
+            valueToProducer,
             valueToConsumers);
     CommittedBundle<Void> root =
         bundleFactory

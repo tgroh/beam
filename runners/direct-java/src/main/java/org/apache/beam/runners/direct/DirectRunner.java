@@ -34,6 +34,7 @@ import org.apache.beam.runners.core.GBKIntoKeyedWorkItems;
 import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupAlsoByWindow;
 import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupByKeyOnly;
 import org.apache.beam.runners.direct.DirectRunner.DirectPipelineResult;
+import org.apache.beam.runners.direct.Relations.Producers;
 import org.apache.beam.runners.direct.TestStreamEvaluatorFactory.DirectTestStreamFactory;
 import org.apache.beam.runners.direct.ViewEvaluatorFactory.ViewOverrideFactory;
 import org.apache.beam.sdk.AggregatorRetrievalException;
@@ -224,13 +225,13 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
       return Collections.unmodifiableSet(enabled);
     }
 
-    public static BundleFactory bundleFactoryFor(Set<Enforcement> enforcements) {
+    public static BundleFactory bundleFactoryFor(Set<Enforcement> enforcements, Producers producers) {
       BundleFactory bundleFactory =
           enforcements.contains(Enforcement.ENCODABILITY)
               ? CloningBundleFactory.create()
               : ImmutableListBundleFactory.create();
       if (enforcements.contains(Enforcement.IMMUTABILITY)) {
-        bundleFactory = ImmutabilityCheckingBundleFactory.create(bundleFactory);
+        bundleFactory = ImmutabilityCheckingBundleFactory.create(bundleFactory, producers);
       }
       return bundleFactory;
     }
@@ -319,9 +320,11 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
         EvaluationContext.create(
             getPipelineOptions(),
             clockSupplier.get(),
-            Enforcement.bundleFactoryFor(enabledEnforcements),
+            Enforcement.bundleFactoryFor(
+                enabledEnforcements, consumerTrackingVisitor.getProducers()),
             consumerTrackingVisitor.getRootTransforms(),
-            consumerTrackingVisitor.getValueToConsumers(),
+            consumerTrackingVisitor.getProducers(),
+            consumerTrackingVisitor.getConsumers(),
             consumerTrackingVisitor.getStepNames(),
             consumerTrackingVisitor.getViews());
 
@@ -330,7 +333,7 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
     PipelineExecutor executor =
         ExecutorServiceParallelExecutor.create(
             options.getTargetParallelism(),
-            consumerTrackingVisitor.getValueToConsumers(),
+            consumerTrackingVisitor.getConsumers(),
             keyedPValueVisitor.getKeyedPValues(),
             rootInputProvider,
             registry,

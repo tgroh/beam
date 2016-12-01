@@ -35,6 +35,8 @@ import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupByKeyOnly;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.PCollectionViewWriter;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
+import org.apache.beam.runners.direct.Relations.Consumers;
+import org.apache.beam.runners.direct.Relations.Producers;
 import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
 import org.apache.beam.runners.direct.WatermarkManager.TransformWatermarks;
 import org.apache.beam.sdk.Pipeline;
@@ -76,6 +78,10 @@ import org.joda.time.Instant;
 class EvaluationContext {
   /** The step name for each {@link AppliedPTransform} in the {@link Pipeline}. */
   private final Map<AppliedPTransform<?, ?, ?>, String> stepNames;
+  /**
+   * Each {@link PValue} in the {@link Pipeline} and the producer of that {@link PValue}.
+   */
+  private final Producers producers;
 
   /** The options that were used to create this {@link Pipeline}. */
   private final DirectOptions options;
@@ -103,11 +109,12 @@ class EvaluationContext {
       Clock clock,
       BundleFactory bundleFactory,
       Collection<AppliedPTransform<?, ?, ?>> rootTransforms,
-      Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers,
+      Producers producers,
+      Consumers consumers,
       Map<AppliedPTransform<?, ?, ?>, String> stepNames,
       Collection<PCollectionView<?>> views) {
     return new EvaluationContext(
-        options, clock, bundleFactory, rootTransforms, valueToConsumers, stepNames, views);
+        options, clock, bundleFactory, rootTransforms, producers, consumers, stepNames, views);
   }
 
   private EvaluationContext(
@@ -115,19 +122,22 @@ class EvaluationContext {
       Clock clock,
       BundleFactory bundleFactory,
       Collection<AppliedPTransform<?, ?, ?>> rootTransforms,
-      Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers,
+      Producers producers,
+      Consumers consumers,
       Map<AppliedPTransform<?, ?, ?>, String> stepNames,
       Collection<PCollectionView<?>> views) {
     this.options = checkNotNull(options);
     this.clock = clock;
     this.bundleFactory = checkNotNull(bundleFactory);
     checkNotNull(rootTransforms);
-    checkNotNull(valueToConsumers);
+    checkNotNull(consumers);
     checkNotNull(stepNames);
     checkNotNull(views);
     this.stepNames = stepNames;
+    this.producers = checkNotNull(producers);
 
-    this.watermarkManager = WatermarkManager.create(clock, rootTransforms, valueToConsumers);
+    this.watermarkManager =
+        WatermarkManager.create(clock, rootTransforms, producers, consumers);
     this.sideInputContainer = SideInputContainer.create(this, views);
 
     this.applicationStateInternals = new ConcurrentHashMap<>();
@@ -211,7 +221,7 @@ class EvaluationContext {
     ImmutableList.Builder<CommittedBundle<?>> completed = ImmutableList.builder();
     for (UncommittedBundle<?> inProgress : bundles) {
       AppliedPTransform<?, ?, ?> producing =
-          inProgress.getPCollection().getProducingTransformInternal();
+          getProducing(inProgress.getPCollection());
       TransformWatermarks watermarks = watermarkManager.getWatermarks(producing);
       CommittedBundle<?> committed =
           inProgress.commit(watermarks.getSynchronizedProcessingOutputTime());
@@ -293,7 +303,7 @@ class EvaluationContext {
     AppliedPTransform<?, ?, ?> producing = getProducing(value);
     callbackExecutor.callOnGuaranteedFiring(producing, window, windowingStrategy, runnable);
 
-    fireAvailableCallbacks(lookupProducing(value));
+    fireAvailableCallbacks(getProducing(value));
   }
 
   /**
@@ -312,19 +322,7 @@ class EvaluationContext {
   }
 
   private AppliedPTransform<?, ?, ?> getProducing(PValue value) {
-    if (value.getProducingTransformInternal() != null) {
-      return value.getProducingTransformInternal();
-    }
-    return lookupProducing(value);
-  }
-
-  private AppliedPTransform<?, ?, ?> lookupProducing(PValue value) {
-    for (AppliedPTransform<?, ?, ?> transform : stepNames.keySet()) {
-      if (transform.getOutput().equals(value) || transform.getOutput().expand().contains(value)) {
-        return transform;
-      }
-    }
-    return null;
+    return producers.get(value);
   }
 
   /**

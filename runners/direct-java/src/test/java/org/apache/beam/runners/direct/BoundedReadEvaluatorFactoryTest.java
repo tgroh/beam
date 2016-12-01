@@ -49,6 +49,7 @@ import org.apache.beam.sdk.io.CountingSource;
 import org.apache.beam.sdk.io.OffsetBasedSource;
 import org.apache.beam.sdk.io.OffsetBasedSource.OffsetBasedReader;
 import org.apache.beam.sdk.io.Read;
+import org.apache.beam.sdk.io.Read.Bounded;
 import org.apache.beam.sdk.io.Source;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -80,13 +81,16 @@ public class BoundedReadEvaluatorFactoryTest {
   private BoundedReadEvaluatorFactory factory;
   @Mock private EvaluationContext context;
   private BundleFactory bundleFactory;
+  private AppliedPTransform<?, ?, ?> producer;
 
   @Before
   public void setup() {
     MockitoAnnotations.initMocks(this);
     source = CountingSource.upTo(10L);
     TestPipeline p = TestPipeline.create();
-    longs = p.apply(Read.from(source));
+    Read.Bounded<Long> transform = Read.from(source);
+    longs = p.apply(transform);
+    producer = AppliedPTransform.of("BoundedRead", p.begin(), longs, transform);
 
     factory =
         new BoundedReadEvaluatorFactory(
@@ -102,11 +106,11 @@ public class BoundedReadEvaluatorFactoryTest {
 
     Collection<CommittedBundle<?>> initialInputs =
         new BoundedReadEvaluatorFactory.InputProvider(context)
-            .getInitialInputs(longs.getProducingTransformInternal(), 1);
+            .getInitialInputs(producer, 1);
     List<WindowedValue<?>> outputs = new ArrayList<>();
     for (CommittedBundle<?> shardBundle : initialInputs) {
       TransformEvaluator<?> evaluator =
-          factory.forApplication(longs.getProducingTransformInternal(), null);
+          factory.forApplication(producer, null);
       for (WindowedValue<?> shard : shardBundle.getElements()) {
         evaluator.processElement((WindowedValue) shard);
       }
@@ -139,9 +143,11 @@ public class BoundedReadEvaluatorFactoryTest {
     for (int i = 0; i < numElements; i++) {
       elems[i] = (long) i;
     }
-    PCollection<Long> read =
-        TestPipeline.create().apply(Read.from(new TestSource<>(VarLongCoder.of(), 5, elems)));
-    AppliedPTransform<?, ?, ?> transform = read.getProducingTransformInternal();
+    Read.Bounded<Long> readTransform = Read.from(new TestSource<>(VarLongCoder.of(), 5, elems));
+    TestPipeline p = TestPipeline.create();
+    PCollection<Long> read = p.apply("Read", readTransform);
+    AppliedPTransform<?, ?, ?> transform =
+        AppliedPTransform.of("Read", p.begin(), read, readTransform);
     Collection<CommittedBundle<?>> unreadInputs =
         new BoundedReadEvaluatorFactory.InputProvider(context).getInitialInputs(transform, 1);
 
@@ -188,10 +194,12 @@ public class BoundedReadEvaluatorFactoryTest {
   public void boundedSourceEvaluatorDynamicSplitsUnsplittable() throws Exception {
     BoundedReadEvaluatorFactory factory = new BoundedReadEvaluatorFactory(context, 0L);
 
-    PCollection<Long> read =
-        TestPipeline.create()
-            .apply(Read.from(SourceTestUtils.toUnsplittableSource(CountingSource.upTo(10L))));
-    AppliedPTransform<?, ?, ?> transform = read.getProducingTransformInternal();
+    TestPipeline p = TestPipeline.create();
+    Bounded<Long> boundedRead =
+        Read.from(SourceTestUtils.toUnsplittableSource(CountingSource.upTo(10L)));
+    PCollection<Long> read = p.apply("Read", boundedRead);
+    AppliedPTransform<?, ?, ?> transform =
+        AppliedPTransform.of("Read", p.begin(), read, boundedRead);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
@@ -237,8 +245,7 @@ public class BoundedReadEvaluatorFactoryTest {
               }
             });
     Collection<CommittedBundle<?>> initialInputs =
-        new BoundedReadEvaluatorFactory.InputProvider(context)
-            .getInitialInputs(longs.getProducingTransformInternal(), 3);
+        new BoundedReadEvaluatorFactory.InputProvider(context).getInitialInputs(producer, 3);
 
     assertThat(initialInputs, hasSize(allOf(greaterThanOrEqualTo(3), lessThanOrEqualTo(4))));
 
@@ -271,7 +278,7 @@ public class BoundedReadEvaluatorFactoryTest {
     CommittedBundle<BoundedSourceShard<Long>> shards = rootBundle.commit(Instant.now());
 
     TransformEvaluator<BoundedSourceShard<Long>> evaluator =
-        factory.forApplication(longs.getProducingTransformInternal(), shards);
+        factory.forApplication(producer, shards);
     for (WindowedValue<BoundedSourceShard<Long>> shard : shards.getElements()) {
       UncommittedBundle<Long> outputBundle = bundleFactory.createBundle(longs);
       when(context.createBundle(longs)).thenReturn(outputBundle);
@@ -298,8 +305,10 @@ public class BoundedReadEvaluatorFactoryTest {
     TestSource<Long> source = new TestSource<>(BigEndianLongCoder.of(), 1L, 2L, 3L);
 
     TestPipeline p = TestPipeline.create();
-    PCollection<Long> pcollection = p.apply(Read.from(source));
-    AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
+    Bounded<Long> boundedRead = Read.from(source);
+    PCollection<Long> pcollection = p.apply("Read", boundedRead);
+    AppliedPTransform<?, ?, ?> sourceTransform =
+        AppliedPTransform.of("Read", p.begin(), pcollection, boundedRead);
 
     UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
     when(context.createBundle(pcollection)).thenReturn(output);
@@ -319,8 +328,10 @@ public class BoundedReadEvaluatorFactoryTest {
     TestSource<Long> source = new TestSource<>(BigEndianLongCoder.of());
 
     TestPipeline p = TestPipeline.create();
-    PCollection<Long> pcollection = p.apply(Read.from(source));
-    AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
+    Bounded<Long> boundedRead = Read.from(source);
+    PCollection<Long> pcollection = p.apply("Read", boundedRead);
+    AppliedPTransform<?, ?, ?> sourceTransform =
+        AppliedPTransform.of("Read", p.begin(), pcollection, boundedRead);
 
     UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
     when(context.createBundle(pcollection)).thenReturn(output);

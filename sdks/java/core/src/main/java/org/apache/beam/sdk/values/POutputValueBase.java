@@ -58,7 +58,7 @@ public abstract class POutputValueBase implements POutput {
    *
    * <p>For internal use only.
    */
-  public AppliedPTransform<?, ?, ?> getProducingTransformInternal() {
+  protected AppliedPTransform<?, ?, ?> getProducingTransformInternal() {
     return producingTransform;
   }
 

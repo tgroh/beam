@@ -25,7 +25,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
+import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.transforms.Create;
+import org.apache.beam.sdk.transforms.Create.Values;
 import org.apache.beam.sdk.transforms.Sum;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
@@ -48,27 +50,29 @@ import org.junit.runners.JUnit4;
 public class WatermarkCallbackExecutorTest {
   private WatermarkCallbackExecutor executor =
       WatermarkCallbackExecutor.create(Executors.newSingleThreadExecutor());
-  private AppliedPTransform<?, ?, ?> create;
-  private AppliedPTransform<?, ?, ?> sum;
+  private AppliedPTransform<?, ?, ?> createProducer;
+  private AppliedPTransform<?, ?, ?> sumProducer;
 
   @Before
   public void setup() {
     TestPipeline p = TestPipeline.create();
-    PCollection<Integer> created = p.apply(Create.of(1, 2, 3));
-    create = created.getProducingTransformInternal();
-    sum = created.apply(Sum.integersGlobally()).getProducingTransformInternal();
+    Values<Integer> createValues = Create.of(1, 2, 3);
+    PCollection<Integer> created = p.apply("Create", createValues);
+    createProducer = AppliedPTransform.of("Create", p.begin(), created, createValues);
+    Combine.Globally<Integer, Integer> sumGlobally = Sum.integersGlobally();
+    PCollection<Integer> theSum = created.apply("Sum", sumGlobally);
+    sumProducer = AppliedPTransform.of("Sum", created, theSum, sumGlobally);
   }
 
   @Test
   public void onGuaranteedFiringFiresAfterTrigger() throws Exception {
     CountDownLatch latch = new CountDownLatch(1);
-    executor.callOnGuaranteedFiring(
-        create,
+    executor.callOnGuaranteedFiring(createProducer,
         GlobalWindow.INSTANCE,
         WindowingStrategy.globalDefault(),
         new CountDownLatchCallback(latch));
 
-    executor.fireForWatermark(create, BoundedWindow.TIMESTAMP_MAX_VALUE);
+    executor.fireForWatermark(createProducer, BoundedWindow.TIMESTAMP_MAX_VALUE);
     assertThat(latch.await(500, TimeUnit.MILLISECONDS), equalTo(true));
   }
 
@@ -79,11 +83,11 @@ public class WatermarkCallbackExecutorTest {
     IntervalWindow window =
         new IntervalWindow(new Instant(0L), new Instant(0L).plus(Duration.standardMinutes(10)));
     executor.callOnGuaranteedFiring(
-        create, window, WindowingStrategy.of(windowFn), new CountDownLatchCallback(latch));
+        createProducer, window, WindowingStrategy.of(windowFn), new CountDownLatchCallback(latch));
     executor.callOnGuaranteedFiring(
-        create, window, WindowingStrategy.of(windowFn), new CountDownLatchCallback(latch));
+        createProducer, window, WindowingStrategy.of(windowFn), new CountDownLatchCallback(latch));
 
-    executor.fireForWatermark(create, new Instant(0L).plus(Duration.standardMinutes(10)));
+    executor.fireForWatermark(createProducer, new Instant(0L).plus(Duration.standardMinutes(10)));
     assertThat(latch.await(500, TimeUnit.MILLISECONDS), equalTo(true));
   }
 
@@ -94,9 +98,9 @@ public class WatermarkCallbackExecutorTest {
     IntervalWindow window =
         new IntervalWindow(new Instant(0L), new Instant(0L).plus(Duration.standardMinutes(10)));
     executor.callOnGuaranteedFiring(
-        create, window, WindowingStrategy.of(windowFn), new CountDownLatchCallback(latch));
+        createProducer, window, WindowingStrategy.of(windowFn), new CountDownLatchCallback(latch));
 
-    executor.fireForWatermark(create, new Instant(0L).plus(Duration.standardMinutes(5)));
+    executor.fireForWatermark(createProducer, new Instant(0L).plus(Duration.standardMinutes(5)));
     assertThat(latch.await(500, TimeUnit.MILLISECONDS), equalTo(false));
   }
 
@@ -107,9 +111,9 @@ public class WatermarkCallbackExecutorTest {
     IntervalWindow window =
         new IntervalWindow(new Instant(0L), new Instant(0L).plus(Duration.standardMinutes(10)));
     executor.callOnGuaranteedFiring(
-        sum, window, WindowingStrategy.of(windowFn), new CountDownLatchCallback(latch));
+        sumProducer, window, WindowingStrategy.of(windowFn), new CountDownLatchCallback(latch));
 
-    executor.fireForWatermark(create, new Instant(0L).plus(Duration.standardMinutes(20)));
+    executor.fireForWatermark(createProducer, new Instant(0L).plus(Duration.standardMinutes(20)));
     assertThat(latch.await(500, TimeUnit.MILLISECONDS), equalTo(false));
   }
 

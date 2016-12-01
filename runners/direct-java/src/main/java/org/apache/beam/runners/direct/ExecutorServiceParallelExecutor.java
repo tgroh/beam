@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
+import org.apache.beam.runners.direct.Relations.Consumers;
 import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
@@ -69,7 +70,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   private final int targetParallelism;
   private final ExecutorService executorService;
 
-  private final Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers;
+  private final Consumers consumers;
   private final Set<PValue> keyedPValues;
   private final RootProviderRegistry rootProviderRegistry;
   private final TransformEvaluatorRegistry registry;
@@ -104,7 +105,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
 
   public static ExecutorServiceParallelExecutor create(
       int targetParallelism,
-      Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers,
+      Consumers consumers,
       Set<PValue> keyedPValues,
       RootProviderRegistry rootProviderRegistry,
       TransformEvaluatorRegistry registry,
@@ -114,7 +115,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
       EvaluationContext context) {
     return new ExecutorServiceParallelExecutor(
         targetParallelism,
-        valueToConsumers,
+        consumers,
         keyedPValues,
         rootProviderRegistry,
         registry,
@@ -124,7 +125,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
 
   private ExecutorServiceParallelExecutor(
       int targetParallelism,
-      Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers,
+      Consumers consumers,
       Set<PValue> keyedPValues,
       RootProviderRegistry rootProviderRegistry,
       TransformEvaluatorRegistry registry,
@@ -133,7 +134,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
       EvaluationContext context) {
     this.targetParallelism = targetParallelism;
     this.executorService = Executors.newFixedThreadPool(targetParallelism);
-    this.valueToConsumers = valueToConsumers;
+    this.consumers = consumers;
     this.keyedPValues = keyedPValues;
     this.rootProviderRegistry = rootProviderRegistry;
     this.registry = registry;
@@ -274,7 +275,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
       CommittedResult committedResult = evaluationContext.handleResult(inputBundle, timers, result);
       for (CommittedBundle<?> outputBundle : committedResult.getOutputs()) {
         allUpdates.offer(ExecutorUpdate.fromBundle(outputBundle,
-            valueToConsumers.get(outputBundle.getPCollection())));
+            consumers.get(outputBundle.getPCollection())));
       }
       CommittedBundle<?> unprocessedInputs = committedResult.getUnprocessedInputs();
       if (unprocessedInputs != null && !Iterables.isEmpty(unprocessedInputs.getElements())) {

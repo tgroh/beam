@@ -52,6 +52,7 @@ import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.VarLongCoder;
 import org.apache.beam.sdk.io.CountingSource;
 import org.apache.beam.sdk.io.Read;
+import org.apache.beam.sdk.io.Read.Unbounded;
 import org.apache.beam.sdk.io.UnboundedSource;
 import org.apache.beam.sdk.io.UnboundedSource.CheckpointMark;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -65,6 +66,7 @@ import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.util.VarInt;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
@@ -83,6 +85,8 @@ import org.mockito.stubbing.Answer;
 @RunWith(JUnit4.class)
 public class UnboundedReadEvaluatorFactoryTest {
   private PCollection<Long> longs;
+  private AppliedPTransform<PBegin, PCollection<Long>, Unbounded<Long>> longsProducer;
+
   private UnboundedReadEvaluatorFactory factory;
   private EvaluationContext context;
   private UncommittedBundle<Long> output;
@@ -95,7 +99,10 @@ public class UnboundedReadEvaluatorFactoryTest {
   public void setup() {
     source = CountingSource.unboundedWithTimestampFn(new LongToInstantFn());
     TestPipeline p = TestPipeline.create();
-    longs = p.apply(Read.from(source));
+    Unbounded<Long> unboundedRead = Read.from(source);
+    longs = p.apply("UnboundedRead", unboundedRead);
+    longsProducer = AppliedPTransform.of("UnboundedRead", p.begin(), longs, unboundedRead);
+
 
     context = mock(EvaluationContext.class);
     factory = new UnboundedReadEvaluatorFactory(context);
@@ -115,7 +122,7 @@ public class UnboundedReadEvaluatorFactoryTest {
     int numSplits = 5;
     Collection<CommittedBundle<?>> initialInputs =
         new UnboundedReadEvaluatorFactory.InputProvider(context)
-            .getInitialInputs(longs.getProducingTransformInternal(), numSplits);
+            .getInitialInputs(longsProducer, numSplits);
     // CountingSource.unbounded has very good splitting behavior
     assertThat(initialInputs, hasSize(numSplits));
 
@@ -148,7 +155,7 @@ public class UnboundedReadEvaluatorFactoryTest {
 
     Collection<CommittedBundle<?>> initialInputs =
         new UnboundedReadEvaluatorFactory.InputProvider(context)
-            .getInitialInputs(longs.getProducingTransformInternal(), 1);
+            .getInitialInputs(longsProducer, 1);
 
     CommittedBundle<?> inputShards = Iterables.getOnlyElement(initialInputs);
     UnboundedSourceShard<Long, ?> inputShard =
@@ -156,7 +163,7 @@ public class UnboundedReadEvaluatorFactoryTest {
             Iterables.getOnlyElement(inputShards.getElements()).getValue();
     TransformEvaluator<? super UnboundedSourceShard<Long, ?>> evaluator =
         factory.forApplication(
-            longs.getProducingTransformInternal(), inputShards);
+            longsProducer, inputShards);
 
     evaluator.processElement((WindowedValue) Iterables.getOnlyElement(inputShards.getElements()));
     TransformResult<? super UnboundedSourceShard<Long, ?>> result = evaluator.finishBundle();
@@ -189,8 +196,10 @@ public class UnboundedReadEvaluatorFactoryTest {
     source.dedupes = true;
 
     TestPipeline p = TestPipeline.create();
-    PCollection<Long> pcollection = p.apply(Read.from(source));
-    AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
+    Unbounded<Long> testRead = Read.from(source);
+    PCollection<Long> pcollection = p.apply("TestRead", testRead);
+    AppliedPTransform<?, ?, ?> sourceTransform =
+        AppliedPTransform.of("TestRead", p.begin(), pcollection, testRead);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
     Collection<CommittedBundle<?>> initialInputs =
@@ -229,11 +238,14 @@ public class UnboundedReadEvaluatorFactoryTest {
 
   @Test
   public void noElementsAvailableReaderIncludedInResidual() throws Exception {
-    TestPipeline p = TestPipeline.create();
     // Read with a very slow rate so by the second read there are no more elements
-    PCollection<Long> pcollection =
-        p.apply(Read.from(new TestUnboundedSource<>(VarLongCoder.of(), 1L)));
-    AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
+    TestUnboundedSource<Long> source = new TestUnboundedSource<>(VarLongCoder.of(), 1L);
+
+    TestPipeline p = TestPipeline.create();
+    Unbounded<Long> testRead = Read.from(source);
+    PCollection<Long> pcollection = p.apply("TestRead", testRead);
+    AppliedPTransform<?, ?, ?> sourceTransform =
+        AppliedPTransform.of("TestRead", p.begin(), pcollection, testRead);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
     Collection<CommittedBundle<?>> initialInputs =
@@ -290,8 +302,10 @@ public class UnboundedReadEvaluatorFactoryTest {
         new TestUnboundedSource<>(BigEndianLongCoder.of(), elems.toArray(new Long[0]));
 
     TestPipeline p = TestPipeline.create();
-    PCollection<Long> pcollection = p.apply(Read.from(source));
-    AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
+    Unbounded<Long> testRead = Read.from(source);
+    PCollection<Long> pcollection = p.apply("TestRead", testRead);
+    AppliedPTransform<?, ?, ?> sourceTransform =
+        AppliedPTransform.of("TestRead", p.begin(), pcollection, testRead);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
     UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
@@ -308,7 +322,7 @@ public class UnboundedReadEvaluatorFactoryTest {
     UnboundedReadEvaluatorFactory factory =
         new UnboundedReadEvaluatorFactory(context, 1.0 /* Always reuse */);
     new UnboundedReadEvaluatorFactory.InputProvider(context)
-        .getInitialInputs(pcollection.getProducingTransformInternal(), 1);
+        .getInitialInputs(sourceTransform, 1);
     TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> evaluator =
         factory.forApplication(sourceTransform, inputBundle);
     evaluator.processElement(shard);
@@ -335,8 +349,10 @@ public class UnboundedReadEvaluatorFactoryTest {
         new TestUnboundedSource<>(BigEndianLongCoder.of(), elems.toArray(new Long[0]));
 
     TestPipeline p = TestPipeline.create();
-    PCollection<Long> pcollection = p.apply(Read.from(source));
-    AppliedPTransform<?, ?, ?> sourceTransform = pcollection.getProducingTransformInternal();
+    Unbounded<Long> testRead = Read.from(source);
+    PCollection<Long> pcollection = p.apply("TestRead", testRead);
+    AppliedPTransform<?, ?, ?> sourceTransform =
+        AppliedPTransform.of("TestRead", p.begin(), pcollection, testRead);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
     UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);

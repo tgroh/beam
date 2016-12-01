@@ -218,7 +218,7 @@ public class OldDoFnTest implements Serializable {
     CountOddsFn countOdds = new CountOddsFn();
     PCollection<Void> output = pipeline
         .apply(Create.of(1, 3, 5, 7, 2, 4, 6, 8, 10, 12, 14, 20, 42, 68, 100))
-        .apply(ParDo.of(countOdds));
+        .apply("CountOdds", ParDo.of(countOdds));
     PipelineResult result = pipeline.run();
 
     AggregatorValues<Integer> values = result.getAggregatorValues(countOdds.aggregator);
@@ -226,7 +226,7 @@ public class OldDoFnTest implements Serializable {
     Map<String, Integer> valuesMap = values.getValuesAtSteps();
 
     assertThat(valuesMap.size(), equalTo(1));
-    assertThat(valuesMap.get(output.getProducingTransformInternal().getFullName()), equalTo(4));
+    assertThat(valuesMap.get("CountOdds"), equalTo(4));
   }
 
   private static class CountOddsFn extends OldDoFn<Integer, Void> {

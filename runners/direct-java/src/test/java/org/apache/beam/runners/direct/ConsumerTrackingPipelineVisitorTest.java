@@ -121,15 +121,15 @@ public class ConsumerTrackingPipelineVisitorTest implements Serializable {
     p.traverseTopologically(visitor);
 
     assertThat(
-        visitor.getValueToConsumers().get(created),
+        visitor.getConsumers().get(created),
         Matchers.<AppliedPTransform<?, ?, ?>>containsInAnyOrder(
             transformed.getProducingTransformInternal(),
             flattened.getProducingTransformInternal()));
     assertThat(
-        visitor.getValueToConsumers().get(transformed),
+        visitor.getConsumers().get(transformed),
         Matchers.<AppliedPTransform<?, ?, ?>>containsInAnyOrder(
             flattened.getProducingTransformInternal()));
-    assertThat(visitor.getValueToConsumers().get(flattened), emptyIterable());
+    assertThat(visitor.getConsumers().get(flattened), emptyIterable());
   }
 
   @Test
@@ -142,11 +142,11 @@ public class ConsumerTrackingPipelineVisitorTest implements Serializable {
     p.traverseTopologically(visitor);
 
     assertThat(
-        visitor.getValueToConsumers().get(created),
+        visitor.getConsumers().get(created),
         Matchers.<AppliedPTransform<?, ?, ?>>containsInAnyOrder(
             flattened.getProducingTransformInternal(),
             flattened.getProducingTransformInternal()));
-    assertThat(visitor.getValueToConsumers().get(flattened), emptyIterable());
+    assertThat(visitor.getConsumers().get(flattened), emptyIterable());
   }
 
   @Test
@@ -273,8 +273,8 @@ public class ConsumerTrackingPipelineVisitorTest implements Serializable {
   public void getValueToConsumersWithoutVisitingThrows() {
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage("completely traversed");
-    thrown.expectMessage("getValueToConsumers");
-    visitor.getValueToConsumers();
+    thrown.expectMessage("getConsumers");
+    visitor.getConsumers();
   }
 
   @Test

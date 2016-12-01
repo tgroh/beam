@@ -25,6 +25,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import org.apache.beam.runners.direct.Relations.Consumers;
+import org.apache.beam.runners.direct.Relations.Producers;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.Pipeline.PipelineVisitor;
 import org.apache.beam.sdk.runners.PipelineRunner;
@@ -41,6 +43,7 @@ import org.apache.beam.sdk.values.PValue;
  * input after the upstream transform has produced and committed output.
  */
 public class ConsumerTrackingPipelineVisitor extends PipelineVisitor.Defaults {
+  private Map<PValue, AppliedPTransform<?, ?, ?>> producers = new HashMap<>();
   private Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> valueToConsumers = new HashMap<>();
   private Collection<AppliedPTransform<?, ?, ?>> rootTransforms = new ArrayList<>();
   private Collection<PCollectionView<?>> views = new ArrayList<>();
@@ -95,6 +98,7 @@ public class ConsumerTrackingPipelineVisitor extends PipelineVisitor.Defaults {
 
   @Override
   public void visitValue(PValue value, TransformTreeNode producer) {
+    producers.put(value, getAppliedTransform(producer));
     toFinalize.add(value);
     for (PValue expandedValue : value.expand()) {
       valueToConsumers.put(expandedValue, new ArrayList<AppliedPTransform<?, ?, ?>>());
@@ -112,17 +116,17 @@ public class ConsumerTrackingPipelineVisitor extends PipelineVisitor.Defaults {
 
 
   /**
-   * Returns a mapping of each fully-expanded {@link PValue} to each
-   * {@link AppliedPTransform} that consumes it. For each AppliedPTransform in the collection
-   * returned from {@code getValueToCustomers().get(PValue)},
-   * {@code AppliedPTransform#getInput().expand()} will contain the argument {@link PValue}.
+   * Returns a mapping of each fully-expanded {@link PValue} to each {@link AppliedPTransform} that
+   * consumes it. For each AppliedPTransform in the collection returned from {@code
+   * getValueToCustomers().get(PValue)}, {@code AppliedPTransform#getInput().expand()} will contain
+   * the argument {@link PValue}.
    */
-  public Map<PValue, Collection<AppliedPTransform<?, ?, ?>>> getValueToConsumers() {
+  public Consumers getConsumers() {
     checkState(
         finalized,
-        "Can't call getValueToConsumers before the Pipeline has been completely traversed");
+        "Can't call getConsumers before the Pipeline has been completely traversed");
 
-    return valueToConsumers;
+    return Relations.consumersFromMap(valueToConsumers);
   }
 
   /**
@@ -134,6 +138,16 @@ public class ConsumerTrackingPipelineVisitor extends PipelineVisitor.Defaults {
         finalized, "Can't call getStepNames before the Pipeline has been completely traversed");
 
     return stepNames;
+  }
+
+  /**
+   * Returns the mapping for each {@link PValue} to the {@link AppliedPTransform} that produces it.
+   */
+  public Producers getProducers() {
+    checkState(
+        finalized,
+        "Can't call getProducers before the Pipeline has been completely traversed");
+    return Relations.producersFromMap(producers);
   }
 
   /**
