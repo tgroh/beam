@@ -61,7 +61,7 @@ import org.apache.beam.sdk.util.WindowingStrategy;
  *
  * @param <T> the type of the elements of this {@link PCollection}
  */
-public class PCollection<T> extends TypedPValue<T> {
+public final class PCollection<T> extends TypedPValue<T> {
 
   /**
    * The enumeration of cases for whether a {@link PCollection} is bounded.

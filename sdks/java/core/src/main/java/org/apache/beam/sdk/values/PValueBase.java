@@ -128,7 +128,7 @@ public abstract class PValueBase extends POutputValueBase implements PValue {
   }
 
   @Override
-  public Collection<? extends PValue> expand() {
+  public final Collection<? extends PValue> expand() {
     return Collections.singletonList(this);
   }
 
