@@ -64,7 +64,7 @@ public class ImmutabilityEnforcementFactoryTest implements Serializable {
                         c.element()[0] = 'b';
                       }
                     }));
-    consumer = pcollection.apply(Count.<byte[]>globally()).getProducingTransformInternal();
+    consumer = DirectTestUtils.getProducer(pcollection.apply(Count.<byte[]>globally()));
   }
 
   @Test
