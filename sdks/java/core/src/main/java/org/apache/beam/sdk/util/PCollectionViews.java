@@ -17,6 +17,8 @@
  */
 package org.apache.beam.sdk.util;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import com.google.common.base.Function;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.HashMultimap;
@@ -40,6 +42,7 @@ import org.apache.beam.sdk.transforms.windowing.InvalidWindows;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
+import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValueBase;
 import org.apache.beam.sdk.values.TupleTag;
 
@@ -511,6 +514,18 @@ public class PCollectionViews {
     @Override
     public String toString() {
       return MoreObjects.toStringHelper(this).add("tag", tag).toString();
+    }
+
+    @Override
+    @Deprecated
+    public void checkCompatible(POutput other) {
+      checkArgument(other instanceof PCollectionView);
+      PCollectionView<?> that = (PCollectionView<?>) other;
+      checkArgument(this.getTagInternal().equals(that.getTagInternal()));
+      checkArgument(this.getCoderInternal().equals(that.getCoderInternal()));
+      checkArgument(
+          this.getWindowingStrategyInternal().equals(that.getWindowingStrategyInternal()));
+      checkArgument(this.getViewFn().equals(that.getViewFn()));
     }
   }
 }

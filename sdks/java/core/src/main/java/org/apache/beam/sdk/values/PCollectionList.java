@@ -17,6 +17,8 @@
  */
 package org.apache.beam.sdk.values;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -233,6 +235,16 @@ public class PCollectionList<T> implements PInput, POutput {
   public void finishSpecifyingOutput() {
     for (PCollection<T> pc : pcollections) {
       pc.finishSpecifyingOutput();
+    }
+  }
+
+  @Override
+  public void checkCompatible(POutput other) {
+    checkArgument(other instanceof PCollectionList);
+    PCollectionList<?> that = (PCollectionList<?>) other;
+    checkArgument(this.size() == that.size());
+    for (int i = 0; i < this.size(); i++) {
+      this.get(i).checkCompatible(that.get(i));
     }
   }
 }

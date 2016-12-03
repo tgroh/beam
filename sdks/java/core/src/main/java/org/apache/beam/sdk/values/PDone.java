@@ -17,6 +17,8 @@
  */
 package org.apache.beam.sdk.values;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.Collection;
 import java.util.Collections;
 import org.apache.beam.sdk.Pipeline;
@@ -39,6 +41,11 @@ public class PDone extends POutputValueBase {
   public Collection<? extends PValue> expand() {
     // A PDone contains no PValues.
     return Collections.emptyList();
+  }
+
+  @Override
+  public void checkCompatible(POutput other) {
+    checkArgument(other instanceof PDone);
   }
 
   private PDone(Pipeline pipeline) {

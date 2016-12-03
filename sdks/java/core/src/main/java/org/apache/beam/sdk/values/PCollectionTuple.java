@@ -17,6 +17,8 @@
  */
 package org.apache.beam.sdk.values;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import com.google.common.collect.ImmutableMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -259,6 +261,16 @@ public class PCollectionTuple implements PInput, POutput {
   public void finishSpecifyingOutput() {
     for (PCollection<?> pc : pcollectionMap.values()) {
       pc.finishSpecifyingOutput();
+    }
+  }
+
+  @Override
+  public void checkCompatible(POutput other) {
+    checkArgument(other instanceof PCollectionTuple);
+    PCollectionTuple that = (PCollectionTuple) other;
+    checkArgument(this.pcollectionMap.size() == that.pcollectionMap.size());
+    for (Map.Entry<TupleTag<?>, PCollection<?>> taggedPc : pcollectionMap.entrySet()) {
+      taggedPc.getValue().checkCompatible(that.get(taggedPc.getKey()));
     }
   }
 }

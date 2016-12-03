@@ -17,6 +17,8 @@
  */
 package org.apache.beam.sdk.testing;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import com.google.common.base.Function;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Iterables;
@@ -33,6 +35,7 @@ import org.apache.beam.sdk.transforms.windowing.PaneInfo;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.PCollectionView;
+import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValueBase;
 import org.apache.beam.sdk.values.TupleTag;
 import org.joda.time.Duration;
@@ -285,6 +288,11 @@ public final class PCollectionViewTesting {
           .add("tag", tag)
           .add("viewFn", viewFn)
           .toString();
+    }
+
+    @Override
+    public void checkCompatible(POutput other) {
+      checkArgument(this.equals(other));
     }
   }
 }

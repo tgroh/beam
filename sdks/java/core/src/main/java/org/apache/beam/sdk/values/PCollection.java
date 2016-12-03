@@ -17,6 +17,8 @@
  */
 package org.apache.beam.sdk.values;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.io.BoundedSource.BoundedReader;
@@ -62,6 +64,17 @@ import org.apache.beam.sdk.util.WindowingStrategy;
  * @param <T> the type of the elements of this {@link PCollection}
  */
 public class PCollection<T> extends TypedPValue<T> {
+
+  @Override
+  public void checkCompatible(POutput other) {
+    checkArgument(other instanceof PCollection);
+    PCollection<?> that = (PCollection<?>) other;
+    checkArgument(this.isBounded.equals(that.isBounded));
+    // TODO: Maybe type descriptor? if they're the same they can use the same coder
+    checkArgument(this.getTypeDescriptor().equals(that.getTypeDescriptor()));
+    checkArgument(this.getCoder().equals(that.getCoder()));
+    checkArgument(this.getWindowingStrategy().equals(that.getWindowingStrategy()));
+  }
 
   /**
    * The enumeration of cases for whether a {@link PCollection} is bounded.

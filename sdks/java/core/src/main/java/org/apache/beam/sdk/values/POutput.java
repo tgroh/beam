@@ -45,6 +45,7 @@ public interface POutput {
    *
    * <p>Not intended to be invoked directly by user code.
    */
+  // TODO: Change replacement type to Map<TupleTag<?>, PValue>
   Collection<? extends PValue> expand();
 
   /**
@@ -73,4 +74,11 @@ public interface POutput {
    * is called, so users do not normally call this explicitly.
    */
   void finishSpecifyingOutput();
+
+  /**
+   * Checks that the provided {@link POutput} is compatible with this {@link POutput}. If the two
+   * {@link POutput POutputs} are compatible, each can be used in place of the other without any
+   * downstream transform observing a change.
+   */
+  void checkCompatible(POutput other);
 }
