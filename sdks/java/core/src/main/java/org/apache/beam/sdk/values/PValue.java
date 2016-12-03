@@ -31,6 +31,16 @@ public interface PValue extends POutput, PInput {
   String getName();
 
   /**
+   * Checks that the provided {@link PValue} is compatible with this {@link PValue}. If the two
+   * {@link PValue PValues} are compatible, each can be used in place of the other without any
+   * downstream transform observing a change.
+   *
+   * @throws IllegalArgumentException if the provided {@link PValue} is not compatible with this
+   *     {@link PValue}.
+   */
+  void verifyCompatible(PValue other);
+
+  /**
    * Returns the {@link AppliedPTransform} that this {@link PValue} is an output of.
    *
    * <p>For internal use only.

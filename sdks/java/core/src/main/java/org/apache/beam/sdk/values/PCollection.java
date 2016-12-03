@@ -17,6 +17,9 @@
  */
 package org.apache.beam.sdk.values;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.io.BoundedSource.BoundedReader;
@@ -61,7 +64,7 @@ import org.apache.beam.sdk.util.WindowingStrategy;
  *
  * @param <T> the type of the elements of this {@link PCollection}
  */
-public class PCollection<T> extends TypedPValue<T> {
+public final class PCollection<T> extends TypedPValue<T> {
 
   /**
    * The enumeration of cases for whether a {@link PCollection} is bounded.
@@ -176,6 +179,43 @@ public class PCollection<T> extends TypedPValue<T> {
 
   public IsBounded isBounded() {
     return isBounded;
+  }
+
+  @Override
+  public void verifyCompatible(PValue other) {
+    checkState(
+        this.isFinishedSpecifyingInternal(),
+        "PCollection %s must be finished specifying before any calls to verifyCompatible",
+        this);
+    checkArgument(
+        other instanceof PCollection, "%s is not a %s", other, PCollection.class.getSimpleName());
+    PCollection<?> that = (PCollection<?>) other;
+    checkState(
+        that.isFinishedSpecifyingInternal(),
+        "PCollection %s must be finished specifying before any calls to verifyCompatible",
+        that);
+    checkArgument(
+        this.isBounded.equals(that.isBounded),
+        "%s mismatch between %s and %s: %s vs %s",
+        IsBounded.class.getSimpleName(),
+        this,
+        that,
+        this.isBounded,
+        that.isBounded);
+    checkArgument(
+        this.getCoder().equals(that.getCoder()),
+        "%s mismatch between %s and %s: %s vs %s",
+        Coder.class.getSimpleName(),
+        this,
+        that,
+        this.getCoder(),
+        that.getCoder());
+    checkArgument(
+        this.getWindowingStrategy().equals(that.getWindowingStrategy()),
+        "%s mismatch between %s and %s: %s vs %s",
+        WindowingStrategy.class.getSimpleName(),
+        this.getWindowingStrategy(),
+        that.getWindowingStrategy());
   }
 
   /////////////////////////////////////////////////////////////////////////////

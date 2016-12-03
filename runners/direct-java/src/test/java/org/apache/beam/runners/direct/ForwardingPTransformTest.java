@@ -25,9 +25,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PCollection.IsBounded;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -62,10 +65,13 @@ public class ForwardingPTransformTest {
 
   @Test
   public void applyDelegates() {
-    @SuppressWarnings("unchecked")
-    PCollection<Integer> collection = mock(PCollection.class);
-    @SuppressWarnings("unchecked")
-    PCollection<String> output = mock(PCollection.class);
+    PCollection<Integer> collection =
+        PCollection.createPrimitiveOutputInternal(
+            TestPipeline.create(), WindowingStrategy.globalDefault(), IsBounded.BOUNDED);
+    PCollection<String> output =
+            PCollection.createPrimitiveOutputInternal(
+                TestPipeline.create(), WindowingStrategy.globalDefault(), IsBounded.BOUNDED);
+
     when(delegate.apply(collection)).thenReturn(output);
     PCollection<String> result = forwarding.apply(collection);
     assertThat(result, equalTo(output));
@@ -80,8 +86,9 @@ public class ForwardingPTransformTest {
 
   @Test
   public void validateDelegates() {
-    @SuppressWarnings("unchecked")
-    PCollection<Integer> input = mock(PCollection.class);
+    PCollection<Integer> input =
+        PCollection.createPrimitiveOutputInternal(
+            TestPipeline.create(), WindowingStrategy.globalDefault(), IsBounded.BOUNDED);
     doThrow(RuntimeException.class).when(delegate).validate(input);
 
     thrown.expect(RuntimeException.class);
@@ -90,10 +97,12 @@ public class ForwardingPTransformTest {
 
   @Test
   public void getDefaultOutputCoderDelegates() throws Exception {
-    @SuppressWarnings("unchecked")
-    PCollection<Integer> input = mock(PCollection.class);
-    @SuppressWarnings("unchecked")
-    PCollection<String> output = mock(PCollection.class);
+    PCollection<Integer> input =
+        PCollection.createPrimitiveOutputInternal(
+            TestPipeline.create(), WindowingStrategy.globalDefault(), IsBounded.BOUNDED);
+    PCollection<String> output =
+        PCollection.createPrimitiveOutputInternal(
+            TestPipeline.create(), WindowingStrategy.globalDefault(), IsBounded.BOUNDED);
     @SuppressWarnings("unchecked")
     Coder<String> outputCoder = mock(Coder.class);
 
