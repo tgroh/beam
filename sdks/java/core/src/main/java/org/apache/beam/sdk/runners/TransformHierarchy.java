@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.runners;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
@@ -76,6 +77,15 @@ public class TransformHierarchy {
     return current;
   }
 
+  public Node pushReplacement(TransformHierarchy.Node original, PTransform<?, ?> transform) {
+    checkArgument(!original.isRootNode());
+    Node replacement =
+        new Node(
+            original.getEnclosingNode(), transform, original.getFullName(), original.getInput());
+    original.getEnclosingNode().replaceComposite(original, replacement);
+    return replacement;
+  }
+
   /**
    * Finish specifying all of the input {@link PValue PValues} of the current {@link
    * Node}. Ensures that all of the inputs to the current node have been fully
@@ -111,6 +121,17 @@ public class TransformHierarchy {
     output.recordAsOutput(current.toAppliedPTransform());
   }
 
+  public void validateReplacementOutput(POutput original, POutput replacement) {
+    Map<String, PValue> originalByName = new HashMap<>();
+    for (PValue originalValue : original.expand()) {
+      originalByName.put(originalValue.getName(), originalValue);
+    }
+    for (PValue replacementValue : replacement.expand()) {
+      PValue matchingOriginal = originalByName.get(replacementValue.getName());
+    }
+    // TODO: Implement
+  }
+
   /**
    * Pops the current node off the top of the stack, finishing it. Outputs of the node are finished
    * once they are consumed as input.
@@ -119,6 +140,11 @@ public class TransformHierarchy {
     current.finishSpecifying();
     current = current.getEnclosingNode();
     checkState(current != null, "Can't pop the root node of a TransformHierarchy");
+  }
+
+  public void popReplacement() {
+    current.finishSpecifying();
+    current = root;
   }
 
   Node getProducer(PValue produced) {
@@ -358,6 +384,10 @@ public class TransformHierarchy {
         return;
       }
       finishedSpecifying = true;
+    }
+
+    void replaceComposite(Node original, Node replacement) {
+      throw new UnsupportedOperationException("Not yet supported");
     }
   }
 }

@@ -391,6 +391,22 @@ public class Pipeline {
     }
   }
 
+  private <InputT extends PInput, OutputT extends POutput> OutputT replace(
+      TransformHierarchy.Node original, PTransform<? super InputT, OutputT> transform) {
+    InputT originalInput = (InputT) original.getInput();
+
+    transforms.pushReplacement(original, transform);
+    try {
+      transform.validate(originalInput);
+      OutputT output = transform.apply(originalInput);
+      transforms.validateReplacementOutput(original.getOutput(), output);
+
+      return output;
+    } finally {
+      transforms.popReplacement();
+    }
+  }
+
   /**
    * Returns the configured {@link PipelineRunner}.
    */
