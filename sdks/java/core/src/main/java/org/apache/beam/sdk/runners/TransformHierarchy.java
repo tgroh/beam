@@ -45,7 +45,7 @@ import org.apache.beam.sdk.values.TaggedPValue;
  */
 public class TransformHierarchy {
   private final Node root;
-  private final Map<POutput, Node> producers;
+  private final Map<PValue, Node> producers;
   // Maintain a stack based on the enclosing nodes
   private Node current;
 

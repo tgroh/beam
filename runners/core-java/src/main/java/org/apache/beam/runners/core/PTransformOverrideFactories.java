@@ -14,23 +14,29 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
-package org.apache.beam.runners.direct;
 
-import org.apache.beam.runners.core.SimplePTransformOverrideFactory;
+package org.apache.beam.runners.core;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+import java.util.List;
 import org.apache.beam.sdk.runners.PTransformOverrideFactory;
-import org.apache.beam.sdk.transforms.GroupByKey;
-import org.apache.beam.sdk.transforms.PTransform;
-import org.apache.beam.sdk.values.KV;
-import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TaggedPValue;
 
-/** A {@link PTransformOverrideFactory} for {@link GroupByKey} PTransforms. */
-final class DirectGroupByKeyOverrideFactory<K, V>
-    extends SimplePTransformOverrideFactory<
-                PCollection<KV<K, V>>, PCollection<KV<K, Iterable<V>>>, GroupByKey<K, V>> {
-  @Override
-  public PTransform<PCollection<KV<K, V>>, PCollection<KV<K, Iterable<V>>>> getTransform(
-      GroupByKey<K, V> transform) {
-    return new DirectGroupByKey<>(transform);
+/**
+ * Utility methods for implementors of {@link PTransformOverrideFactory}.
+ */
+public final class PTransformOverrideFactories {
+  private PTransformOverrideFactories() {}
+  public static <InputT extends PValue> InputT getOnlyInput(List<TaggedPValue> expansion) {
+    checkArgument(
+        expansion.size() == 1,
+        "Expected expansion to have exactly one component %s, got %s",
+        TaggedPValue.class.getSimpleName(),
+        expansion.size());
+    return (InputT) expansion.get(0).getValue();
   }
 }

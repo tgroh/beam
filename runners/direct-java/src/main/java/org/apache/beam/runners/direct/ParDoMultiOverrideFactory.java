@@ -19,10 +19,13 @@ package org.apache.beam.runners.direct;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.apache.beam.runners.core.SplittableParDo;
+import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.runners.core.PTransformOverrideFactories;
 import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.GroupByKey;
@@ -35,6 +38,7 @@ import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TaggedPValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
 import org.apache.beam.sdk.values.TypedPValue;
@@ -66,6 +70,12 @@ class ParDoMultiOverrideFactory<InputT, OutputT>
     } else {
       return transform;
     }
+  }
+
+  @Override
+  public PCollection<? extends InputT> createInputFromExpansion(
+      Pipeline p, List<TaggedPValue> expansion) {
+    return PTransformOverrideFactories.getOnlyInput(expansion);
   }
 
   @Override

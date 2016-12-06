@@ -18,6 +18,7 @@
 
 package org.apache.beam.runners.direct;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 import com.google.auto.value.AutoValue;
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
+import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.testing.TestStream;
@@ -48,6 +50,7 @@ import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollection.IsBounded;
 import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TaggedPValue;
 import org.apache.beam.sdk.values.TimestampedValue;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
@@ -165,6 +168,16 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory {
     public PTransform<PBegin, PCollection<T>> getTransform(
         TestStream<T> transform) {
       return new DirectTestStream<>(transform);
+    }
+
+    @Override
+    public PBegin createInputFromExpansion(Pipeline p, List<TaggedPValue> expansion) {
+      checkArgument(
+          expansion.isEmpty(),
+          "%s can only be applied to a %s",
+          TestStream.class.getSimpleName(),
+          PBegin.class.getSimpleName());
+      return PBegin.in(p);
     }
 
     @Override

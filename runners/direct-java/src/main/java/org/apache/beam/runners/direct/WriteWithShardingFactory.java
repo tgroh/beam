@@ -22,10 +22,14 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.Write;
 import org.apache.beam.sdk.io.Write.Bound;
+import org.apache.beam.runners.core.PTransformOverrideFactories;
+import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.Flatten;
@@ -42,6 +46,7 @@ import org.apache.beam.sdk.values.PCollection.IsBounded;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.PDone;
 import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TaggedPValue;
 import org.joda.time.Duration;
 
 /**
@@ -50,8 +55,8 @@ import org.joda.time.Duration;
  * of shards is the log base 10 of the number of input records, with up to 2 additional shards.
  */
 class WriteWithShardingFactory<InputT>
-    implements org.apache.beam.sdk.runners.PTransformOverrideFactory<
-        PCollection<InputT>, PDone, Write.Bound<InputT>> {
+    implements PTransformOverrideFactory<
+            PCollection<InputT>, PDone, Bound<InputT>> {
   static final int MAX_RANDOM_EXTRA_SHARDS = 3;
 
   @Override
@@ -61,6 +66,12 @@ class WriteWithShardingFactory<InputT>
       return new DynamicallyReshardedWrite<>(transform);
     }
     return transform;
+  }
+
+  @Override
+  public PCollection<InputT> createInputFromExpansion(
+      Pipeline p, List<TaggedPValue> expansion) {
+    return PTransformOverrideFactories.getOnlyInput(expansion);
   }
 
   @Override

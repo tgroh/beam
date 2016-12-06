@@ -17,37 +17,25 @@
  */
 package org.apache.beam.runners.direct;
 
-import java.util.Collections;
-import java.util.Map;
+import org.apache.beam.runners.core.SimplePTransformOverrideFactory;
 import org.apache.beam.runners.core.SplittableParDo.GBKIntoKeyedWorkItems;
-import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.util.KeyedWorkItem;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.PValue;
 
 /**
  * Provides an implementation of {@link SplittableParDo.GBKIntoKeyedWorkItems} for the Direct
  * Runner.
  */
 class DirectGBKIntoKeyedWorkItemsOverrideFactory<KeyT, InputT>
-    implements PTransformOverrideFactory<
-        PCollection<KV<KeyT, InputT>>, PCollection<KeyedWorkItem<KeyT, InputT>>,
-        GBKIntoKeyedWorkItems<KeyT, InputT>> {
+    extends SimplePTransformOverrideFactory<
+            PCollection<KV<KeyT, InputT>>, PCollection<KeyedWorkItem<KeyT, InputT>>,
+            GBKIntoKeyedWorkItems<KeyT, InputT>> {
   @Override
   public PTransform<PCollection<KV<KeyT, InputT>>, PCollection<KeyedWorkItem<KeyT, InputT>>>
       getTransform(
       GBKIntoKeyedWorkItems<KeyT, InputT> transform) {
     return new DirectGroupByKey.DirectGroupByKeyOnly<>();
-  }
-
-  @Override
-  public Map<PValue, PValue> getOriginalToReplacements(
-      PCollection<KV<KeyT, InputT>> input,
-      GBKIntoKeyedWorkItems<KeyT, InputT> originalTransform,
-      PCollection<KeyedWorkItem<KeyT, InputT>> originalOutput,
-      PCollection<KeyedWorkItem<KeyT, InputT>> replacedOutput) {
-    return Collections.<PValue, PValue>singletonMap(originalOutput, replacedOutput);
   }
 }

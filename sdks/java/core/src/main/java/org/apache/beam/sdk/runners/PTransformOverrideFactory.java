@@ -19,13 +19,16 @@
 
 package org.apache.beam.sdk.runners;
 
+import java.util.List;
 import java.util.Map;
+import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Experimental.Kind;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TaggedPValue;
 
 /**
  * Produces {@link PipelineRunner}-specific overrides of {@link PTransform PTransforms}, and
@@ -40,6 +43,11 @@ public interface PTransformOverrideFactory<
    * Returns a {@link PTransform} that produces equivalent output to the provided transform.
    */
   PTransform<InputT, OutputT> getTransform(TransformT transform);
+
+  /**
+   * Creates the input for the overriden transform from its expansion.
+   */
+  InputT createInputFromExpansion(Pipeline p, List<TaggedPValue> expansion);
 
   /**
    * Returns a mapping from the original output {@link PValue PValues} to the replacement output
