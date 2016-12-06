@@ -18,12 +18,15 @@
 package org.apache.beam.runners.direct;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.beam.runners.direct.CommittedResult.OutputType;
 import org.apache.beam.runners.direct.DirectRunner.PCollectionViewWriter;
 import org.apache.beam.runners.direct.StepTransformResult.Builder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.VoidCoder;
+import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -33,6 +36,7 @@ import org.apache.beam.sdk.transforms.WithKeys;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
+import org.apache.beam.sdk.values.PValue;
 
 /**
  * The {@link DirectRunner} {@link TransformEvaluatorFactory} for the
@@ -96,10 +100,20 @@ class ViewEvaluatorFactory implements TransformEvaluatorFactory {
   public static class ViewOverrideFactory<ElemT, ViewT>
       implements PTransformOverrideFactory<
           PCollection<ElemT>, PCollectionView<ViewT>, CreatePCollectionView<ElemT, ViewT>> {
+
     @Override
-    public PTransform<PCollection<ElemT>, PCollectionView<ViewT>> override(
+    public PTransform<PCollection<ElemT>, PCollectionView<ViewT>> getTransform(
         CreatePCollectionView<ElemT, ViewT> transform) {
       return new DirectCreatePCollectionView<>(transform);
+    }
+
+    @Override
+    public Map<PValue, PValue> getOriginalToReplacements(
+        PCollection<ElemT> input,
+        CreatePCollectionView<ElemT, ViewT> originalTransform,
+        PCollectionView<ViewT> originalOutput,
+        PCollectionView<ViewT> replacedOutput) {
+      return Collections.<PValue, PValue>singletonMap(originalOutput, replacedOutput);
     }
   }
 

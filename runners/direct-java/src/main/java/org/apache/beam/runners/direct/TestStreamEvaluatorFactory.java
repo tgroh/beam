@@ -26,10 +26,12 @@ import com.google.common.base.Supplier;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
 import org.apache.beam.runners.direct.DirectRunner.UncommittedBundle;
+import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.testing.TestStream.ElementEvent;
@@ -45,6 +47,7 @@ import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollection.IsBounded;
+import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TimestampedValue;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
@@ -157,9 +160,20 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory {
 
   static class DirectTestStreamFactory<T>
       implements PTransformOverrideFactory<PBegin, PCollection<T>, TestStream<T>> {
+
     @Override
-    public PTransform<PBegin, PCollection<T>> override(TestStream<T> transform) {
+    public PTransform<PBegin, PCollection<T>> getTransform(
+        TestStream<T> transform) {
       return new DirectTestStream<>(transform);
+    }
+
+    @Override
+    public Map<PValue, PValue> getOriginalToReplacements(
+        PBegin input,
+        TestStream<T> originalTransform,
+        PCollection<T> originalOutput,
+        PCollection<T> replacedOutput) {
+      return Collections.<PValue, PValue>singletonMap(originalOutput, replacedOutput);
     }
 
     static class DirectTestStream<T> extends PTransform<PBegin, PCollection<T>> {

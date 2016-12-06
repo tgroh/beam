@@ -17,18 +17,25 @@
  */
 package org.apache.beam.runners.direct;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.beam.runners.core.SplittableParDo;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.ParDo.BoundMulti;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignatures;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionTuple;
+import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
 import org.apache.beam.sdk.values.TypedPValue;
 
@@ -39,13 +46,10 @@ import org.apache.beam.sdk.values.TypedPValue;
  */
 class ParDoMultiOverrideFactory<InputT, OutputT>
     implements PTransformOverrideFactory<
-        PCollection<? extends InputT>, PCollectionTuple, ParDo.BoundMulti<InputT, OutputT>> {
-
+        PCollection<? extends InputT>, PCollectionTuple, BoundMulti<InputT, OutputT>> {
   @Override
-  @SuppressWarnings("unchecked")
-  public PTransform<PCollection<? extends InputT>, PCollectionTuple> override(
-      ParDo.BoundMulti<InputT, OutputT> transform) {
-
+  public PTransform<PCollection<? extends InputT>, PCollectionTuple> getTransform(
+      BoundMulti<InputT, OutputT> transform) {
     DoFn<InputT, OutputT> fn = transform.getNewFn();
     DoFnSignature signature = DoFnSignatures.getSignature(fn.getClass());
     if (signature.processElement().isSplittable()) {
@@ -62,6 +66,22 @@ class ParDoMultiOverrideFactory<InputT, OutputT>
     } else {
       return transform;
     }
+  }
+
+  @Override
+  public Map<PValue, PValue> getOriginalToReplacements(
+      PCollection<? extends InputT> input,
+      BoundMulti<InputT, OutputT> originalTransform,
+      PCollectionTuple originalOutput,
+      PCollectionTuple replacedOutput) {
+    Map<PValue, PValue> replacements = new HashMap<>();
+    for (Map.Entry<TupleTag<?>, PCollection<?>> entry : originalOutput.getAll().entrySet()) {
+      // TODO: Preconditions.
+      PCollection<?> orig = entry.getValue();
+      PCollection<?> repl = replacedOutput.get(entry.getKey());
+      replacements.put(orig, repl);
+    }
+    return Collections.unmodifiableMap(replacements);
   }
 
   static class GbkThenStatefulParDo<K, InputT, OutputT>

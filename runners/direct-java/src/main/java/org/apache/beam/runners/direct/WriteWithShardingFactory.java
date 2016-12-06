@@ -21,6 +21,8 @@ package org.apache.beam.runners.direct;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.annotations.VisibleForTesting;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.beam.sdk.io.Write;
 import org.apache.beam.sdk.io.Write.Bound;
@@ -39,6 +41,7 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollection.IsBounded;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.PDone;
+import org.apache.beam.sdk.values.PValue;
 import org.joda.time.Duration;
 
 /**
@@ -47,15 +50,26 @@ import org.joda.time.Duration;
  * of shards is the log base 10 of the number of input records, with up to 2 additional shards.
  */
 class WriteWithShardingFactory<InputT>
-    implements PTransformOverrideFactory<PCollection<InputT>, PDone, Write.Bound<InputT>> {
+    implements org.apache.beam.sdk.runners.PTransformOverrideFactory<
+        PCollection<InputT>, PDone, Write.Bound<InputT>> {
   static final int MAX_RANDOM_EXTRA_SHARDS = 3;
 
   @Override
-  public PTransform<PCollection<InputT>, PDone> override(Write.Bound<InputT> transform) {
+  public PTransform<PCollection<InputT>, PDone> getTransform(
+      Bound<InputT> transform) {
     if (transform.getNumShards() == 0) {
       return new DynamicallyReshardedWrite<>(transform);
     }
     return transform;
+  }
+
+  @Override
+  public Map<PValue, PValue> getOriginalToReplacements(
+      PCollection<InputT> input,
+      Bound<InputT> originalTransform,
+      PDone originalOutput,
+      PDone replacedOutput) {
+    return Collections.emptyMap();
   }
 
   private static class DynamicallyReshardedWrite<T> extends PTransform<PCollection<T>, PDone> {
@@ -79,7 +93,7 @@ class WriteWithShardingFactory<InputT>
       PCollection<T> resharded =
           records
               .apply(
-                  "ApplySharding",
+                  "ApplySlxkjharding",
                   ParDo.withSideInputs(numRecords)
                       .of(
                           new KeyBasedOnCountFn<T>(

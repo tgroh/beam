@@ -17,18 +17,31 @@
  */
 package org.apache.beam.runners.direct;
 
+import java.util.Collections;
+import java.util.Map;
+import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PValue;
 
 /** A {@link PTransformOverrideFactory} for {@link GroupByKey} PTransforms. */
 final class DirectGroupByKeyOverrideFactory<K, V>
     implements PTransformOverrideFactory<
         PCollection<KV<K, V>>, PCollection<KV<K, Iterable<V>>>, GroupByKey<K, V>> {
   @Override
-  public PTransform<PCollection<KV<K, V>>, PCollection<KV<K, Iterable<V>>>> override(
+  public PTransform<PCollection<KV<K, V>>, PCollection<KV<K, Iterable<V>>>> getTransform(
       GroupByKey<K, V> transform) {
     return new DirectGroupByKey<>(transform);
+  }
+
+  @Override
+  public Map<PValue, PValue> getOriginalToReplacements(
+      PCollection<KV<K, V>> input,
+      GroupByKey<K, V> originalTransform,
+      PCollection<KV<K, Iterable<V>>> originalOutput,
+      PCollection<KV<K, Iterable<V>>> replacedOutput) {
+    return Collections.<PValue, PValue>singletonMap(originalOutput, replacedOutput);
   }
 }
