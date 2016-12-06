@@ -191,6 +191,8 @@ public class PCollection<T> extends TypedPValue<T> {
 
   private IsBounded isBounded;
 
+  private TupleTag<T> tag = new TupleTag<>();
+
   private PCollection(Pipeline p) {
     super(p);
   }

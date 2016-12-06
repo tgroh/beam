@@ -17,10 +17,11 @@
  */
 package org.apache.beam.sdk.values;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
@@ -232,8 +233,12 @@ public class PCollectionTuple implements PInput, POutput {
   }
 
   @Override
-  public Collection<? extends PValue> expand() {
-    return pcollectionMap.values();
+  public List<TaggedPValue> expand() {
+    ImmutableList.Builder<TaggedPValue> values = ImmutableList.builder();
+    for (Map.Entry<TupleTag<?>, PCollection<?>> entry : pcollectionMap.entrySet()) {
+      values.add(TaggedPValue.of(entry.getKey(), entry.getValue()));
+    }
+    return values.build();
   }
 
   @Override

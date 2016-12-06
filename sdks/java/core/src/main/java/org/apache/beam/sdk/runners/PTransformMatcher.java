@@ -14,34 +14,19 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
-package org.apache.beam.sdk.values;
 
-import java.util.Collections;
-import java.util.List;
-import org.apache.beam.sdk.Pipeline;
+package org.apache.beam.sdk.runners;
+
+import java.util.Collection;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.values.PValue;
 
-/**
- * {@link PDone} is the output of a {@link PTransform} that has a trivial result,
- * such as a {@link org.apache.beam.sdk.io.Write}.
- */
-public class PDone extends POutputValueBase {
-
-  /**
-   * Creates a {@link PDone} in the given {@link Pipeline}.
-   */
-  public static PDone in(Pipeline pipeline) {
-    return new PDone(pipeline);
-  }
-
-  @Override
-  public List<TaggedPValue> expand() {
-    // A PDone contains no PValues.
-    return Collections.emptyList();
-  }
-
-  private PDone(Pipeline pipeline) {
-    super(pipeline);
-  }
+/** Created by tgroh on 12/5/16. */
+public interface PTransformMatcher {
+  boolean matches(
+      Collection<? extends PValue> inputs,
+      PTransform<?, ?> transform,
+      Collection<? extends PValue> outputs);
 }

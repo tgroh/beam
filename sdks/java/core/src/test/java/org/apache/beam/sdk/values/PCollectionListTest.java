@@ -18,10 +18,20 @@
 package org.apache.beam.sdk.values;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
+import com.google.common.collect.ImmutableList;
 import java.util.Collections;
+import java.util.List;
+import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.io.CountingInput;
+import org.apache.beam.sdk.testing.TestPipeline;
+import org.apache.beam.sdk.transforms.Create;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -42,6 +52,70 @@ public class PCollectionListTest {
           containsString(
               "must either have a non-empty list of PCollections, "
               + "or must first call empty(Pipeline)"));
+    }
+  }
+
+  @Test
+  public void testIterationOrder() {
+    Pipeline p = TestPipeline.create();
+    PCollection<Long> createOne = p.apply("CreateOne", Create.of(1L, 2L, 3L));
+    PCollection<Long> boundedCount = p.apply("CountBounded", CountingInput.upTo(23L));
+    PCollection<Long> unboundedCount = p.apply("CountUnbounded", CountingInput.unbounded());
+    PCollection<Long> createTwo = p.apply("CreateTwo", Create.of(-1L, -2L));
+    PCollection<Long> maxRecordsCount =
+        p.apply("CountLimited", CountingInput.unbounded().withMaxNumRecords(22L));
+
+    ImmutableList<PCollection<Long>> counts =
+        ImmutableList.of(boundedCount, maxRecordsCount, unboundedCount);
+    // Contains is the order-dependent matcher
+    PCollectionList<Long> pcList = PCollectionList.of(counts);
+    assertThat(
+        pcList.getAll(),
+        contains(boundedCount, maxRecordsCount, unboundedCount));
+
+    PCollectionList<Long> withOneCreate = pcList.and(createTwo);
+    assertThat(
+        withOneCreate.getAll(), contains(boundedCount, maxRecordsCount, unboundedCount, createTwo));
+
+    PCollectionList<Long> fromEmpty =
+        PCollectionList.<Long>empty(p)
+            .and(unboundedCount)
+            .and(createOne)
+            .and(ImmutableList.of(boundedCount, maxRecordsCount));
+    assertThat(
+        fromEmpty.getAll(), contains(unboundedCount, createOne, boundedCount, maxRecordsCount));
+
+    List<TaggedPValue> expansion = fromEmpty.expand();
+    // TaggedPValues are stable between expansions
+    assertThat(expansion, equalTo(fromEmpty.expand()));
+
+    List<PCollection<Long>> expectedList =
+        ImmutableList.of(unboundedCount, createOne, boundedCount, maxRecordsCount);
+    for (int i = 0; i < expansion.size(); i++) {
+      assertThat(
+          "Index " + i + " should have equal PValue",
+          expansion.get(i).getValue(),
+          Matchers.<PValue>equalTo(expectedList.get(i)));
+    }
+  }
+
+  @Test
+  public void testExpansionOrderWithDuplicates() {
+    TestPipeline p = TestPipeline.create();
+    PCollection<Long> firstCount = p.apply("CountFirst", CountingInput.upTo(10L));
+    PCollection<Long> secondCount = p.apply("CountSecond", CountingInput.upTo(10L));
+
+    PCollectionList<Long> counts =
+        PCollectionList.of(firstCount).and(secondCount).and(firstCount).and(firstCount);
+
+    ImmutableList<PCollection<Long>> expectedOrder =
+        ImmutableList.of(firstCount, secondCount, firstCount, firstCount);
+    assertThat(counts.expand(), hasSize(4));
+    for (int i = 0; i < 4; i++) {
+      assertThat(
+          "Index " + i + " should be equal",
+          counts.expand().get(i).getValue(),
+          Matchers.<PValue>equalTo(expectedOrder.get(i)));
     }
   }
 }
