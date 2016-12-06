@@ -154,7 +154,7 @@ public class ParDoEvaluatorTest {
 
     @SuppressWarnings("unchecked")
     AppliedPTransform<PCollection<Integer>, ?, ?> transform =
-        (AppliedPTransform<PCollection<Integer>, ?, ?>) DirectTestUtils.getProducer(output);
+        (AppliedPTransform<PCollection<Integer>, ?, ?>) DirectGraphs.getProducer(output);
     return ParDoEvaluator.create(
         evaluationContext,
         stepContext,

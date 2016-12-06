@@ -89,7 +89,7 @@ public class TransformExecutorTest {
     created = p.apply(Create.of("foo", "spam", "third"));
     PCollection<KV<Integer, String>> downstream = created.apply(WithKeys.<Integer, String>of(3));
 
-    DirectGraph graph = DirectTestUtils.getGraph(p);
+    DirectGraph graph = DirectGraphs.getGraph(p);
     createdProducer = graph.getProducer(created);
     downstreamProducer = graph.getProducer(downstream);
 

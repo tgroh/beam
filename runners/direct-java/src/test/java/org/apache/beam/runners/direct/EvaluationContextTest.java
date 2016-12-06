@@ -106,7 +106,7 @@ public class EvaluationContextTest {
     unbounded = p.apply(CountingInput.unbounded());
 
     BundleFactory bundleFactory = ImmutableListBundleFactory.create();
-    graph = DirectTestUtils.getGraph(p);
+    graph = DirectGraphs.getGraph(p);
     context =
         EvaluationContext.create(
             runner.getPipelineOptions(), NanosOffsetClock.create(), bundleFactory, graph);

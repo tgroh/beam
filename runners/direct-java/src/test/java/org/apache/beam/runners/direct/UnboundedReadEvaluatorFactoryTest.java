@@ -17,7 +17,7 @@
  */
 package org.apache.beam.runners.direct;
 
-import static org.apache.beam.runners.direct.DirectTestUtils.getProducer;
+import static org.apache.beam.runners.direct.DirectGraphs.getProducer;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -102,7 +102,7 @@ public class UnboundedReadEvaluatorFactoryTest {
     context = mock(EvaluationContext.class);
     factory = new UnboundedReadEvaluatorFactory(context);
     output = bundleFactory.createBundle(longs);
-    graph = DirectTestUtils.getGraph(p);
+    graph = DirectGraphs.getGraph(p);
     when(context.createBundle(longs)).thenReturn(output);
   }
 
@@ -235,7 +235,7 @@ public class UnboundedReadEvaluatorFactoryTest {
     // Read with a very slow rate so by the second read there are no more elements
     PCollection<Long> pcollection =
         p.apply(Read.from(new TestUnboundedSource<>(VarLongCoder.of(), 1L)));
-    AppliedPTransform<?, ?, ?> sourceTransform = DirectTestUtils.getProducer(pcollection);
+    AppliedPTransform<?, ?, ?> sourceTransform = DirectGraphs.getProducer(pcollection);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
     Collection<CommittedBundle<?>> initialInputs =
@@ -293,7 +293,7 @@ public class UnboundedReadEvaluatorFactoryTest {
 
     TestPipeline p = TestPipeline.create();
     PCollection<Long> pcollection = p.apply(Read.from(source));
-    DirectGraph graph = DirectTestUtils.getGraph(p);
+    DirectGraph graph = DirectGraphs.getGraph(p);
     AppliedPTransform<?, ?, ?> sourceTransform =
         graph.getProducer(pcollection);
 
@@ -340,7 +340,7 @@ public class UnboundedReadEvaluatorFactoryTest {
     TestPipeline p = TestPipeline.create();
     PCollection<Long> pcollection = p.apply(Read.from(source));
     AppliedPTransform<?, ?, ?> sourceTransform =
-        DirectTestUtils.getGraph(p).getProducer(pcollection);
+        DirectGraphs.getGraph(p).getProducer(pcollection);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
     UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);

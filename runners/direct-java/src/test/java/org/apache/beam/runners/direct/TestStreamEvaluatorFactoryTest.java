@@ -81,7 +81,7 @@ public class TestStreamEvaluatorFactoryTest {
     when(context.createBundle(streamVals))
         .thenReturn(bundleFactory.createBundle(streamVals), bundleFactory.createBundle(streamVals));
 
-    AppliedPTransform<?, ?, ?> streamProducer = DirectTestUtils.getProducer(streamVals);
+    AppliedPTransform<?, ?, ?> streamProducer = DirectGraphs.getProducer(streamVals);
     Collection<CommittedBundle<?>> initialInputs =
         new TestStreamEvaluatorFactory.InputProvider(context)
             .getInitialInputs(streamProducer, 1);

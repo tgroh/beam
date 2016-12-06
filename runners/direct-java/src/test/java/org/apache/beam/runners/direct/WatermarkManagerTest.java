@@ -115,7 +115,7 @@ public class WatermarkManagerTest implements Serializable {
     flattened = preFlatten.apply("flattened", Flatten.<Integer>pCollections());
 
     clock = MockClock.fromInstant(new Instant(1000));
-    graph = DirectTestUtils.getGraph(p);
+    graph = DirectGraphs.getGraph(p);
 
     manager = WatermarkManager.create(clock, graph);
     bundleFactory = ImmutableListBundleFactory.create();

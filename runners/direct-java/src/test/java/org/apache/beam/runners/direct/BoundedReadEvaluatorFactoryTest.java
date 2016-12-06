@@ -93,7 +93,7 @@ public class BoundedReadEvaluatorFactoryTest {
         new BoundedReadEvaluatorFactory(
             context, Long.MAX_VALUE /* minimum size for dynamic splits */);
     bundleFactory = ImmutableListBundleFactory.create();
-    longsProducer = DirectTestUtils.getProducer(longs);
+    longsProducer = DirectGraphs.getProducer(longs);
   }
 
   @Test
@@ -143,7 +143,7 @@ public class BoundedReadEvaluatorFactoryTest {
     }
     PCollection<Long> read =
         TestPipeline.create().apply(Read.from(new TestSource<>(VarLongCoder.of(), 5, elems)));
-    AppliedPTransform<?, ?, ?> transform = DirectTestUtils.getProducer(read);
+    AppliedPTransform<?, ?, ?> transform = DirectGraphs.getProducer(read);
     Collection<CommittedBundle<?>> unreadInputs =
         new BoundedReadEvaluatorFactory.InputProvider(context).getInitialInputs(transform, 1);
 
@@ -193,7 +193,7 @@ public class BoundedReadEvaluatorFactoryTest {
     PCollection<Long> read =
         TestPipeline.create()
             .apply(Read.from(SourceTestUtils.toUnsplittableSource(CountingSource.upTo(10L))));
-    AppliedPTransform<?, ?, ?> transform = DirectTestUtils.getProducer(read);
+    AppliedPTransform<?, ?, ?> transform = DirectGraphs.getProducer(read);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
@@ -301,7 +301,7 @@ public class BoundedReadEvaluatorFactoryTest {
 
     TestPipeline p = TestPipeline.create();
     PCollection<Long> pcollection = p.apply(Read.from(source));
-    AppliedPTransform<?, ?, ?> sourceTransform = DirectTestUtils.getProducer(pcollection);
+    AppliedPTransform<?, ?, ?> sourceTransform = DirectGraphs.getProducer(pcollection);
 
     UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
     when(context.createBundle(pcollection)).thenReturn(output);
@@ -322,7 +322,7 @@ public class BoundedReadEvaluatorFactoryTest {
 
     TestPipeline p = TestPipeline.create();
     PCollection<Long> pcollection = p.apply(Read.from(source));
-    AppliedPTransform<?, ?, ?> sourceTransform = DirectTestUtils.getProducer(pcollection);
+    AppliedPTransform<?, ?, ?> sourceTransform = DirectGraphs.getProducer(pcollection);
 
     UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
     when(context.createBundle(pcollection)).thenReturn(output);

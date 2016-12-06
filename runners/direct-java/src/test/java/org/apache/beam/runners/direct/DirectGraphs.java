@@ -22,7 +22,7 @@ import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.values.PValue;
 
 /** Test utilities for the {@link DirectRunner}. */
-final class DirectTestUtils {
+final class DirectGraphs {
   public static DirectGraph getGraph(Pipeline p) {
     DirectGraphVisitor visitor = new DirectGraphVisitor();
     p.traverseTopologically(visitor);

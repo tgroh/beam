@@ -70,7 +70,7 @@ public class FlattenEvaluatorFactoryTest {
     when(context.createBundle(flattened)).thenReturn(flattenedLeftBundle, flattenedRightBundle);
 
     FlattenEvaluatorFactory factory = new FlattenEvaluatorFactory(context);
-    AppliedPTransform<?, ?, ?> flattenedProducer = DirectTestUtils.getProducer(flattened);
+    AppliedPTransform<?, ?, ?> flattenedProducer = DirectGraphs.getProducer(flattened);
     TransformEvaluator<Integer> leftSideEvaluator =
         factory.forApplication(flattenedProducer, leftBundle);
     TransformEvaluator<Integer> rightSideEvaluator =
@@ -128,7 +128,7 @@ public class FlattenEvaluatorFactoryTest {
         .thenReturn(bundleFactory.createBundle(flattened));
 
     FlattenEvaluatorFactory factory = new FlattenEvaluatorFactory(evaluationContext);
-    AppliedPTransform<?, ?, ?> flattendProducer = DirectTestUtils.getProducer(flattened);
+    AppliedPTransform<?, ?, ?> flattendProducer = DirectGraphs.getProducer(flattened);
     TransformEvaluator<Integer> emptyEvaluator =
         factory.forApplication(
             flattendProducer,

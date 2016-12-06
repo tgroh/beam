@@ -56,7 +56,7 @@ public class WatermarkCallbackExecutorTest {
     TestPipeline p = TestPipeline.create();
     PCollection<Integer> created = p.apply(Create.of(1, 2, 3));
     PCollection<Integer> summed = created.apply(Sum.integersGlobally());
-    DirectGraph graph = DirectTestUtils.getGraph(p);
+    DirectGraph graph = DirectGraphs.getGraph(p);
     create = graph.getProducer(created);
     sum = graph.getProducer(summed);
   }
