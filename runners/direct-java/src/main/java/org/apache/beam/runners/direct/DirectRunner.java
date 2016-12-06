@@ -76,20 +76,24 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
    *
    * <p>A transform override must have a single-argument constructor that takes an instance of the
    * type of transform it is overriding.
+   *
+   * <p>The order that {@link PTransformOverrideFactory Override Factories} are added to this map
+   * is the order in which they will be applied. For any composite override, it must be applied
+   * before any of its component overrides are applied.
    */
   @SuppressWarnings("rawtypes")
   private static Map<Class<? extends PTransform>, PTransformOverrideFactory>
       defaultTransformOverrides =
           ImmutableMap.<Class<? extends PTransform>, PTransformOverrideFactory>builder()
-              .put(CreatePCollectionView.class, new ViewOverrideFactory())
-              .put(GroupByKey.class, new DirectGroupByKeyOverrideFactory())
-              .put(TestStream.class, new DirectTestStreamFactory())
               .put(Write.Bound.class, new WriteWithShardingFactory())
-              .put(ParDo.Bound.class, new ParDoSingleViaMultiOverrideFactory())
-              .put(ParDo.BoundMulti.class, new ParDoMultiOverrideFactory())
               .put(
                   SplittableParDo.GBKIntoKeyedWorkItems.class,
                   new DirectGBKIntoKeyedWorkItemsOverrideFactory())
+              .put(TestStream.class, new DirectTestStreamFactory())
+              .put(CreatePCollectionView.class, new ViewOverrideFactory())
+              .put(GroupByKey.class, new DirectGroupByKeyOverrideFactory())
+              .put(ParDo.Bound.class, new ParDoSingleViaMultiOverrideFactory())
+              .put(ParDo.BoundMulti.class, new ParDoMultiOverrideFactory())
               .build();
 
   /**
