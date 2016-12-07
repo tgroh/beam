@@ -158,7 +158,7 @@ public class ParDoEvaluatorTest {
         evaluationContext,
         stepContext,
         transform,
-        transform.getInput().getWindowingStrategy(),
+        transform.getInputs().getWindowingStrategy(),
         fn,
         ImmutableList.<PCollectionView<?>>of(singletonView),
         mainOutputTag,

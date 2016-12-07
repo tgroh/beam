@@ -755,7 +755,7 @@ public class WatermarkManager {
 
   private Collection<Watermark> getInputProcessingWatermarks(AppliedPTransform<?, ?, ?> transform) {
     ImmutableList.Builder<Watermark> inputWmsBuilder = ImmutableList.builder();
-    List<TaggedPValue> inputs = transform.getInput().expand();
+    List<TaggedPValue> inputs = transform.getInputs();
     if (inputs.isEmpty()) {
       inputWmsBuilder.add(THE_END_OF_TIME);
     }
@@ -770,7 +770,7 @@ public class WatermarkManager {
 
   private List<Watermark> getInputWatermarks(AppliedPTransform<?, ?, ?> transform) {
     ImmutableList.Builder<Watermark> inputWatermarksBuilder = ImmutableList.builder();
-    List<TaggedPValue> inputs = transform.getInput().expand();
+    List<TaggedPValue> inputs = transform.getInputs();
     if (inputs.isEmpty()) {
       inputWatermarksBuilder.add(THE_END_OF_TIME);
     }
@@ -960,7 +960,7 @@ public class WatermarkManager {
     WatermarkUpdate updateResult = myWatermarks.refresh();
     if (updateResult.isAdvanced()) {
       Set<AppliedPTransform<?, ?, ?>> additionalRefreshes = new HashSet<>();
-      for (TaggedPValue outputPValue : toRefresh.getOutput().expand()) {
+      for (TaggedPValue outputPValue : toRefresh.getOutputs().expand()) {
         additionalRefreshes.addAll(graph.getPrimitiveConsumers(outputPValue.getValue()));
       }
       return additionalRefreshes;

@@ -102,7 +102,7 @@ class GroupByKeyOnlyEvaluatorFactory implements TransformEvaluatorFactory {
             DirectGroupByKeyOnly<K, V>> application) {
       this.evaluationContext = evaluationContext;
       this.application = application;
-      this.keyCoder = getKeyCoder(application.getInput().getCoder());
+      this.keyCoder = getKeyCoder(application.getInputs().getCoder());
       this.groupingMap = new HashMap<>();
     }
 
@@ -152,7 +152,7 @@ class GroupByKeyOnlyEvaluatorFactory implements TransformEvaluatorFactory {
             KeyedWorkItems.elementsWorkItem(key, groupedEntry.getValue());
         UncommittedBundle<KeyedWorkItem<K, V>> bundle =
             evaluationContext.createKeyedBundle(
-                StructuralKey.of(key, keyCoder), application.getOutput());
+                StructuralKey.of(key, keyCoder), application.getOutputs());
         bundle.add(WindowedValue.valueInGlobalWindow(groupedKv));
         resultBuilder.addOutput(bundle);
       }

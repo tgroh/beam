@@ -48,9 +48,11 @@ import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.TaggedPValue;
 import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.beam.sdk.values.TimestampedValue.TimestampedValueCoder;
 import org.apache.beam.sdk.values.TypeDescriptor;
+import org.apache.beam.sdk.values.TypedPValue;
 import org.joda.time.Instant;
 
 /**
@@ -257,11 +259,14 @@ public class Create<T> {
     }
 
     @Override
-    public Coder<T> getDefaultOutputCoder(PBegin input) throws CannotProvideCoderException {
+    public <CoderT> Coder<CoderT> getDefaultOutputCoder(
+        List<TaggedPValue> inputs, TypedPValue<T> output)
+        throws CannotProvideCoderException {
       if (coder.isPresent()) {
-        return coder.get();
+        return (Coder<CoderT>) coder.get();
       } else {
-        return getDefaultCreateCoder(input.getPipeline().getCoderRegistry(), elems);
+        return (Coder<CoderT>)
+            getDefaultCreateCoder(output.getPipeline().getCoderRegistry(), elems);
       }
     }
 

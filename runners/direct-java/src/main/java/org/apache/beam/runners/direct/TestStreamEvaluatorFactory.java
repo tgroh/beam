@@ -108,7 +108,7 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory {
       Event<T> event = events.get(index);
 
       if (event.getType().equals(EventType.ELEMENT)) {
-        UncommittedBundle<T> bundle = context.createBundle(application.getOutput());
+        UncommittedBundle<T> bundle = context.createBundle(application.getOutputs());
         for (TimestampedValue<T> elem : ((ElementEvent<T>) event).getElements()) {
           bundle.add(
               WindowedValue.timestampedValueInGlobalWindow(elem.getValue(), elem.getTimestamp()));

@@ -66,6 +66,7 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.PCollectionView;
+import org.apache.beam.sdk.values.TaggedPValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
 import org.apache.beam.sdk.values.TypeDescriptor;
@@ -2473,14 +2474,17 @@ public class Combine {
 
     @Override
     public Coder<KV<K, OutputT>> getDefaultOutputCoder(
-        PCollection<? extends KV<K, ? extends Iterable<InputT>>> input)
+        List<TaggedPValue> input)
         throws CannotProvideCoderException {
-      KvCoder<K, InputT> kvCoder = getKvCoder(input.getCoder());
+      PCollection<? extends KV<K, ? extends Iterable<InputT>>> actualInput =
+          (PCollection<? extends KV<K, ? extends Iterable<InputT>>>) Iterables.getOnlyElement(input)
+              .getValue();
+      KvCoder<K, InputT> kvCoder = getKvCoder(actualInput.getCoder());
       @SuppressWarnings("unchecked")
       Coder<OutputT> outputValueCoder =
           ((PerKeyCombineFn<K, InputT, ?, OutputT>) fn)
           .getDefaultOutputCoder(
-              input.getPipeline().getCoderRegistry(),
+              actualIinput.getPipeline().getCoderRegistry(),
               kvCoder.getKeyCoder(), kvCoder.getValueCoder());
       return KvCoder.of(kvCoder.getKeyCoder(), outputValueCoder);
     }

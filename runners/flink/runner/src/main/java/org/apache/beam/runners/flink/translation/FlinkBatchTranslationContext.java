@@ -135,11 +135,11 @@ public class FlinkBatchTranslationContext {
 
   @SuppressWarnings("unchecked")
   <T extends PInput> T getInput(PTransform<T, ?> transform) {
-    return (T) currentTransform.getInput();
+    return (T) currentTransform.getInputs();
   }
 
   @SuppressWarnings("unchecked")
   <T extends POutput> T getOutput(PTransform<?, T> transform) {
-    return (T) currentTransform.getOutput();
+    return (T) currentTransform.getOutputs();
   }
 }

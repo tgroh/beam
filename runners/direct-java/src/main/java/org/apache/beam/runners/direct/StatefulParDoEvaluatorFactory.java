@@ -131,7 +131,7 @@ final class StatefulParDoEvaluatorFactory<K, InputT, OutputT> implements Transfo
       PCollection<?> pc =
           transformOutputWindow
               .getTransform()
-              .getOutput()
+              .getOutputs()
               .get(
                   transformOutputWindow
                       .getTransform()

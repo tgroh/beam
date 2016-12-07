@@ -17,10 +17,13 @@
  */
 package org.apache.beam.sdk.transforms;
 
+import com.google.auto.value.AutoValue;
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Objects;
+import java.util.List;
+import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
+import org.apache.beam.sdk.values.TaggedPValue;
 
 /**
  * Represents the application of a {@link PTransform} to a specific input to produce
@@ -32,69 +35,32 @@ import org.apache.beam.sdk.values.POutput;
  * @param <OutputT> transform output type
  * @param <TransformT> transform type
  */
-public class AppliedPTransform
+@AutoValue
+public abstract class AppliedPTransform
     <InputT extends PInput, OutputT extends POutput,
      TransformT extends PTransform<? super InputT, OutputT>> {
-
-  private final String fullName;
-  private final InputT input;
-  private final OutputT output;
-  private final TransformT transform;
-
-  private AppliedPTransform(String fullName, InputT input, OutputT output, TransformT transform) {
-    this.input = input;
-    this.output = output;
-    this.transform = transform;
-    this.fullName = fullName;
+  public static <
+          InputT extends PInput,
+          OutputT extends POutput,
+          TransformT extends PTransform<? super InputT, OutputT>>
+      AppliedPTransform<InputT, OutputT, TransformT> of(
+          String fullName, InputT input, OutputT output, TransformT transform) {
+    return new AutoValue_AppliedPTransform<InputT, OutputT, TransformT>(
+        input.getPipeline(), fullName, input.expand(), output.expand(), transform);
   }
 
-  public static <InputT extends PInput, OutputT extends POutput,
-                 TransformT extends PTransform<? super InputT, OutputT>>
-  AppliedPTransform<InputT, OutputT, TransformT> of(
-      String fullName, InputT input, OutputT output, TransformT transform) {
-    return new AppliedPTransform<InputT, OutputT, TransformT>(fullName, input, output, transform);
-  }
-
-  public String getFullName() {
-    return fullName;
-  }
-
-  public InputT getInput() {
-    return input;
-  }
-
-  public OutputT getOutput() {
-    return output;
-  }
-
-  public TransformT getTransform() {
-    return transform;
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hashCode(getFullName(), getInput(), getOutput(), getTransform());
-  }
-
-  @Override
-  public boolean equals(Object other) {
-    if (other instanceof AppliedPTransform) {
-      AppliedPTransform<?, ?, ?> that = (AppliedPTransform<?, ?, ?>) other;
-      return Objects.equal(this.getFullName(), that.getFullName())
-          && Objects.equal(this.getInput(), that.getInput())
-          && Objects.equal(this.getOutput(), that.getOutput())
-          && Objects.equal(this.getTransform(), that.getTransform());
-    } else {
-      return false;
-    }
-  }
+  public abstract Pipeline getPipeline();
+  public abstract String getFullName();
+  public abstract List<TaggedPValue> getInputs();
+  public abstract List<TaggedPValue> getOutputs();
+  public abstract TransformT getTransform();
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(getClass())
         .add("fullName", getFullName())
-        .add("input", getInput())
-        .add("output", getOutput())
+        .add("inputs", getInputs())
+        .add("outputs", getOutputs())
         .add("transform", getTransform())
         .toString();
   }

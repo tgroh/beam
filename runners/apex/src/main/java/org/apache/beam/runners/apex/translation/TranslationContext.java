@@ -79,11 +79,11 @@ class TranslationContext {
   }
 
   public <InputT extends PInput> InputT getInput() {
-    return (InputT) getCurrentTransform().getInput();
+    return (InputT) getCurrentTransform().getInputs();
   }
 
   public <OutputT extends POutput> OutputT getOutput() {
-    return (OutputT) getCurrentTransform().getOutput();
+    return (OutputT) getCurrentTransform().getOutputs();
   }
 
   private AppliedPTransform<?, ?, ?> getCurrentTransform() {

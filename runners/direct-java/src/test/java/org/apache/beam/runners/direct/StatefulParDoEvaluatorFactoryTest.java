@@ -270,7 +270,7 @@ public class StatefulParDoEvaluatorFactoryTest implements Serializable {
             PaneInfo.NO_FIRING);
     CommittedBundle<KV<String, Iterable<Integer>>> inputBundle =
         BUNDLE_FACTORY
-            .createBundle(producingTransform.getInput())
+            .createBundle(producingTransform.getInputs())
             .add(gbkOutputElement)
             .commit(Instant.now());
     TransformEvaluator<KV<String, Iterable<Integer>>> evaluator =

@@ -100,11 +100,11 @@ public class FlinkStreamingTranslationContext {
 
   @SuppressWarnings("unchecked")
   public <T extends PInput> T getInput(PTransform<T, ?> transform) {
-    return (T) currentTransform.getInput();
+    return (T) currentTransform.getInputs();
   }
 
   @SuppressWarnings("unchecked")
   public <T extends POutput> T getOutput(PTransform<?, T> transform) {
-    return (T) currentTransform.getOutput();
+    return (T) currentTransform.getOutputs();
   }
 }

@@ -401,7 +401,7 @@ class EvaluationContext {
     }
     // If the PTransform has any unbounded outputs, and unbounded producers should not be shut down,
     // the PTransform may produce additional output. It is not done.
-    for (TaggedPValue output : transform.getOutput().expand()) {
+    for (TaggedPValue output : transform.getOutputs().expand()) {
       if (output.getValue() instanceof PCollection) {
         IsBounded bounded = ((PCollection<?>) output.getValue()).isBounded();
         if (bounded.equals(IsBounded.UNBOUNDED)

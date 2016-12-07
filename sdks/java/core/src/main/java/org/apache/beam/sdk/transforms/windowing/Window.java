@@ -17,6 +17,8 @@
  */
 package org.apache.beam.sdk.transforms.windowing;
 
+import com.google.common.collect.Iterables;
+import java.util.List;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Experimental.Kind;
@@ -30,6 +32,7 @@ import org.apache.beam.sdk.transforms.display.DisplayData;
 import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.util.WindowingStrategy.AccumulationMode;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.TaggedPValue;
 import org.joda.time.Duration;
 
 /**
@@ -491,8 +494,8 @@ public class Window {
     }
 
     @Override
-    protected Coder<?> getDefaultOutputCoder(PCollection<T> input) {
-      return input.getCoder();
+    protected Coder<?> getDefaultOutputCoder(List<TaggedPValue> input) {
+      return ((PCollection<T>) Iterables.getOnlyElement(input).getValue()).getCoder();
     }
 
     @Override

@@ -495,12 +495,12 @@ public class DataflowPipelineTranslator {
 
     @Override
     public <InputT extends PInput> InputT getInput(PTransform<InputT, ?> transform) {
-      return (InputT) getCurrentTransform(transform).getInput();
+      return (InputT) getCurrentTransform(transform).getInputs();
     }
 
     @Override
     public <OutputT extends POutput> OutputT getOutput(PTransform<?, OutputT> transform) {
-      return (OutputT) getCurrentTransform(transform).getOutput();
+      return (OutputT) getCurrentTransform(transform).getOutputs();
     }
 
     @Override
