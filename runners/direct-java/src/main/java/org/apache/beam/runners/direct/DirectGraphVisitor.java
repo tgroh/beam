@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.Pipeline.PipelineVisitor;
-import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.runners.TransformHierarchy;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -50,7 +49,6 @@ class DirectGraphVisitor extends PipelineVisitor.Defaults {
   private Set<PCollectionView<?>> views = new HashSet<>();
   private Set<AppliedPTransform<?, ?, ?>> rootTransforms = new HashSet<>();
   private Map<AppliedPTransform<?, ?, ?>, String> stepNames = new HashMap<>();
-  private Set<PValue> toFinalize = new HashSet<>();
   private int numTransforms = 0;
   private boolean finalized = false;
 
@@ -79,7 +77,6 @@ class DirectGraphVisitor extends PipelineVisitor.Defaults {
 
   @Override
   public void visitPrimitiveTransform(TransformHierarchy.Node node) {
-    toFinalize.removeAll(node.getInputs());
     AppliedPTransform<?, ?, ?> appliedTransform = getAppliedTransform(node);
     stepNames.put(appliedTransform, genStepName());
     if (node.getInputs().isEmpty()) {
@@ -93,8 +90,6 @@ class DirectGraphVisitor extends PipelineVisitor.Defaults {
 
  @Override
   public void visitValue(PValue value, TransformHierarchy.Node producer) {
-    toFinalize.add(value);
-
     AppliedPTransform<?, ?, ?> appliedTransform = getAppliedTransform(producer);
     if (!producers.containsKey(value)) {
       producers.put(value, appliedTransform);
@@ -115,20 +110,6 @@ class DirectGraphVisitor extends PipelineVisitor.Defaults {
 
   private String genStepName() {
     return String.format("s%s", numTransforms++);
-  }
-
-  /**
-   * Returns all of the {@link PValue PValues} that have been produced but not consumed. These
-   * {@link PValue PValues} should be finalized by the {@link PipelineRunner} before the
-   * {@link Pipeline} is executed.
-   */
-  public void finishSpecifyingRemainder() {
-    checkState(
-        finalized,
-        "Can't call finishSpecifyingRemainder before the Pipeline has been completely traversed");
-    for (PValue unfinalized : toFinalize) {
-      unfinalized.finishSpecifying();
-    }
   }
 
   /**

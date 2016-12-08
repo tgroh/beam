@@ -224,15 +224,11 @@ public class PCollectionList<T> implements PInput, POutput {
 
   @Override
   public void finishSpecifying() {
-    for (PCollection<T> pc : pcollections) {
-      pc.finishSpecifying();
-    }
+    // All component PCollections will have already been finished.
   }
 
   @Override
-  public void finishSpecifyingOutput() {
-    for (PCollection<T> pc : pcollections) {
-      pc.finishSpecifyingOutput();
-    }
+  public void finishSpecifyingOutput(PInput input, PTransform<?, ?> transform) {
+    // All component PCollections will have already been finished.
   }
 }

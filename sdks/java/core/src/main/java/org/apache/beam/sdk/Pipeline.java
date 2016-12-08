@@ -171,6 +171,9 @@ public class Pipeline {
    * Runs the {@link Pipeline} using its {@link PipelineRunner}.
    */
   public PipelineResult run() {
+    // Ensure all of the nodes are fully specified before a PipelineRunner gets access to the
+    // pipeline.
+    transforms.finishSpecifying();
     LOG.debug("Running {} via {}", this, runner);
     try {
       return runner.run(this);
@@ -281,6 +284,8 @@ public class Pipeline {
    * <p>Typically invoked by {@link PipelineRunner} subclasses.
    */
   public void traverseTopologically(PipelineVisitor visitor) {
+    // Ensure all nodes are fully specified before visiting the pipeline
+    transforms.finishSpecifying();
     Set<PValue> visitedValues =
         // Visit all the transforms, which should implicitly visit all the values.
         transforms.visit(visitor);

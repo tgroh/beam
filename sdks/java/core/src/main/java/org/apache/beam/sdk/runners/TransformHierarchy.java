@@ -26,8 +26,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.Pipeline.PipelineVisitor;
@@ -45,6 +45,7 @@ import org.apache.beam.sdk.values.PValue;
 public class TransformHierarchy {
   private final Node root;
   private final Map<POutput, Node> producers;
+  private final Map<PValue, PInput> producerInput;
   // Maintain a stack based on the enclosing nodes
   private Node current;
 
@@ -52,6 +53,7 @@ public class TransformHierarchy {
     root = new Node(null, null, "", null);
     current = root;
     producers = new HashMap<>();
+    producerInput = new HashMap<>();
   }
 
   /**
@@ -83,12 +85,15 @@ public class TransformHierarchy {
    * specified, and have been produced by a node in this graph.
    */
   public void finishSpecifyingInput() {
-    // Inputs must be completely specified before they are consumed by a transform.
+    // Inputs must be completely specified before they are consumed by a transform. All component
+    // inputs must be finished specifying before the overall input
     for (PValue inputValue : current.getInputs()) {
-      inputValue.finishSpecifying();
+      Node producerNode = getProducer(inputValue);
+      PInput input = producerInput.remove(inputValue);
+      inputValue.finishSpecifying(input, producerNode.getTransform());
       checkState(producers.get(inputValue) != null, "Producer unknown for input %s", inputValue);
-      inputValue.finishSpecifying();
     }
+    current.input.finishSpecifying();
   }
 
   /**
@@ -102,12 +107,14 @@ public class TransformHierarchy {
    * nodes.
    */
   public void setOutput(POutput output) {
-    output.finishSpecifyingOutput();
     for (PValue value : output.expand()) {
       if (!producers.containsKey(value)) {
         producers.put(value, current);
       }
+      value.finishSpecifyingOutput(current.input, current.transform);
+      producerInput.put(value, current.input);
     }
+    output.finishSpecifyingOutput(current.input, current.transform);
     current.setOutput(output);
     // TODO: Replace with a "generateDefaultNames" method.
     output.recordAsOutput(current.toAppliedPTransform());
@@ -123,23 +130,21 @@ public class TransformHierarchy {
     checkState(current != null, "Can't pop the root node of a TransformHierarchy");
   }
 
-  Node getProducer(PValue produced) {
-    return producers.get(produced);
+  /**
+   * Finish specifying any remaining nodes within the {@link TransformHierarchy}. These are {@link
+   * PValue PValues} that are produced as output of some {@link PTransform} but are never consumed
+   * as input. These values must still be finished specifying.
+   */
+  public void finishSpecifying() {
+    for (Entry<PValue, PInput> producerInputEntry : producerInput.entrySet()) {
+      PValue value = producerInputEntry.getKey();
+      value.finishSpecifying(producerInputEntry.getValue(), getProducer(value).getTransform());
+    }
+    producerInput.clear();
   }
 
-  /**
-   * Returns all producing transforms for the {@link PValue PValues} contained
-   * in {@code output}.
-   */
-  List<Node> getProducingTransforms(POutput output) {
-    List<Node> producingTransforms = new ArrayList<>();
-    for (PValue value : output.expand()) {
-      Node producer = getProducer(value);
-      if (producer != null) {
-        producingTransforms.add(producer);
-      }
-    }
-    return producingTransforms;
+  Node getProducer(PValue produced) {
+    return producers.get(produced);
   }
 
   public Set<PValue> visit(PipelineVisitor visitor) {
