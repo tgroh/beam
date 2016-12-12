@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.values;
 
+import java.util.Collection;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 
@@ -36,4 +37,13 @@ public interface PValue extends POutput, PInput {
    * <p>For internal use only.
    */
   AppliedPTransform<?, ?, ?> getProducingTransformInternal();
+
+  /**
+   * {@inheritDoc}.
+   *
+   * @deprecated A {@link PValue} always expands into itself.
+   */
+  @Deprecated
+  @Override
+  Collection<? extends PValue> expand();
 }
