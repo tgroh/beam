@@ -43,14 +43,14 @@ public abstract class AppliedPTransform
       AppliedPTransform<InputT, OutputT, TransformT> of(
           String fullName, InputT input, OutputT output, TransformT transform) {
     return new AutoValue_AppliedPTransform<InputT, OutputT, TransformT>(
-        fullName, input, output, transform);
+        fullName, input, transform, output);
   }
 
   public abstract String getFullName();
 
   public abstract InputT getInput();
 
-  public abstract OutputT getOutput();
-
   public abstract TransformT getTransform();
+
+  public abstract OutputT getOutput();
 }
