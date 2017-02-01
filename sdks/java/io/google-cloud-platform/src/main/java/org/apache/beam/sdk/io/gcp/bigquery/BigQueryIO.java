@@ -2842,8 +2842,7 @@ public class BigQueryIO {
 
     @JsonCreator
     public static <KeyT> ShardedKeyCoder<KeyT> of(
-         @JsonProperty(PropertyNames.COMPONENT_ENCODINGS)
-        List<Coder<KeyT>> components) {
+        @JsonProperty(PropertyNames.COMPONENT_ENCODINGS) List<Coder<KeyT>> components) {
       checkArgument(components.size() == 1, "Expecting 1 component, got %s", components.size());
       return of(components.get(0));
     }
