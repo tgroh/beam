@@ -20,6 +20,8 @@
 package org.apache.beam.sdk.runners;
 
 import com.google.auto.value.AutoValue;
+import java.util.List;
+import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Experimental.Kind;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -40,6 +42,11 @@ public interface PTransformOverrideFactory<
    * Returns a {@link PTransform} that produces equivalent output to the provided transform.
    */
   PTransform<InputT, OutputT> getReplacementTransform(TransformT transform);
+
+  /**
+   * Returns the composite type that replacement transforms consumed from an equivalent expansion.
+   */
+  InputT getInput(List<TaggedPValue> inputs, Pipeline p);
 
   /**
    * A mapping between original {@link TaggedPValue} outputs and their replacements.
