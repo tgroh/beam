@@ -21,12 +21,14 @@ package org.apache.beam.sdk.runners;
 
 import com.google.auto.value.AutoValue;
 import java.util.List;
+import java.util.Map;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Experimental.Kind;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
+import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TaggedPValue;
 
 /**
@@ -47,6 +49,15 @@ public interface PTransformOverrideFactory<
    * Returns the composite type that replacement transforms consumed from an equivalent expansion.
    */
   InputT getInput(List<TaggedPValue> inputs, Pipeline p);
+
+  /**
+   * Returns a {@link Map} from the expanded values in {@code newOutput} to the values produced by
+   * the original transform.
+   *
+   * <p>Every element in {@code outputs} must be present exactly once within the returned map.
+   */
+  // This would return BiMap if it wasn't part of the API surface
+  Map<PValue, ReplacementOutput> mapOutputs(List<TaggedPValue> outputs, OutputT newOutput);
 
   /**
    * A mapping between original {@link TaggedPValue} outputs and their replacements.
