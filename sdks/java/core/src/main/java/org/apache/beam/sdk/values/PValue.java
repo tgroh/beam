@@ -18,7 +18,7 @@
 package org.apache.beam.sdk.values;
 
 import java.util.List;
-import org.apache.beam.sdk.transforms.AppliedPTransform;
+import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 
 /**
