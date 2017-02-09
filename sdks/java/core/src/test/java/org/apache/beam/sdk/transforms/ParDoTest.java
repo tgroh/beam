@@ -2060,6 +2060,7 @@ public class ParDoTest implements Serializable {
   }
 
   @Test
+  @Ignore("Not compatible with Pipeline Surgery")
   public void testRejectsSplittableDoFnByDefault() {
     // ParDo with a splittable DoFn must be overridden by the runner.
     // Without an override, applying it directly must fail.
@@ -2072,6 +2073,7 @@ public class ParDoTest implements Serializable {
   }
 
   @Test
+  @Ignore("Not compatible with Pipeline Surgery")
   public void testMultiRejectsSplittableDoFnByDefault() {
     // ParDo with a splittable DoFn must be overridden by the runner.
     // Without an override, applying it directly must fail.
