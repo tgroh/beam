@@ -103,6 +103,9 @@ public class TransformHierarchy {
         "Replacing a node when the graph has an unexpanded input. This is an SDK bug.");
     Node replacement =
         new Node(existing.getEnclosingNode(), transform, existing.getFullName(), input);
+    for (TaggedPValue output : existing.getOutputs()) {
+      producers.remove(output.getValue());
+    }
     existing.getEnclosingNode().replaceChild(existing, replacement);
     unexpandedInputs.remove(existing);
     unexpandedInputs.put(replacement, input);
