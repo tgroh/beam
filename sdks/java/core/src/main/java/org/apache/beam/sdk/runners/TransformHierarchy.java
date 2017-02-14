@@ -105,6 +105,7 @@ public class TransformHierarchy {
         new Node(existing.getEnclosingNode(), transform, existing.getFullName(), input);
     existing.getEnclosingNode().replaceChild(existing, replacement);
     unexpandedInputs.remove(existing);
+    unexpandedInputs.put(replacement, input);
     current = replacement;
     return replacement;
   }
