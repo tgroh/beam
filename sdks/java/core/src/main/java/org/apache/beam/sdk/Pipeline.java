@@ -17,8 +17,6 @@
  */
 package org.apache.beam.sdk;
 
-import static com.google.common.base.Preconditions.checkState;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -315,13 +313,7 @@ public class Pipeline {
    * <p>Typically invoked by {@link PipelineRunner} subclasses.
    */
   public void traverseTopologically(PipelineVisitor visitor) {
-    // Ensure all nodes are fully specified before visiting the pipeline
-    Set<PValue> visitedValues =
-        // Visit all the transforms, which should implicitly visit all the values.
-        transforms.visit(visitor);
-    checkState(
-        visitedValues.containsAll(values),
-        "internal error: should have visited all the values after visiting all the transforms");
+    transforms.visit(visitor);
   }
 
   /**
@@ -350,13 +342,21 @@ public class Pipeline {
     return input.getPipeline().applyInternal(name, input, transform);
   }
 
+  /**
+   * Return a copy of this {@link Pipeline Pipeline's} {@link TransformHierarchy}. Mutations made to
+   * the copy (such as the application of{@link PTransform PTransforms} or calls to {@link #replace(PTransformMatcher,
+   * PTransformOverrideFactory)} will not be visible in this {@link Pipeline}. However, mutations to
+   */
+  public TransformHierarchy getTransforms() {
+    return transforms.copy();
+  }
+
   /////////////////////////////////////////////////////////////////////////////
   // Below here are internal operations, never called by users.
 
   private final PipelineRunner<?> runner;
   private final PipelineOptions options;
-  private final TransformHierarchy transforms = new TransformHierarchy(this);
-  private Collection<PValue> values = new ArrayList<>();
+  private final TransformHierarchy transforms;
   private Set<String> usedFullNames = new HashSet<>();
   private CoderRegistry coderRegistry;
 
@@ -371,6 +371,8 @@ public class Pipeline {
   protected Pipeline(PipelineRunner<?> runner, PipelineOptions options) {
     this.runner = runner;
     this.options = options;
+    this.transforms = new TransformHierarchy(this);
+    this.usedFullNames = new HashSet<>();
   }
 
   @Override

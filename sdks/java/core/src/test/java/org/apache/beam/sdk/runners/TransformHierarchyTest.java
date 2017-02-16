@@ -490,6 +490,16 @@ public class TransformHierarchyTest implements Serializable {
     assertThat(visitedValues, Matchers.<PValue>containsInAnyOrder(upstream, output));
   }
 
+  @Test
+  public void copyThenAddIndependent() {
+
+  }
+
+  @Test
+  public void copyThenReplaceIndependent() {
+
+  }
+
   private static List<PValue> fromTaggedValues(List<TaggedPValue> taggedValues) {
     return Lists.transform(
         taggedValues,
@@ -500,4 +510,5 @@ public class TransformHierarchyTest implements Serializable {
           }
         });
   }
+
 }

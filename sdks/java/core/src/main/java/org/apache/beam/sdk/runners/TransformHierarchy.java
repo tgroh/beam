@@ -204,6 +204,34 @@ public class TransformHierarchy {
   }
 
   /**
+   * Create and return a copy of this {@link TransformHierarchy} in the specified {@link Pipeline}.j
+   * @param p
+   * @return
+   */
+  public TransformHierarchy copy() {
+    TransformHierarchy that = new TransformHierarchy(pipeline);
+    for (Node node : root.parts) {
+      that.copyNode(node);
+    }
+    return that;
+  }
+
+  private void copyNode(Node theirs) {
+    Node ours =
+        new Node(
+            current, theirs.transform, theirs.fullName, theirs.getInputs(), theirs.getOutputs());
+    current.addComposite(ours);
+    Node previous = current;
+
+    current = ours;
+    for (Node node : theirs.parts) {
+      copyNode(node);
+    }
+    ours.finishSpecifying();
+    current = previous;
+  }
+
+  /**
    * Provides internal tracking of transform relationships with helper methods
    * for initialization and ordered visitation.
    */
@@ -249,6 +277,19 @@ public class TransformHierarchy {
       this.transform = transform;
       this.fullName = fullName;
       this.inputs = input == null ? Collections.<TaggedPValue>emptyList() : input.expand();
+    }
+
+    private Node(
+        Node enclosingNode,
+        PTransform<?, ?> transform,
+        String fullName,
+        List<TaggedPValue> inputs,
+        List<TaggedPValue> outputs) {
+      this.enclosingNode = enclosingNode;
+      this.transform = transform;
+      this.fullName = fullName;
+      this.inputs = inputs;
+      this.outputs = outputs;
     }
 
     /**
