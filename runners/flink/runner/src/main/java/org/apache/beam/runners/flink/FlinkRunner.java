@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import org.apache.beam.runners.core.construction.SingletonInputsAndOutputsOverrideFactory;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.coders.Coder;
@@ -46,6 +47,7 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.View;
+import org.apache.beam.sdk.transforms.View.AsMap;
 import org.apache.beam.sdk.util.InstanceBuilder;
 import org.apache.beam.sdk.util.PCollectionViews;
 import org.apache.beam.sdk.values.KV;
@@ -117,10 +119,12 @@ public class FlinkRunner extends PipelineRunner<PipelineResult> {
     this.options = options;
     this.ptransformViewsWithNonDeterministicKeyCoders = new HashSet<>();
 
+    // TODO: Surgery
     ImmutableMap.Builder<Class<?>, Class<?>> builder = ImmutableMap.<Class<?>, Class<?>>builder();
     if (options.isStreaming()) {
       builder.put(Combine.GloballyAsSingletonView.class,
           StreamingCombineGloballyAsSingletonView.class);
+
       builder.put(View.AsMap.class, StreamingViewAsMap.class);
       builder.put(View.AsMultimap.class, StreamingViewAsMultimap.class);
       builder.put(View.AsSingleton.class, StreamingViewAsSingleton.class);
@@ -290,6 +294,22 @@ public class FlinkRunner extends PipelineRunner<PipelineResult> {
 
 
   /////////////////////////////////////////////////////////////////////////////
+
+  private static class StreamingViewAsMapOverrideFactory<K, V>
+      extends SingletonInputsAndOutputsOverrideFactory<
+          PCollection<KV<K, V>>, PCollectionView<Map<K, V>>, View.AsMap<K, V>> {
+    private final FlinkRunner runner;
+
+    private StreamingViewAsMapOverrideFactory(FlinkRunner runner) {
+      this.runner = runner;
+    }
+
+    @Override
+    public PTransform<PCollection<KV<K, V>>, PCollectionView<Map<K, V>>> getReplacementTransform(
+        AsMap<K, V> transform) {
+      return new StreamingViewAsMap<>(runner, transform);
+    }
+  }
 
   /**
    * Specialized implementation for
