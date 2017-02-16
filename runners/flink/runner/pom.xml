@@ -242,6 +242,10 @@
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
+      <dependency>
+          <groupId>org.apache.beam</groupId>
+          <artifactId>beam-runners-core-construction-java</artifactId>
+      </dependency>
   </dependencies>
 
   <build>
