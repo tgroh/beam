@@ -61,11 +61,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
-import org.apache.beam.runners.dataflow.DataflowRunner.BatchViewAsList;
-import org.apache.beam.runners.dataflow.DataflowRunner.BatchViewAsMap;
-import org.apache.beam.runners.dataflow.DataflowRunner.BatchViewAsMultimap;
-import org.apache.beam.runners.dataflow.DataflowRunner.BatchViewAsSingleton;
-import org.apache.beam.runners.dataflow.DataflowRunner.TransformedMap;
+import org.apache.beam.runners.dataflow.BatchViewOverrides.TransformedMap;
 import org.apache.beam.runners.dataflow.internal.IsmFormat;
 import org.apache.beam.runners.dataflow.internal.IsmFormat.IsmRecord;
 import org.apache.beam.runners.dataflow.internal.IsmFormat.IsmRecordCoder;
@@ -1092,11 +1088,13 @@ public class DataflowRunnerTest {
 
   @Test
   public void testBatchViewAsSingletonToIsmRecord() throws Exception {
-    DoFnTester<KV<Integer, Iterable<KV<GlobalWindow, WindowedValue<String>>>>,
-               IsmRecord<WindowedValue<String>>> doFnTester =
-               DoFnTester.of(
-                   new BatchViewAsSingleton.IsmRecordForSingularValuePerWindowDoFn
-                   <String, GlobalWindow>(GlobalWindow.Coder.INSTANCE));
+    DoFnTester<
+            KV<Integer, Iterable<KV<GlobalWindow, WindowedValue<String>>>>,
+            IsmRecord<WindowedValue<String>>>
+        doFnTester =
+            DoFnTester.of(
+                new BatchViewOverrides.BatchViewAsSingleton.IsmRecordForSingularValuePerWindowDoFn<
+                    String, GlobalWindow>(GlobalWindow.Coder.INSTANCE));
 
     assertThat(
         doFnTester.processBundle(
@@ -1111,7 +1109,7 @@ public class DataflowRunnerTest {
     DoFnTester<KV<Integer, Iterable<KV<GlobalWindow, WindowedValue<String>>>>,
     IsmRecord<WindowedValue<String>>> doFnTester =
     DoFnTester.of(
-        new BatchViewAsSingleton.IsmRecordForSingularValuePerWindowDoFn
+        new BatchViewOverrides.BatchViewAsSingleton.IsmRecordForSingularValuePerWindowDoFn
         <String, GlobalWindow>(GlobalWindow.Coder.INSTANCE));
 
     thrown.expect(IllegalStateException.class);
@@ -1125,7 +1123,8 @@ public class DataflowRunnerTest {
   @Test
   public void testBatchViewAsListToIsmRecordForGlobalWindow() throws Exception {
     DoFnTester<String, IsmRecord<WindowedValue<String>>> doFnTester =
-        DoFnTester.of(new BatchViewAsList.ToIsmRecordForGlobalWindowDoFn<String>());
+        DoFnTester.of(
+            new BatchViewOverrides.BatchViewAsList.ToIsmRecordForGlobalWindowDoFn<String>());
 
     // The order of the output elements is important relative to processing order
     assertThat(doFnTester.processBundle(ImmutableList.of("a", "b", "c")), contains(
@@ -1136,11 +1135,13 @@ public class DataflowRunnerTest {
 
   @Test
   public void testBatchViewAsListToIsmRecordForNonGlobalWindow() throws Exception {
-    DoFnTester<KV<Integer, Iterable<KV<IntervalWindow, WindowedValue<Long>>>>,
-               IsmRecord<WindowedValue<Long>>> doFnTester =
-        DoFnTester.of(
-            new BatchViewAsList.ToIsmRecordForNonGlobalWindowDoFn<Long, IntervalWindow>(
-                IntervalWindow.getCoder()));
+    DoFnTester<
+            KV<Integer, Iterable<KV<IntervalWindow, WindowedValue<Long>>>>,
+            IsmRecord<WindowedValue<Long>>>
+        doFnTester =
+            DoFnTester.of(
+                new BatchViewOverrides.BatchViewAsList.ToIsmRecordForNonGlobalWindowDoFn<
+                    Long, IntervalWindow>(IntervalWindow.getCoder()));
 
     IntervalWindow windowA = new IntervalWindow(new Instant(0), new Instant(10));
     IntervalWindow windowB = new IntervalWindow(new Instant(10), new Instant(20));
@@ -1200,7 +1201,7 @@ public class DataflowRunnerTest {
 
     DoFnTester<KV<Integer, Iterable<KV<KV<Long, IntervalWindow>, WindowedValue<Long>>>>,
                IsmRecord<WindowedValue<Long>>> doFnTester =
-        DoFnTester.of(new BatchViewAsMultimap.ToIsmRecordForMapLikeDoFn<>(
+        DoFnTester.of(new BatchViewOverrides.BatchViewAsMultimap.ToIsmRecordForMapLikeDoFn<>(
             outputForSizeTag,
             outputForEntrySetTag,
             windowCoder,
@@ -1300,7 +1301,7 @@ public class DataflowRunnerTest {
 
     DoFnTester<KV<Integer, Iterable<KV<KV<Long, IntervalWindow>, WindowedValue<Long>>>>,
                IsmRecord<WindowedValue<Long>>> doFnTester =
-        DoFnTester.of(new BatchViewAsMultimap.ToIsmRecordForMapLikeDoFn<>(
+        DoFnTester.of(new BatchViewOverrides.BatchViewAsMultimap.ToIsmRecordForMapLikeDoFn<>(
             outputForSizeTag,
             outputForEntrySetTag,
             windowCoder,
@@ -1342,10 +1343,11 @@ public class DataflowRunnerTest {
             BigEndianLongCoder.of()),
         FullWindowedValueCoder.of(VarLongCoder.of(), windowCoder));
 
-    DoFnTester<KV<Integer, Iterable<KV<IntervalWindow, Long>>>,
-               IsmRecord<WindowedValue<Long>>> doFnTester = DoFnTester.of(
-        new BatchViewAsMultimap.ToIsmMetadataRecordForSizeDoFn<Long, Long, IntervalWindow>(
-            windowCoder));
+    DoFnTester<KV<Integer, Iterable<KV<IntervalWindow, Long>>>, IsmRecord<WindowedValue<Long>>>
+        doFnTester =
+            DoFnTester.of(
+                new BatchViewOverrides.BatchViewAsMultimap.ToIsmMetadataRecordForSizeDoFn<
+                    Long, Long, IntervalWindow>(windowCoder));
 
     IntervalWindow windowA = new IntervalWindow(new Instant(0), new Instant(10));
     IntervalWindow windowB = new IntervalWindow(new Instant(10), new Instant(20));
@@ -1393,10 +1395,11 @@ public class DataflowRunnerTest {
             BigEndianLongCoder.of()),
         FullWindowedValueCoder.of(VarLongCoder.of(), windowCoder));
 
-    DoFnTester<KV<Integer, Iterable<KV<IntervalWindow, Long>>>,
-               IsmRecord<WindowedValue<Long>>> doFnTester = DoFnTester.of(
-        new BatchViewAsMultimap.ToIsmMetadataRecordForKeyDoFn<Long, Long, IntervalWindow>(
-            keyCoder, windowCoder));
+    DoFnTester<KV<Integer, Iterable<KV<IntervalWindow, Long>>>, IsmRecord<WindowedValue<Long>>>
+        doFnTester =
+            DoFnTester.of(
+                new BatchViewOverrides.BatchViewAsMultimap.ToIsmMetadataRecordForKeyDoFn<
+                    Long, Long, IntervalWindow>(keyCoder, windowCoder));
 
     IntervalWindow windowA = new IntervalWindow(new Instant(0), new Instant(10));
     IntervalWindow windowB = new IntervalWindow(new Instant(10), new Instant(20));
@@ -1436,11 +1439,13 @@ public class DataflowRunnerTest {
   public void testToMapDoFn() throws Exception {
     Coder<IntervalWindow> windowCoder = IntervalWindow.getCoder();
 
-    DoFnTester<KV<Integer, Iterable<KV<IntervalWindow, WindowedValue<KV<Long, Long>>>>>,
-                  IsmRecord<WindowedValue<TransformedMap<Long,
-                                                         WindowedValue<Long>,
-                                                         Long>>>> doFnTester =
-        DoFnTester.of(new BatchViewAsMap.ToMapDoFn<Long, Long, IntervalWindow>(windowCoder));
+    DoFnTester<
+            KV<Integer, Iterable<KV<IntervalWindow, WindowedValue<KV<Long, Long>>>>>,
+            IsmRecord<WindowedValue<TransformedMap<Long, WindowedValue<Long>, Long>>>>
+        doFnTester =
+            DoFnTester.of(
+                new BatchViewOverrides.BatchViewAsMap.ToMapDoFn<Long, Long, IntervalWindow>(
+                    windowCoder));
 
 
     IntervalWindow windowA = new IntervalWindow(new Instant(0), new Instant(10));
@@ -1490,12 +1495,14 @@ public class DataflowRunnerTest {
   public void testToMultimapDoFn() throws Exception {
     Coder<IntervalWindow> windowCoder = IntervalWindow.getCoder();
 
-    DoFnTester<KV<Integer, Iterable<KV<IntervalWindow, WindowedValue<KV<Long, Long>>>>>,
-                  IsmRecord<WindowedValue<TransformedMap<Long,
-                                                         Iterable<WindowedValue<Long>>,
-                                                         Iterable<Long>>>>> doFnTester =
-        DoFnTester.of(
-            new BatchViewAsMultimap.ToMultimapDoFn<Long, Long, IntervalWindow>(windowCoder));
+    DoFnTester<
+            KV<Integer, Iterable<KV<IntervalWindow, WindowedValue<KV<Long, Long>>>>>,
+            IsmRecord<
+                WindowedValue<TransformedMap<Long, Iterable<WindowedValue<Long>>, Iterable<Long>>>>>
+        doFnTester =
+            DoFnTester.of(
+                new BatchViewOverrides.BatchViewAsMultimap.ToMultimapDoFn<
+                    Long, Long, IntervalWindow>(windowCoder));
 
 
     IntervalWindow windowA = new IntervalWindow(new Instant(0), new Instant(10));
@@ -1524,8 +1531,8 @@ public class DataflowRunnerTest {
 
     // The order of the output elements is important relative to processing order
     List<IsmRecord<WindowedValue<TransformedMap<Long,
-                                                Iterable<WindowedValue<Long>>,
-                                                Iterable<Long>>>>> output =
+                                                    Iterable<WindowedValue<Long>>,
+                                                    Iterable<Long>>>>> output =
                                                 doFnTester.processBundle(inputElements);
     assertEquals(3, output.size());
     Map<Long, Iterable<Long>> outputMap;
