@@ -36,11 +36,13 @@ import org.apache.beam.sdk.io.Sink.Writer;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
+import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.transforms.display.DisplayData;
 import org.apache.beam.sdk.transforms.windowing.DefaultTrigger;
@@ -87,7 +89,7 @@ public class Write {
    */
   public static <T> Bound<T> to(Sink<T> sink) {
     checkNotNull(sink, "sink");
-    return new Bound<>(sink, null /* runner-determined sharding */);
+    return new Bound<>(sink, null, /* runner-determined sharding */shardFn);
   }
 
   /**
@@ -100,13 +102,11 @@ public class Write {
   public static class Bound<T> extends PTransform<PCollection<T>, PDone> {
     private final Sink<T> sink;
     @Nullable
-    private final PTransform<PCollection<T>, PCollectionView<Integer>> computeNumShards;
+    private final SerializableFunction<Long, Long> shardFn;
 
-    private Bound(
-        Sink<T> sink,
-        @Nullable PTransform<PCollection<T>, PCollectionView<Integer>> computeNumShards) {
+    private Bound(Sink<T> sink, @Nullable SerializableFunction<Long, Long> shardFn) {
       this.sink = sink;
-      this.computeNumShards = computeNumShards;
+      this.shardFn = shardFn;
     }
 
     @Override
@@ -126,9 +126,6 @@ public class Write {
       builder
           .add(DisplayData.item("sink", sink.getClass()).withLabel("Write Sink"))
           .include("sink", sink);
-      if (getSharding() != null) {
-        builder.include("sharding", getSharding());
-      }
     }
 
     /**
@@ -145,8 +142,8 @@ public class Write {
      * #withRunnerDeterminedSharding()}.
      */
     @Nullable
-    public PTransform<PCollection<T>, PCollectionView<Integer>> getSharding() {
-      return computeNumShards;
+    public SerializableFunction<Long, Long> getSharding() {
+      return shardFn;
     }
 
     /**
@@ -174,7 +171,7 @@ public class Write {
      * more information.
      */
     public Bound<T> withNumShards(ValueProvider<Integer> numShards) {
-      return new Bound<>(sink, new ConstantShards<T>(numShards));
+      return new Bound<>(sink, new ConstantShards<T>(numShards), shardFn);
     }
 
     /**
@@ -187,7 +184,7 @@ public class Write {
     public Bound<T> withSharding(PTransform<PCollection<T>, PCollectionView<Integer>> sharding) {
       checkNotNull(
           sharding, "Cannot provide null sharding. Use withRunnerDeterminedSharding() instead");
-      return new Bound<>(sink, sharding);
+      return new Bound<>(sink, sharding, shardFn);
     }
 
     /**
@@ -195,7 +192,7 @@ public class Write {
      * runner-determined sharding.
      */
     public Bound<T> withRunnerDeterminedSharding() {
-      return new Bound<>(sink, null);
+      return new Bound<>(sink, null, shardFn);
     }
 
     /**
@@ -310,17 +307,20 @@ public class Write {
     }
 
     private static class ApplyShardingKey<T> extends DoFn<T, KV<Integer, T>> {
-      private final PCollectionView<Integer> numShards;
+      private final SerializableFunction<Long, Integer> shardFn;
+      private final PCollectionView<Long> recordCount;
       private int shardNumber;
 
-      ApplyShardingKey(PCollectionView<Integer> numShards) {
-        this.numShards = numShards;
-        shardNumber = -1;
+      private ApplyShardingKey(
+          SerializableFunction<Long, Integer> shardFn, PCollectionView<Long> recordCount) {
+        this.shardFn = shardFn;
+        this.recordCount = recordCount;
       }
 
       @ProcessElement
       public void processElement(ProcessContext context) {
-        Integer shardCount = context.sideInput(numShards);
+        Long recs = context.sideInput(recordCount);
+        Integer shardCount = shardFn.apply(recs);
         checkArgument(
             shardCount > 0,
             "Must have a positive number of shards specified for non-runner-determined sharding."
@@ -425,12 +425,13 @@ public class Write {
                 ParDo.of(new WriteBundles<>(writeOperationView))
                     .withSideInputs(writeOperationView));
       } else {
-        numShards = inputInGlobalWindow.apply(computeNumShards);
+        PCollectionView<Long> recordCount =
+            inputInGlobalWindow.apply(Count.globally().asSingletonView());
         results =
             inputInGlobalWindow
                 .apply(
                     "ApplyShardLabel",
-                    ParDo.of(new ApplyShardingKey<T>(numShards)).withSideInputs(numShards))
+                    ParDo.of(new ApplyShardingKey<T>(shardFn)).withSideInputs(recordCount))
                 .apply("GroupIntoShards", GroupByKey.<Integer, T>create())
                 .apply(
                     "WriteShardedBundles",
@@ -496,42 +497,20 @@ public class Write {
   }
 
   @VisibleForTesting
-  static class ConstantShards<T>
-      extends PTransform<PCollection<T>, PCollectionView<Integer>> {
+  static class ConstantShards implements SerializableFunction<Long,Integer> {
     private final ValueProvider<Integer> numShards;
 
     private ConstantShards(ValueProvider<Integer> numShards) {
       this.numShards = numShards;
     }
 
-    @Override
-    public PCollectionView<Integer> expand(PCollection<T> input) {
-      return input
-          .getPipeline()
-          .apply(Create.of(0))
-          .apply(
-              "FixedNumShards",
-              ParDo.of(
-                  new DoFn<Integer, Integer>() {
-                    @ProcessElement
-                    public void outputNumShards(ProcessContext ctxt) {
-                      checkArgument(
-                          numShards.isAccessible(),
-                          "NumShards must be accessible at runtime to use constant sharding");
-                      ctxt.output(numShards.get());
-                    }
-                  }))
-          .apply(View.<Integer>asSingleton());
-    }
-
-    @Override
-    public void populateDisplayData(DisplayData.Builder builder) {
-      builder.add(
-          DisplayData.item("Fixed Number of Shards", numShards).withLabel("ConstantShards"));
-    }
-
     public ValueProvider<Integer> getNumShards() {
       return numShards;
+    }
+
+    @Override
+    public Integer apply(Long input) {
+      return numShards.get();
     }
   }
 }
