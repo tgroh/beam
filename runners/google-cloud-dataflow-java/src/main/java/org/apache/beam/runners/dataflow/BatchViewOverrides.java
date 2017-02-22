@@ -1410,8 +1410,7 @@ class BatchViewOverrides {
     }
 
     public WindowedValueCoder<ElemT> getCoder() {
-      return WindowedValue.getFullCoder(
-          coder, view.getWindowingStrategyInternal().getWindowFn().windowCoder());
+      return WindowedValue.getValueOnlyCoder(coder);
     }
   }
 }
