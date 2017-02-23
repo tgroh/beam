@@ -53,6 +53,8 @@ import org.junit.experimental.categories.Category;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A creator of test pipelines that can be used inside of tests that can be configured to run
@@ -92,6 +94,7 @@ import org.junit.runners.model.Statement;
  * the message from the {@link PAssert} that failed.
  */
 public class TestPipeline extends Pipeline implements TestRule {
+  private static final Logger LOG = LoggerFactory.getLogger(TestPipeline.class);
 
   private static class PipelineRunEnforcement {
 
@@ -290,10 +293,11 @@ public class TestPipeline extends Pipeline implements TestRule {
    */
   @Override
   public PipelineResult run() {
-    checkState(
-        enforcement.isPresent(),
-        "Attempted to run a pipeline while it's enforcement level was not set. Are you "
-            + "using TestPipeline without a @Rule annotation?");
+    if (!enforcement.isPresent()) {
+      LOG.warn(
+          "Attempted to run a pipeline while it's enforcement level was not set. Are you "
+              + "using TestPipeline without a @Rule annotation?");
+    }
 
     try {
       return super.run();
