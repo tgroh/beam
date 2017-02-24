@@ -45,7 +45,6 @@ import org.apache.beam.sdk.options.GcpOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptions.CheckEnabled;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.runners.TransformHierarchy;
 import org.apache.beam.sdk.util.IOChannelUtils;
 import org.apache.beam.sdk.util.TestCredential;
@@ -92,17 +91,16 @@ import org.junit.runners.model.Statement;
  * the message from the {@link PAssert} that failed.
  */
 public class TestPipeline extends Pipeline implements TestRule {
-
   private static class PipelineRunEnforcement {
 
     @SuppressWarnings("WeakerAccess")
     protected boolean enableAutoRunIfMissing;
 
-    protected final Pipeline pipeline;
+    protected final TestPipeline pipeline;
 
     private boolean runInvoked;
 
-    private PipelineRunEnforcement(final Pipeline pipeline) {
+    private PipelineRunEnforcement(final TestPipeline pipeline) {
       this.pipeline = pipeline;
     }
 
@@ -182,8 +180,8 @@ public class TestPipeline extends Pipeline implements TestRule {
       } else if (runVisitedNodes == null && !enableAutoRunIfMissing) {
         if (!isEmptyPipeline(pipeline)) {
           throw new PipelineRunMissingException(
-              "The pipeline has not been run (runner: "
-                  + pipeline.getOptions().getRunner().getSimpleName()
+              "The pipeline has not been run (default runner: "
+                  + pipeline.options.getRunner().getSimpleName()
                   + ")");
         }
       }
@@ -213,7 +211,10 @@ public class TestPipeline extends Pipeline implements TestRule {
     }
   }
 
-  /** An exception thrown in case a test finishes without invoking {@link Pipeline#run()}. */
+  /**
+   * An exception thrown in case a test finishes without invoking {@link
+   * Pipeline#run(PipelineOptions)}.
+   */
   public static class PipelineRunMissingException extends RuntimeException {
 
     PipelineRunMissingException(final String msg) {
@@ -227,6 +228,8 @@ public class TestPipeline extends Pipeline implements TestRule {
 
   @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
   private Optional<? extends PipelineRunEnforcement> enforcement = Optional.absent();
+  // The default options, if they aren't provided in a call to TestPipeline#run(PipelineOptions)
+  private final PipelineOptions options;
 
   /**
    * Creates and returns a new test pipeline.
@@ -239,12 +242,16 @@ public class TestPipeline extends Pipeline implements TestRule {
   }
 
   public static TestPipeline fromOptions(PipelineOptions options) {
-    return new TestPipeline(PipelineRunner.fromOptions(options), options);
+    return new TestPipeline(options);
   }
 
-  private TestPipeline(
-      final PipelineRunner<? extends PipelineResult> runner, final PipelineOptions options) {
-    super(runner, options);
+  private TestPipeline(final PipelineOptions options) {
+    super();
+    this.options = options;
+  }
+
+  public PipelineOptions getOptions() {
+    return options;
   }
 
   @Override
@@ -261,7 +268,7 @@ public class TestPipeline extends Pipeline implements TestRule {
                   .anyMatch(Annotations.Predicates.isCategoryOf(NeedsRunner.class, true));
 
           final boolean crashingRunner =
-              CrashingRunner.class.isAssignableFrom(getOptions().getRunner());
+              CrashingRunner.class.isAssignableFrom(options.getRunner());
 
           checkState(
               !(annotatedWithNeedsRunner && crashingRunner),
@@ -285,18 +292,30 @@ public class TestPipeline extends Pipeline implements TestRule {
   }
 
   /**
+   * Runs this {@link TestPipeline} with the options configured at the time of its creation,
+   * unwrapping any {@link AssertionError} that is raised during testing.
+   *
+   * <p>The default options are any obtained via {@link TestPipeline#testingPipelineOptions()}. If
+   * the {@link TestPipeline} has been created via {@link TestPipeline#fromOptions(PipelineOptions)}
+   * the options provided to that call will be used instead.
+   */
+  public PipelineResult run() {
+    return run(this.options);
+  }
+
+  /**
    * Runs this {@link TestPipeline}, unwrapping any {@code AssertionError} that is raised during
    * testing.
    */
   @Override
-  public PipelineResult run() {
+  public PipelineResult run(PipelineOptions options) {
     checkState(
         enforcement.isPresent(),
         "Attempted to run a pipeline while it's enforcement level was not set. Are you "
             + "using TestPipeline without a @Rule annotation?");
 
     try {
-      return super.run();
+      return super.run(options);
     } catch (RuntimeException exc) {
       Throwable cause = exc.getCause();
       if (cause instanceof AssertionError) {
@@ -325,7 +344,7 @@ public class TestPipeline extends Pipeline implements TestRule {
 
   @Override
   public String toString() {
-    return "TestPipeline#" + getOptions().as(ApplicationNameOptions.class).getAppName();
+    return "TestPipeline#" + options.as(ApplicationNameOptions.class).getAppName();
   }
 
   /** Creates {@link PipelineOptions} for testing. */

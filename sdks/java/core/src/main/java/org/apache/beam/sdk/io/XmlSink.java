@@ -217,7 +217,7 @@ public class XmlSink {
      * Creates an {@link XmlWriteOperation}.
      */
     @Override
-    public XmlWriteOperation<T> createWriteOperation(PipelineOptions options) {
+    public XmlWriteOperation<T> createWriteOperation() {
       return new XmlWriteOperation<>(this);
     }
 

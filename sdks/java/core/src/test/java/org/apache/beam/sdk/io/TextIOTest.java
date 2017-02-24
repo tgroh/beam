@@ -1199,7 +1199,7 @@ public class TextIOTest {
     GcsOptions options = TestPipeline.testingPipelineOptions().as(GcsOptions.class);
     options.setGcsUtil(buildMockGcsUtil());
 
-    Pipeline pipeline = Pipeline.create(options);
+    Pipeline pipeline = Pipeline.create();
 
     applyRead(pipeline, "gs://bucket/foo");
     applyRead(pipeline, "gs://bucket/foo/");
@@ -1217,7 +1217,7 @@ public class TextIOTest {
     applyRead(pipeline, "gs://bucket/foo[0-9]/baz");
 
     // Check that running doesn't fail.
-    pipeline.run();
+    pipeline.run(options);
   }
 
   private void applyRead(Pipeline pipeline, String path) {

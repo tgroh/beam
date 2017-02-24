@@ -192,7 +192,7 @@ public class WriteTest {
     // Flag to validate that the pipeline options are passed to the Sink
     WriteOptions options = TestPipeline.testingPipelineOptions().as(WriteOptions.class);
     options.setTestFlag("test_value");
-    Pipeline p = TestPipeline.create(options);
+    Pipeline p = Pipeline.create();
 
     // Clear the sink's contents.
     sinkContents.clear();
@@ -215,7 +215,7 @@ public class WriteTest {
         .apply(IDENTITY_MAP)
         .apply(write);
 
-    p.run();
+    p.run(options);
     assertThat(sinkContents, containsInAnyOrder(inputs.toArray()));
     assertTrue(sink.hasCorrectState());
     // The PCollection has values all equal to three, which should be fed as the sharding strategy
@@ -417,7 +417,7 @@ public class WriteTest {
     // Flag to validate that the pipeline options are passed to the Sink
     WriteOptions options = TestPipeline.testingPipelineOptions().as(WriteOptions.class);
     options.setTestFlag("test_value");
-    Pipeline p = TestPipeline.create(options);
+    Pipeline p = Pipeline.create();
 
     // Clear the sink's contents.
     sinkContents.clear();
@@ -441,7 +441,7 @@ public class WriteTest {
      .apply(transform)
      .apply(write);
 
-    p.run();
+    p.run(options);
     assertThat(sinkContents, containsInAnyOrder(inputs.toArray()));
     assertTrue(sink.hasCorrectState());
     if (numConfiguredShards.isPresent()) {
@@ -458,9 +458,8 @@ public class WriteTest {
     private boolean validateCalled = false;
 
     @Override
-    public WriteOperation<String, ?> createWriteOperation(PipelineOptions options) {
+    public WriteOperation<String, ?> createWriteOperation() {
       assertTrue(validateCalled);
-      assertTestFlagPresent(options);
       createCalled = true;
       return new TestSinkWriteOperation(this);
     }

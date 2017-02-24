@@ -30,7 +30,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.regex.Pattern;
-import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.VarLongCoder;
@@ -392,7 +391,7 @@ public class PAssertTest implements Serializable {
     assertThat(thrown.getMessage(), containsString("Expected: iterable over [] in any order"));
   }
 
-  private static Throwable runExpectingAssertionFailure(Pipeline pipeline) {
+  private static Throwable runExpectingAssertionFailure(TestPipeline pipeline) {
     // We cannot use thrown.expect(AssertionError.class) because the AssertionError
     // is first caught by JUnit and causes a test failure.
     try {

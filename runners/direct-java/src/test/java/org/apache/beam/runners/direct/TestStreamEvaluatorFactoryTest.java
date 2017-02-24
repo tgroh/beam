@@ -33,6 +33,7 @@ import org.apache.beam.runners.direct.TestStreamEvaluatorFactory.TestClock;
 import org.apache.beam.runners.direct.TestStreamEvaluatorFactory.TestStreamIndex;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.VarIntCoder;
+import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
@@ -57,6 +58,7 @@ public class TestStreamEvaluatorFactoryTest {
   private TestStreamEvaluatorFactory factory;
   private BundleFactory bundleFactory;
   private EvaluationContext context;
+  private final DirectRunner runner = DirectRunner.fromOptions(PipelineOptionsFactory.create());
 
   @Rule
   public TestPipeline p = TestPipeline.create().enableAbandonedNodeEnforcement(false);
@@ -80,7 +82,7 @@ public class TestStreamEvaluatorFactoryTest {
         .advanceProcessingTime(Duration.standardMinutes(10))
         .advanceWatermarkToInfinity();
     PCollection<Integer> streamVals =
-        p.apply(new DirectTestStream<Integer>(testStream));
+        p.apply(new DirectTestStream<Integer>(runner, testStream));
 
     TestClock clock = new TestClock();
     when(context.getClock()).thenReturn(clock);
@@ -180,7 +182,7 @@ public class TestStreamEvaluatorFactoryTest {
 
   @Test
   public void overrideFactoryGetInputSucceeds() {
-    DirectTestStreamFactory<?> factory = new DirectTestStreamFactory<>();
+    DirectTestStreamFactory<?> factory = new DirectTestStreamFactory<>(runner);
     PBegin begin = factory.getInput(Collections.<TaggedPValue>emptyList(), p);
     assertThat(begin.getPipeline(), Matchers.<Pipeline>equalTo(p));
   }

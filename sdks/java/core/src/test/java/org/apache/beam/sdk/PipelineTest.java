@@ -62,13 +62,14 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class PipelineTest {
 
-  @Rule public final TestPipeline pipeline = TestPipeline.create();
+  private final PipelineOptions options = TestPipeline.testingPipelineOptions();
+  @Rule public final TestPipeline pipeline = TestPipeline.fromOptions(options);
   @Rule public ExpectedLogs logged = ExpectedLogs.none(Pipeline.class);
   @Rule public ExpectedException thrown = ExpectedException.none();
 
   static class PipelineWrapper extends Pipeline {
     protected PipelineWrapper(PipelineRunner<?> runner) {
-      super(runner, PipelineOptionsFactory.create());
+      super();
     }
   }
 
@@ -102,7 +103,7 @@ public class PipelineTest {
     thrown.expect(PipelineExecutionException.class);
     thrown.expectCause(isA(IllegalStateException.class));
     thrown.expectMessage("user code exception");
-    p.run();
+    p.run(options);
   }
 
   @Test
@@ -111,7 +112,7 @@ public class PipelineTest {
 
     // Check pipeline runner correctly catches SDK errors.
     try {
-      p.run();
+      p.run(options);
       fail("Should have thrown an exception.");
     } catch (RuntimeException exn) {
       // Make sure the exception isn't a UserCodeException.
@@ -156,7 +157,7 @@ public class PipelineTest {
   public void testToString() {
     PipelineOptions options = PipelineOptionsFactory.as(PipelineOptions.class);
     options.setRunner(CrashingRunner.class);
-    Pipeline pipeline = Pipeline.create(options);
+    Pipeline pipeline = Pipeline.create();
     assertEquals("Pipeline#" + pipeline.hashCode(), pipeline.toString());
   }
 
@@ -164,7 +165,7 @@ public class PipelineTest {
   public void testStableUniqueNameOff() {
     pipeline.enableAbandonedNodeEnforcement(false);
 
-    pipeline.getOptions().setStableUniqueNames(CheckEnabled.OFF);
+    pipeline.setStableUniqueNames(CheckEnabled.OFF);
 
     pipeline.apply(Create.of(5, 6, 7));
     pipeline.apply(Create.of(5, 6, 7));
@@ -176,7 +177,7 @@ public class PipelineTest {
   public void testStableUniqueNameWarning() {
     pipeline.enableAbandonedNodeEnforcement(false);
 
-    pipeline.getOptions().setStableUniqueNames(CheckEnabled.WARNING);
+    pipeline.setStableUniqueNames(CheckEnabled.WARNING);
 
     pipeline.apply(Create.of(5, 6, 7));
     pipeline.apply(Create.of(5, 6, 7));
@@ -186,7 +187,7 @@ public class PipelineTest {
 
   @Test
   public void testStableUniqueNameError() {
-    pipeline.getOptions().setStableUniqueNames(CheckEnabled.ERROR);
+    pipeline.setStableUniqueNames(CheckEnabled.ERROR);
 
     pipeline.apply(Create.of(5, 6, 7));
 

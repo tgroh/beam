@@ -214,7 +214,7 @@ public abstract class FileBasedSink<T> extends Sink<T> {
    * to the sink.
    */
   @Override
-  public abstract FileBasedWriteOperation<T> createWriteOperation(PipelineOptions options);
+  public abstract FileBasedWriteOperation<T> createWriteOperation();
 
   @Override
   public void populateDisplayData(DisplayData.Builder builder) {

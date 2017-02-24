@@ -50,26 +50,17 @@ public class CrashingRunnerTest {
   }
 
   @Test
-  public void applySucceeds() {
-    PipelineOptions opts = PipelineOptionsFactory.create();
-    opts.setRunner(CrashingRunner.class);
-
-    Pipeline p = Pipeline.create(opts);
-    p.apply(Create.of(1, 2, 3));
-  }
-
-  @Test
   public void runThrows() {
     PipelineOptions opts = PipelineOptionsFactory.create();
     opts.setRunner(CrashingRunner.class);
 
-    Pipeline p = Pipeline.create(opts);
+    Pipeline p = Pipeline.create();
     p.apply(Create.of(1, 2, 3));
 
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage("Cannot call #run");
     thrown.expectMessage(TestPipeline.PROPERTY_BEAM_TEST_PIPELINE_OPTIONS);
 
-    p.run();
+    p.run(opts);
   }
 }

@@ -21,6 +21,7 @@ import com.google.api.services.dataflow.Dataflow;
 import org.apache.beam.runners.dataflow.DataflowRunner;
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -61,17 +62,17 @@ public class DataflowViewTest {
     MockitoAnnotations.initMocks(this);
   }
 
-  private Pipeline createTestBatchRunner() {
+  private PipelineOptions createTestBatchRunner() {
     DataflowPipelineOptions options = PipelineOptionsFactory.as(DataflowPipelineOptions.class);
     options.setRunner(DataflowRunner.class);
     options.setProject("someproject");
     options.setGcpTempLocation("gs://staging");
     options.setPathValidatorClass(NoopPathValidator.class);
     options.setDataflowClient(dataflow);
-    return Pipeline.create(options);
+    return options;
   }
 
-  private Pipeline createTestStreamingRunner() {
+  private PipelineOptions createTestStreamingRunner() {
     DataflowPipelineOptions options = PipelineOptionsFactory.as(DataflowPipelineOptions.class);
     options.setRunner(DataflowRunner.class);
     options.setStreaming(true);
@@ -79,16 +80,17 @@ public class DataflowViewTest {
     options.setGcpTempLocation("gs://staging");
     options.setPathValidatorClass(NoopPathValidator.class);
     options.setDataflowClient(dataflow);
-    return Pipeline.create(options);
+    return options;
   }
 
   private void testViewUnbounded(
-      Pipeline pipeline,
+      PipelineOptions options,
       PTransform<PCollection<KV<String, Integer>>, ? extends PCollectionView<?>> view) {
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage("Unable to create a side-input view from input");
     thrown.expectCause(
         ThrowableMessageMatcher.hasMessage(Matchers.containsString("non-bounded PCollection")));
+    Pipeline pipeline = Pipeline.create();
     pipeline
         .apply(
             new PTransform<PBegin, PCollection<KV<String, Integer>>>() {
@@ -105,12 +107,13 @@ public class DataflowViewTest {
   }
 
   private void testViewNonmerging(
-      Pipeline pipeline,
+      PipelineOptions pipelineOpitons,
       PTransform<PCollection<KV<String, Integer>>, ? extends PCollectionView<?>> view) {
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage("Unable to create a side-input view from input");
     thrown.expectCause(
         ThrowableMessageMatcher.hasMessage(Matchers.containsString("Consumed by GroupByKey")));
+    Pipeline pipeline = Pipeline.create();
     pipeline.apply(Create.<KV<String, Integer>>of(KV.of("hello", 5)))
         .apply(Window.<KV<String, Integer>>into(new InvalidWindows<>(
             "Consumed by GroupByKey", FixedWindows.of(Duration.standardHours(1)))))

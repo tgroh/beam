@@ -26,7 +26,9 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.BigEndianIntegerCoder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -67,19 +69,19 @@ public class DataflowGroupByKeyTest {
    * is not expanded. This is used for verifying that even without expansion the proper errors show
    * up.
    */
-  private Pipeline createTestServiceRunner() {
+  private PipelineOptions createTestServiceRunner() {
     DataflowPipelineOptions options = PipelineOptionsFactory.as(DataflowPipelineOptions.class);
     options.setRunner(DataflowRunner.class);
     options.setProject("someproject");
     options.setGcpTempLocation("gs://staging");
     options.setPathValidatorClass(NoopPathValidator.class);
     options.setDataflowClient(dataflow);
-    return Pipeline.create(options);
+    return options;
   }
 
   @Test
   public void testInvalidWindowsService() {
-    Pipeline p = createTestServiceRunner();
+    Pipeline p = TestPipeline.create().enableAbandonedNodeEnforcement(false);
 
     List<KV<String, Integer>> ungroupedPairs = Arrays.asList();
 
@@ -98,7 +100,7 @@ public class DataflowGroupByKeyTest {
 
   @Test
   public void testGroupByKeyServiceUnbounded() {
-    Pipeline p = createTestServiceRunner();
+    Pipeline p = TestPipeline.create().enableAbandonedNodeEnforcement(false);
 
     PCollection<KV<String, Integer>> input =
         p.apply(

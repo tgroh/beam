@@ -78,12 +78,13 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class DirectRunnerTest implements Serializable {
   @Rule public transient ExpectedException thrown = ExpectedException.none();
+  private PipelineOptions opts;
 
   private Pipeline getPipeline() {
-    PipelineOptions opts = PipelineOptionsFactory.create();
+    opts = PipelineOptionsFactory.create();
     opts.setRunner(DirectRunner.class);
 
-    return Pipeline.create(opts);
+    return Pipeline.create();
   }
 
   @Test
@@ -117,7 +118,7 @@ public class DirectRunnerTest implements Serializable {
 
     PAssert.that(countStrs).containsInAnyOrder("baz: 1", "bar: 2", "foo: 3");
 
-    DirectPipelineResult result = ((DirectPipelineResult) p.run());
+    DirectPipelineResult result = ((DirectPipelineResult) p.run(opts));
     result.waitUntilFinish();
   }
 
@@ -155,10 +156,10 @@ public class DirectRunnerTest implements Serializable {
 
     PAssert.that(countStrs).containsInAnyOrder("baz: 1", "bar: 2", "foo: 3");
 
-    DirectPipelineResult result = ((DirectPipelineResult) p.run());
+    DirectPipelineResult result = ((DirectPipelineResult) p.run(opts));
     result.waitUntilFinish();
 
-    DirectPipelineResult otherResult = ((DirectPipelineResult) p.run());
+    DirectPipelineResult otherResult = ((DirectPipelineResult) p.run(opts));
     otherResult.waitUntilFinish();
 
     assertThat("Each element should have been processed twice", changed.get(), equalTo(6));
@@ -218,7 +219,7 @@ public class DirectRunnerTest implements Serializable {
     PCollection<Long> longs = p.apply(Read.from(MustSplitSource.of(CountingSource.upTo(3))));
 
     PAssert.that(longs).containsInAnyOrder(0L, 1L, 2L);
-    p.run();
+    p.run(opts);
   }
 
   @Test
@@ -240,7 +241,7 @@ public class DirectRunnerTest implements Serializable {
 
     thrown.expectMessage(brokenDoFn.getClass().getName());
     thrown.expectCause(ThrowableMessageMatcher.hasMessage(is("oh noes!")));
-    p.run();
+    p.run(opts);
   }
 
   /**
@@ -266,7 +267,7 @@ public class DirectRunnerTest implements Serializable {
     thrown.expect(IllegalMutationException.class);
     thrown.expectMessage("output");
     thrown.expectMessage("must not be mutated");
-    pipeline.run();
+    pipeline.run(opts);
   }
 
   /**
@@ -278,7 +279,7 @@ public class DirectRunnerTest implements Serializable {
     PipelineOptions options = PipelineOptionsFactory.create();
     options.setRunner(DirectRunner.class);
     options.as(DirectOptions.class).setEnforceImmutability(false);
-    Pipeline pipeline = Pipeline.create(options);
+    Pipeline pipeline = Pipeline.create();
 
     pipeline
         .apply(Create.of(42))
@@ -292,7 +293,7 @@ public class DirectRunnerTest implements Serializable {
           }
         }));
 
-    pipeline.run();
+    pipeline.run(opts);
   }
 
   /**
@@ -317,7 +318,7 @@ public class DirectRunnerTest implements Serializable {
     thrown.expect(IllegalMutationException.class);
     thrown.expectMessage("output");
     thrown.expectMessage("must not be mutated");
-    pipeline.run();
+    pipeline.run(opts);
   }
 
   /**
@@ -343,7 +344,7 @@ public class DirectRunnerTest implements Serializable {
     thrown.expect(IllegalMutationException.class);
     thrown.expectMessage("output");
     thrown.expectMessage("must not be mutated");
-    pipeline.run();
+    pipeline.run(opts);
   }
 
   /**
@@ -369,7 +370,7 @@ public class DirectRunnerTest implements Serializable {
     thrown.expect(IllegalMutationException.class);
     thrown.expectMessage("Input");
     thrown.expectMessage("must not be mutated");
-    pipeline.run();
+    pipeline.run(opts);
   }
 
   /**
@@ -394,7 +395,7 @@ public class DirectRunnerTest implements Serializable {
     thrown.expect(IllegalMutationException.class);
     thrown.expectMessage("Input");
     thrown.expectMessage("must not be mutated");
-    pipeline.run();
+    pipeline.run(opts);
   }
 
   @Test
@@ -419,7 +420,7 @@ public class DirectRunnerTest implements Serializable {
 
     thrown.expectCause(isA(CoderException.class));
     thrown.expectMessage("cannot encode a null Long");
-    p.run();
+    p.run(opts);
   }
 
   @Test
@@ -430,7 +431,7 @@ public class DirectRunnerTest implements Serializable {
 
     thrown.expectCause(isA(CoderException.class));
     thrown.expectMessage("Cannot decode a long");
-    p.run();
+    p.run(opts);
   }
 
   @Test
@@ -441,7 +442,7 @@ public class DirectRunnerTest implements Serializable {
 
     thrown.expectCause(isA(CoderException.class));
     thrown.expectMessage("Cannot decode a long");
-    p.run();
+    p.run(opts);
   }
 
   private static class LongNoDecodeCoder extends AtomicCoder<Long> {

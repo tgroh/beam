@@ -24,7 +24,6 @@ import static com.google.common.base.Preconditions.checkState;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.ByteString;
-
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.ByteBuffer;
@@ -35,9 +34,7 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.NoSuchElementException;
 import java.util.regex.Pattern;
-
 import javax.annotation.Nullable;
-
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VoidCoder;
@@ -1028,8 +1025,7 @@ public class TextIO {
     }
 
     @Override
-    public FileBasedSink.FileBasedWriteOperation<String> createWriteOperation(
-        PipelineOptions options) {
+    public FileBasedSink.FileBasedWriteOperation<String> createWriteOperation() {
       return new TextWriteOperation(this, header, footer);
     }
 

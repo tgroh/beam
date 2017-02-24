@@ -28,7 +28,6 @@ import org.apache.beam.sdk.coders.CoderRegistry;
 import org.apache.beam.sdk.io.Read;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptions.CheckEnabled;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.runners.PTransformMatcher;
 import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.runners.PTransformOverrideFactory.ReplacementOutput;
@@ -131,8 +130,8 @@ public class Pipeline {
    *
    * @return The newly created pipeline.
    */
-  public static Pipeline create(PipelineOptions options) {
-    Pipeline pipeline = new Pipeline(PipelineRunner.fromOptions(options), options);
+  public static Pipeline create() {
+    Pipeline pipeline = new Pipeline();
     LOG.debug("Creating {}", pipeline);
     return pipeline;
   }
@@ -202,7 +201,8 @@ public class Pipeline {
   /**
    * Runs the {@link Pipeline} using its {@link PipelineRunner}.
    */
-  public PipelineResult run() {
+  public PipelineResult run(PipelineOptions options) {
+    PipelineRunner<? extends PipelineResult> runner = PipelineRunner.fromOptions(options);
     // Ensure all of the nodes are fully specified before a PipelineRunner gets access to the
     // pipeline.
     LOG.debug("Running {} via {}", this, runner);
@@ -352,25 +352,17 @@ public class Pipeline {
 
   /////////////////////////////////////////////////////////////////////////////
   // Below here are internal operations, never called by users.
+  private CheckEnabled stableUniqueNameEnforcement = CheckEnabled.WARNING;
 
-  private final PipelineRunner<?> runner;
-  private final PipelineOptions options;
   private final TransformHierarchy transforms = new TransformHierarchy(this);
   private Collection<PValue> values = new ArrayList<>();
   private Set<String> usedFullNames = new HashSet<>();
   private CoderRegistry coderRegistry;
 
-  /**
-   * @deprecated replaced by {@link #Pipeline(PipelineRunner, PipelineOptions)}
-   */
-  @Deprecated
-  protected Pipeline(PipelineRunner<?> runner) {
-    this(runner, PipelineOptionsFactory.create());
-  }
+  protected Pipeline() {}
 
-  protected Pipeline(PipelineRunner<?> runner, PipelineOptions options) {
-    this.runner = runner;
-    this.options = options;
+  public void setStableUniqueNames(CheckEnabled stableUniqueLevel) {
+    stableUniqueNameEnforcement = stableUniqueLevel;
   }
 
   @Override
@@ -391,7 +383,7 @@ public class Pipeline {
     boolean nameIsUnique = uniqueName.equals(buildName(namePrefix, name));
 
     if (!nameIsUnique) {
-      switch (getOptions().getStableUniqueNames()) {
+      switch (stableUniqueNameEnforcement) {
         case OFF:
           break;
         case WARNING:
@@ -408,7 +400,7 @@ public class Pipeline {
                   + "This will prevent updating of pipelines.");
         default:
           throw new IllegalArgumentException(
-              "Unrecognized value for stable unique names: " + getOptions().getStableUniqueNames());
+              "Unrecognized value for stable unique names: " + stableUniqueNameEnforcement);
       }
     }
 
@@ -433,7 +425,7 @@ public class Pipeline {
           PTransformOverrideFactory<InputT, OutputT, TransformT> replacementFactory) {
     // Names for top-level transforms have been assigned. Any new collisions are within a node
     // and its replacement.
-    getOptions().setStableUniqueNames(CheckEnabled.OFF);
+    stableUniqueNameEnforcement = CheckEnabled.OFF;
     PTransform<InputT, OutputT> replacement =
         replacementFactory.getReplacementTransform((TransformT) original.getTransform());
     if (replacement == original.getTransform()) {
@@ -453,20 +445,6 @@ public class Pipeline {
     } finally {
       transforms.popNode();
     }
-  }
-
-  /**
-   * Returns the configured {@link PipelineRunner}.
-   */
-  public PipelineRunner<?> getRunner() {
-    return runner;
-  }
-
-  /**
-   * Returns the configured {@link PipelineOptions}.
-   */
-  public PipelineOptions getOptions() {
-    return options;
   }
 
   /**

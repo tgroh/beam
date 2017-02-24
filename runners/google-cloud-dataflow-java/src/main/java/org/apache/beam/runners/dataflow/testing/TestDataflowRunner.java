@@ -104,7 +104,7 @@ public class TestDataflowRunner extends PipelineRunner<DataflowPipelineJob> {
     pipeline.traverseTopologically(assertionCounter);
     expectedNumberOfAssertions = assertionCounter.getPAssertCount();
 
-    TestPipelineOptions testPipelineOptions = pipeline.getOptions().as(TestPipelineOptions.class);
+    TestPipelineOptions testPipelineOptions = options.as(TestPipelineOptions.class);
     final DataflowPipelineJob job;
     job = runner.run(pipeline);
 

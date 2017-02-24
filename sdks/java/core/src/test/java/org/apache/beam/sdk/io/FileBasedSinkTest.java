@@ -43,7 +43,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
-
 import org.apache.beam.sdk.io.FileBasedSink.CompressionType;
 import org.apache.beam.sdk.io.FileBasedSink.FileBasedWriteOperation;
 import org.apache.beam.sdk.io.FileBasedSink.FileBasedWriter;
@@ -485,7 +484,7 @@ public class FileBasedSinkTest {
     final String testUid = "testId";
     SimpleSink.SimpleWriteOperation writeOp =
         new SimpleSink(getBaseOutputFilename(), "txt", new DrunkWritableByteChannelFactory())
-            .createWriteOperation(null);
+            .createWriteOperation();
     final FileBasedWriter<String> writer =
         writeOp.createWriter(null);
     final String expectedFilename = IOChannelUtils.resolve(writeOp.tempDirectory.get(), testUid);
@@ -527,7 +526,7 @@ public class FileBasedSinkTest {
     }
 
     @Override
-    public SimpleWriteOperation createWriteOperation(PipelineOptions options) {
+    public SimpleWriteOperation createWriteOperation() {
       return new SimpleWriteOperation(this);
     }
 

@@ -70,7 +70,7 @@ public class XmlSinkTest {
   public void testXmlWriter() throws Exception {
     PipelineOptions options = PipelineOptionsFactory.create();
     XmlWriteOperation<Bird> writeOp =
-        XmlSink.writeOf(Bird.class, "birds", testFilePrefix).createWriteOperation(options);
+        XmlSink.writeOf(Bird.class, "birds", testFilePrefix).createWriteOperation();
     XmlWriter<Bird> writer = writeOp.createWriter(options);
 
     List<Bird> bundle =
@@ -140,7 +140,7 @@ public class XmlSinkTest {
     PipelineOptions options = PipelineOptionsFactory.create();
     XmlSink.Bound<Bird> sink =
         XmlSink.writeOf(testClass, testRootElement, testFilePrefix);
-    XmlWriteOperation<Bird> writeOp = sink.createWriteOperation(options);
+    XmlWriteOperation<Bird> writeOp = sink.createWriteOperation();
     assertEquals(testClass, writeOp.getSink().classToBind);
     assertEquals(testFilePrefix, writeOp.getSink().baseOutputFilename.get());
     assertEquals(testRootElement, writeOp.getSink().rootElementName);
@@ -159,8 +159,7 @@ public class XmlSinkTest {
   public void testCreateWriter() throws Exception {
     PipelineOptions options = PipelineOptionsFactory.create();
     XmlWriteOperation<Bird> writeOp =
-        XmlSink.writeOf(testClass, testRootElement, testFilePrefix)
-            .createWriteOperation(options);
+        XmlSink.writeOf(testClass, testRootElement, testFilePrefix).createWriteOperation();
     XmlWriter<Bird> writer = writeOp.createWriter(options);
     Path outputPath = new File(testFilePrefix).toPath();
     Path tempPath = new File(writer.getWriteOperation().tempDirectory.get()).toPath();

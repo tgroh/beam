@@ -375,7 +375,7 @@ public class DataflowPipelineJobTest {
     String stepName = "s1";
     String fullName = "Foo/Bar/Baz";
     AppliedPTransform<?, ?, ?> appliedTransform =
-        appliedPTransform(fullName, pTransform, Pipeline.create(options));
+        appliedPTransform(fullName, pTransform, Pipeline.create());
 
     DataflowAggregatorTransforms aggregatorTransforms = new DataflowAggregatorTransforms(
         ImmutableSetMultimap.<Aggregator<?, ?>, PTransform<?, ?>>of(aggregator, pTransform).asMap(),
@@ -411,7 +411,7 @@ public class DataflowPipelineJobTest {
     String stepName = "s1";
     String fullName = "Foo/Bar/Baz";
     AppliedPTransform<?, ?, ?> appliedTransform =
-        appliedPTransform(fullName, pTransform, Pipeline.create(options));
+        appliedPTransform(fullName, pTransform, Pipeline.create());
 
     DataflowAggregatorTransforms aggregatorTransforms = new DataflowAggregatorTransforms(
         ImmutableSetMultimap.<Aggregator<?, ?>, PTransform<?, ?>>of(aggregator, pTransform).asMap(),
@@ -449,7 +449,7 @@ public class DataflowPipelineJobTest {
     String stepName = "s1";
     String fullName = "Foo/Bar/Baz";
     AppliedPTransform<?, ?, ?> appliedTransform =
-        appliedPTransform(fullName, pTransform, Pipeline.create(options));
+        appliedPTransform(fullName, pTransform, Pipeline.create());
 
     DataflowAggregatorTransforms aggregatorTransforms = new DataflowAggregatorTransforms(
         ImmutableSetMultimap.<Aggregator<?, ?>, PTransform<?, ?>>of(aggregator, pTransform).asMap(),
@@ -494,7 +494,7 @@ public class DataflowPipelineJobTest {
     String aggregatorName = "agg";
     Aggregator<Long, Long> aggregator = new TestAggregator<>(combineFn, aggregatorName);
 
-    Pipeline p = Pipeline.create(options);
+    Pipeline p = Pipeline.create();
 
     @SuppressWarnings("unchecked")
     PTransform<PInput, POutput> pTransform = mock(PTransform.class);
@@ -568,7 +568,7 @@ public class DataflowPipelineJobTest {
     String stepName = "s1";
     String fullName = "Foo/Bar/Baz";
     AppliedPTransform<?, ?, ?> appliedTransform =
-        appliedPTransform(fullName, pTransform, Pipeline.create(options));
+        appliedPTransform(fullName, pTransform, Pipeline.create());
 
     DataflowAggregatorTransforms aggregatorTransforms = new DataflowAggregatorTransforms(
         ImmutableSetMultimap.<Aggregator<?, ?>, PTransform<?, ?>>of(aggregator, pTransform).asMap(),
@@ -633,7 +633,7 @@ public class DataflowPipelineJobTest {
     String stepName = "s1";
     String fullName = "Foo/Bar/Baz";
     AppliedPTransform<?, ?, ?> appliedTransform =
-        appliedPTransform(fullName, pTransform, Pipeline.create(options));
+        appliedPTransform(fullName, pTransform, Pipeline.create());
 
     DataflowAggregatorTransforms aggregatorTransforms = new DataflowAggregatorTransforms(
         ImmutableSetMultimap.<Aggregator<?, ?>, PTransform<?, ?>>of(aggregator, pTransform).asMap(),

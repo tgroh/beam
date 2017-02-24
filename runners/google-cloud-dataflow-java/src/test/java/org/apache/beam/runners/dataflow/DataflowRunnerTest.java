@@ -166,7 +166,7 @@ public class DataflowRunnerTest {
   private Pipeline buildDataflowPipeline(DataflowPipelineOptions options) {
     options.setStableUniqueNames(CheckEnabled.ERROR);
     options.setRunner(DataflowRunner.class);
-    Pipeline p = Pipeline.create(options);
+    Pipeline p = Pipeline.create();
 
     p.apply("ReadMyFile", TextIO.Read.from("gs://bucket/object"))
         .apply("WriteMyFile", TextIO.Write.to("gs://bucket/object"));
@@ -305,7 +305,7 @@ public class DataflowRunnerTest {
   public void testRun() throws IOException {
     DataflowPipelineOptions options = buildPipelineOptions();
     Pipeline p = buildDataflowPipeline(options);
-    DataflowPipelineJob job = (DataflowPipelineJob) p.run();
+    DataflowPipelineJob job = (DataflowPipelineJob) p.run(options);
     assertEquals("newid", job.getJobId());
 
     ArgumentCaptor<Job> jobCaptor = ArgumentCaptor.forClass(Job.class);
@@ -349,7 +349,7 @@ public class DataflowRunnerTest {
 
     Pipeline p = buildDataflowPipeline(options);
     try {
-      p.run();
+      p.run(options);
       fail("Expected DataflowJobAlreadyExistsException");
     } catch (DataflowJobAlreadyExistsException expected) {
       assertThat(expected.getMessage(),
@@ -365,7 +365,7 @@ public class DataflowRunnerTest {
     options.setUpdate(true);
     options.setJobName("oldJobName");
     Pipeline p = buildDataflowPipeline(options);
-    DataflowPipelineJob job = (DataflowPipelineJob) p.run();
+    DataflowPipelineJob job = (DataflowPipelineJob) p.run(options);
     assertEquals("newid", job.getJobId());
 
     ArgumentCaptor<Job> jobCaptor = ArgumentCaptor.forClass(Job.class);
@@ -382,7 +382,7 @@ public class DataflowRunnerTest {
     options.setUpdate(true);
     options.setJobName("badJobName");
     Pipeline p = buildDataflowPipeline(options);
-    p.run();
+    p.run(options);
   }
 
   @Test
@@ -418,7 +418,7 @@ public class DataflowRunnerTest {
     });
     thrown.expectMessage("The job named oldjobname with id: oldJobId has already been updated "
         + "into job id: newid and cannot be updated again.");
-    p.run();
+    p.run(options);
   }
 
   @Test
@@ -451,7 +451,7 @@ public class DataflowRunnerTest {
 
     Pipeline p = buildDataflowPipeline(options);
 
-    DataflowPipelineJob job = (DataflowPipelineJob) p.run();
+    DataflowPipelineJob job = (DataflowPipelineJob) p.run(options);
     assertEquals("newid", job.getJobId());
 
     ArgumentCaptor<Job> jobCaptor = ArgumentCaptor.forClass(Job.class);
@@ -542,14 +542,15 @@ public class DataflowRunnerTest {
 
   @Test
   public void testNonGcsFilePathInReadFailure() throws IOException {
-    Pipeline p = buildDataflowPipeline(buildPipelineOptions());
+    DataflowPipelineOptions options = buildPipelineOptions();
+    Pipeline p = buildDataflowPipeline(options);
     p.apply("ReadMyNonGcsFile", TextIO.Read.from(tmpFolder.newFile().getPath()));
 
     thrown.expectCause(Matchers.allOf(
         instanceOf(IllegalArgumentException.class),
         ThrowableMessageMatcher.hasMessage(
             containsString("Expected a valid 'gs://' path but was given"))));
-    p.run();
+    p.run(options);
 
     ArgumentCaptor<Job> jobCaptor = ArgumentCaptor.forClass(Job.class);
     Mockito.verify(mockJobs).create(eq(PROJECT_ID), eq(REGION_ID), jobCaptor.capture());
@@ -558,25 +559,27 @@ public class DataflowRunnerTest {
 
   @Test
   public void testNonGcsFilePathInWriteFailure() throws IOException {
-    Pipeline p = buildDataflowPipeline(buildPipelineOptions());
+    DataflowPipelineOptions options = buildPipelineOptions();
+    Pipeline p = buildDataflowPipeline(options);
 
     p.apply("ReadMyGcsFile", TextIO.Read.from("gs://bucket/object"))
         .apply("WriteMyNonGcsFile", TextIO.Write.to("/tmp/file"));
 
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage(containsString("Expected a valid 'gs://' path but was given"));
-    p.run();
+    p.run(options);
   }
 
   @Test
   public void testMultiSlashGcsFileReadPath() throws IOException {
-    Pipeline p = buildDataflowPipeline(buildPipelineOptions());
+    DataflowPipelineOptions options = buildPipelineOptions();
+    Pipeline p = buildDataflowPipeline(options);
     p.apply("ReadInvalidGcsFile", TextIO.Read.from("gs://bucket/tmp//file"));
 
     thrown.expectCause(Matchers.allOf(
         instanceOf(IllegalArgumentException.class),
         ThrowableMessageMatcher.hasMessage(containsString("consecutive slashes"))));
-    p.run();
+    p.run(options);
 
     ArgumentCaptor<Job> jobCaptor = ArgumentCaptor.forClass(Job.class);
     Mockito.verify(mockJobs).create(eq(PROJECT_ID), eq(REGION_ID), jobCaptor.capture());
@@ -585,13 +588,14 @@ public class DataflowRunnerTest {
 
   @Test
   public void testMultiSlashGcsFileWritePath() throws IOException {
-    Pipeline p = buildDataflowPipeline(buildPipelineOptions());
+    DataflowPipelineOptions options = buildPipelineOptions();
+    Pipeline p = buildDataflowPipeline(options);
     PCollection<String> pc = p.apply("ReadMyGcsFile", TextIO.Read.from("gs://bucket/object"));
     pc.apply("WriteInvalidGcsFile", TextIO.Write.to("gs://bucket/tmp//file"));
 
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage("consecutive slashes");
-    p.run();
+    p.run(options);
   }
 
   @Test
@@ -885,7 +889,7 @@ public class DataflowRunnerTest {
   public void testGcsUploadBufferSizeIsUnsetForBatchWhenDefault() throws IOException {
     DataflowPipelineOptions batchOptions = buildPipelineOptions();
     batchOptions.setRunner(DataflowRunner.class);
-    Pipeline.create(batchOptions);
+    DataflowRunner.fromOptions(batchOptions);
     assertNull(batchOptions.getGcsUploadBufferSizeBytes());
   }
 
@@ -894,7 +898,7 @@ public class DataflowRunnerTest {
     DataflowPipelineOptions streamingOptions = buildPipelineOptions();
     streamingOptions.setStreaming(true);
     streamingOptions.setRunner(DataflowRunner.class);
-    Pipeline.create(streamingOptions);
+    DataflowRunner.fromOptions(streamingOptions);
     assertEquals(
         DataflowRunner.GCS_UPLOAD_BUFFER_SIZE_BYTES_DEFAULT,
         streamingOptions.getGcsUploadBufferSizeBytes().intValue());
@@ -906,14 +910,14 @@ public class DataflowRunnerTest {
     DataflowPipelineOptions batchOptions = buildPipelineOptions();
     batchOptions.setGcsUploadBufferSizeBytes(gcsUploadBufferSizeBytes);
     batchOptions.setRunner(DataflowRunner.class);
-    Pipeline.create(batchOptions);
+    DataflowRunner.fromOptions(batchOptions);
     assertEquals(gcsUploadBufferSizeBytes, batchOptions.getGcsUploadBufferSizeBytes().intValue());
 
     DataflowPipelineOptions streamingOptions = buildPipelineOptions();
     streamingOptions.setStreaming(true);
     streamingOptions.setGcsUploadBufferSizeBytes(gcsUploadBufferSizeBytes);
     streamingOptions.setRunner(DataflowRunner.class);
-    Pipeline.create(streamingOptions);
+    DataflowRunner.fromOptions(streamingOptions);
     assertEquals(
         gcsUploadBufferSizeBytes, streamingOptions.getGcsUploadBufferSizeBytes().intValue());
   }
@@ -942,7 +946,7 @@ public class DataflowRunnerTest {
   @Test
   public void testTransformTranslatorMissing() throws IOException {
     DataflowPipelineOptions options = buildPipelineOptions();
-    Pipeline p = Pipeline.create(options);
+    Pipeline p = Pipeline.create();
 
     p.apply(Create.of(Arrays.asList(1, 2, 3)))
         .apply(new TestTransform());
@@ -951,7 +955,7 @@ public class DataflowRunnerTest {
     thrown.expectMessage(Matchers.containsString("no translator registered"));
     DataflowPipelineTranslator.fromOptions(options)
         .translate(
-            p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList());
+            p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList());
 
     ArgumentCaptor<Job> jobCaptor = ArgumentCaptor.forClass(Job.class);
     Mockito.verify(mockJobs).create(eq(PROJECT_ID), eq(REGION_ID), jobCaptor.capture());
@@ -962,7 +966,7 @@ public class DataflowRunnerTest {
   public void testTransformTranslator() throws IOException {
     // Test that we can provide a custom translation
     DataflowPipelineOptions options = buildPipelineOptions();
-    Pipeline p = Pipeline.create(options);
+    Pipeline p = Pipeline.create();
     TestTransform transform = new TestTransform();
 
     p.apply(Create.of(Arrays.asList(1, 2, 3)).withCoder(BigEndianIntegerCoder.of()))
@@ -989,7 +993,7 @@ public class DataflowRunnerTest {
         });
 
     translator.translate(
-        p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList());
+        p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList());
     assertTrue(transform.translated);
   }
 
@@ -1013,7 +1017,7 @@ public class DataflowRunnerTest {
   @Test
   public void testApplyIsScopedToExactClass() throws IOException {
     DataflowPipelineOptions options = buildPipelineOptions();
-    Pipeline p = Pipeline.create(options);
+    Pipeline p = Pipeline.create();
 
     Create.TimestampedValues<String> transform =
         Create.timestamped(Arrays.asList(TimestampedValue.of("TestString", Instant.now())));
@@ -1067,9 +1071,10 @@ public class DataflowRunnerTest {
     thrown.expectMessage(
         "The DataflowRunner in " + mode + " mode does not support " + name);
 
-    Pipeline p = Pipeline.create(makeOptions(streaming));
+    PipelineOptions options = makeOptions(streaming);
+    Pipeline p = Pipeline.create();
     p.apply(source);
-    p.run();
+    p.run(options);
   }
 
   @Test
@@ -1092,9 +1097,9 @@ public class DataflowRunnerTest {
     options.setRunner(DataflowRunner.class);
     options.setTemplateLocation(existingFile.getPath());
     options.setTempLocation(tmpFolder.getRoot().getPath());
-    Pipeline p = Pipeline.create(options);
+    Pipeline p = Pipeline.create();
 
-    p.run();
+    p.run(options);
     expectedLogs.verifyInfo("Template successfully created");
   }
 
@@ -1112,10 +1117,10 @@ public class DataflowRunnerTest {
     options.setTempLocation(tmpFolder.getRoot().getPath());
     options.setGcpCredential(new TestCredential());
     options.setPathValidatorClass(NoopPathValidator.class);
-    Pipeline p = Pipeline.create(options);
+    Pipeline p = Pipeline.create();
 
     thrown.expectMessage("Cannot create output file at");
     thrown.expect(RuntimeException.class);
-    p.run();
+    p.run(options);
   }
 }

@@ -271,7 +271,7 @@ public class WriteWithShardingFactoryTest {
     public void validate(PipelineOptions options) {}
 
     @Override
-    public WriteOperation<Object, ?> createWriteOperation(PipelineOptions options) {
+    public WriteOperation<Object, ?> createWriteOperation() {
       throw new IllegalArgumentException("Should not be used");
     }
   }

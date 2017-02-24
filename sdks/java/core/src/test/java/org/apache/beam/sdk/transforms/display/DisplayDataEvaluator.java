@@ -98,7 +98,7 @@ public class DisplayDataEvaluator {
       input = (Create.Values<InputT>) Create.empty(VoidCoder.of());
     }
 
-    Pipeline pipeline = Pipeline.create(options);
+    Pipeline pipeline = Pipeline.create();
     pipeline
         .apply("Input", input)
         .apply("Transform", root);
@@ -115,7 +115,7 @@ public class DisplayDataEvaluator {
    */
   public Set<DisplayData> displayDataForPrimitiveSourceTransforms(
       final PTransform<? super PBegin, ? extends POutput> root) {
-    Pipeline pipeline = Pipeline.create(options);
+    Pipeline pipeline = Pipeline.create();
     pipeline.apply("SourceTransform", root);
 
     return displayDataForPipeline(pipeline, root);

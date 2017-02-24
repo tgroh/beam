@@ -33,7 +33,6 @@ import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.SerializableCoder;
 import org.apache.beam.sdk.io.Sink.WriteOperation;
 import org.apache.beam.sdk.io.Sink.Writer;
-import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.transforms.Create;
@@ -115,9 +114,7 @@ public class Write {
           IsBounded.BOUNDED == input.isBounded(),
           "%s can only be applied to a Bounded PCollection",
           Write.class.getSimpleName());
-      PipelineOptions options = input.getPipeline().getOptions();
-      sink.validate(options);
-      return createWrite(input, sink.createWriteOperation(options));
+      return createWrite(input, sink.createWriteOperation());
     }
 
     @Override
@@ -389,6 +386,7 @@ public class Write {
               new DoFn<WriteOperation<T, WriteT>, WriteOperation<T, WriteT>>() {
             @ProcessElement
             public void processElement(ProcessContext c) throws Exception {
+              sink.validate(c.getPipelineOptions());
               WriteOperation<T, WriteT> writeOperation = c.element();
               LOG.info("Initializing write operation {}", writeOperation);
               writeOperation.initialize(c.getPipelineOptions());
