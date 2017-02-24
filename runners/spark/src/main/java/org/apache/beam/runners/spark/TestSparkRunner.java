@@ -21,7 +21,12 @@ package org.apache.beam.runners.spark;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
+import java.util.List;
+import java.util.Map;
 import org.apache.beam.runners.core.UnboundedReadFromBoundedSource;
+import org.apache.beam.runners.core.construction.AssertionCountingVisitor;
+import org.apache.beam.runners.core.construction.PTransformMatchers;
+import org.apache.beam.runners.core.construction.ReplacementOutputs;
 import org.apache.beam.runners.spark.aggregators.AggregatorsAccumulator;
 import org.apache.beam.runners.spark.metrics.SparkMetricsContainer;
 import org.apache.beam.runners.spark.util.GlobalWatermarkHolder;
@@ -30,6 +35,7 @@ import org.apache.beam.sdk.PipelineResult.State;
 import org.apache.beam.sdk.io.BoundedReadFromUnboundedSource;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsValidator;
+import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipelineOptions;
@@ -38,9 +44,8 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.util.ValueWithRecordId;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.PInput;
-import org.apache.beam.sdk.values.POutput;
-
+import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TaggedPValue;
 
 /**
  * The SparkRunner translate operations defined on a pipeline to a representation executable
@@ -81,33 +86,21 @@ public final class TestSparkRunner extends PipelineRunner<SparkPipelineResult> {
     return new TestSparkRunner(sparkOptions);
   }
 
-  /**
-   * Overrides for the test runner.
-   */
-  @SuppressWarnings("unchecked")
   @Override
-  public <OutputT extends POutput, InputT extends PInput> OutputT apply(
-          PTransform<InputT, OutputT> transform, InputT input) {
+  public SparkPipelineResult run(Pipeline pipeline) {
     // if the pipeline forces execution as a streaming pipeline,
     // and the source is an adapted unbounded source (as bounded),
     // read it as unbounded source via UnboundedReadFromBoundedSource.
-    if (isForceStreaming && transform instanceof BoundedReadFromUnboundedSource) {
-      return (OutputT) delegate.apply(new AdaptedBoundedAsUnbounded(
-          (BoundedReadFromUnboundedSource) transform), input);
-    } else {
-      // no actual override, simply counts asserting transforms in the pipeline.
-      if (transform instanceof PAssert.OneSideInputAssert
-          || transform instanceof PAssert.GroupThenAssert
-          || transform instanceof PAssert.GroupThenAssertForSingleton) {
-        expectedNumberOfAssertions += 1;
-      }
-
-      return delegate.apply(transform, input);
+    if (isForceStreaming) {
+      pipeline.replace(
+          PTransformMatchers.classEqualTo(BoundedReadFromUnboundedSource.class),
+          new AdaptedBoundedAsUnbounded.Factory());
     }
-  }
 
-  @Override
-  public SparkPipelineResult run(Pipeline pipeline) {
+    AssertionCountingVisitor assertionCountingVisitor = AssertionCountingVisitor.create();
+    pipeline.traverseTopologically(assertionCountingVisitor);
+    expectedNumberOfAssertions = assertionCountingVisitor.getPAssertCount();
+
     // clear state of Aggregators, Metrics and Watermarks if exists.
     AggregatorsAccumulator.clear();
     SparkMetricsContainer.clear();
@@ -159,6 +152,26 @@ public final class TestSparkRunner extends PipelineRunner<SparkPipelineResult> {
       return (PCollection<T>) input.apply(replacingTransform)
           .apply("StripIds", ParDo.of(new ValueWithRecordId.StripIdsDoFn()));
     }
-  }
 
+    static class Factory<T>
+        implements PTransformOverrideFactory<
+            PBegin, PCollection<T>, BoundedReadFromUnboundedSource<T>> {
+      @Override
+      public PTransform<PBegin, PCollection<T>> getReplacementTransform(
+          BoundedReadFromUnboundedSource<T> transform) {
+        return new AdaptedBoundedAsUnbounded<>(transform);
+      }
+
+      @Override
+      public PBegin getInput(List<TaggedPValue> inputs, Pipeline p) {
+        return p.begin();
+      }
+
+      @Override
+      public Map<PValue, ReplacementOutput> mapOutputs(
+          List<TaggedPValue> outputs, PCollection<T> newOutput) {
+        return ReplacementOutputs.singleton(outputs, newOutput);
+      }
+    }
+  }
 }
