@@ -95,6 +95,16 @@ public class FlattenTest implements Serializable {
 
   @Test
   @Category(RunnableOnService.class)
+  public void testFlattenSingletonPCollectionList() {
+    PCollection<String> input = p.apply(Create.of(LINES));
+    PCollection<String> output = PCollectionList.of(input).apply(Flatten.<String>pCollections());
+
+    PAssert.that(output).containsInAnyOrder(LINES);
+    p.run();
+  }
+
+  @Test
+  @Category(RunnableOnService.class)
   public void testFlattenPCollectionListThenParDo() {
     List<List<String>> inputs = Arrays.asList(
       LINES, NO_LINES, LINES2, NO_LINES, LINES, NO_LINES);
