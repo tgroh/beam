@@ -456,13 +456,6 @@ public class Pipeline {
   }
 
   /**
-   * Returns the configured {@link PipelineRunner}.
-   */
-  public PipelineRunner<?> getRunner() {
-    return runner;
-  }
-
-  /**
    * Returns the configured {@link PipelineOptions}.
    */
   public PipelineOptions getOptions() {

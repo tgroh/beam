@@ -183,7 +183,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     Job job =
         DataflowPipelineTranslator.fromOptions(options)
             .translate(
-                p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList())
+                p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList())
             .getJob();
 
     Map<String, Object> sdkPipelineOptions = job.getEnvironment().getSdkPipelineOptions();
@@ -216,7 +216,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     Job job =
         DataflowPipelineTranslator.fromOptions(options)
             .translate(
-                p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList())
+                p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList())
             .getJob();
 
     assertEquals(1, job.getEnvironment().getWorkerPools().size());
@@ -233,7 +233,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     Job job =
         DataflowPipelineTranslator.fromOptions(options)
             .translate(
-                p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList())
+                p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList())
             .getJob();
 
     assertEquals(1, job.getEnvironment().getWorkerPools().size());
@@ -252,7 +252,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     Job job =
         DataflowPipelineTranslator.fromOptions(options)
             .translate(
-                p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList())
+                p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList())
             .getJob();
 
     assertEquals(1, job.getEnvironment().getWorkerPools().size());
@@ -269,7 +269,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     Job job =
         DataflowPipelineTranslator.fromOptions(options)
             .translate(
-                p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList())
+                p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList())
             .getJob();
 
     assertEquals(1, job.getEnvironment().getWorkerPools().size());
@@ -285,7 +285,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     Job job =
         DataflowPipelineTranslator.fromOptions(options)
             .translate(
-                p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList())
+                p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList())
             .getJob();
 
     assertEquals(1, job.getEnvironment().getWorkerPools().size());
@@ -321,7 +321,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     Job job =
         DataflowPipelineTranslator.fromOptions(options)
             .translate(
-                p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList())
+                p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList())
             .getJob();
 
     assertEquals(1, job.getEnvironment().getWorkerPools().size());
@@ -356,7 +356,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     Job job =
         DataflowPipelineTranslator.fromOptions(options)
             .translate(
-                p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList())
+                p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList())
             .getJob();
 
     assertEquals(1, job.getEnvironment().getWorkerPools().size());
@@ -390,7 +390,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     Job job =
         DataflowPipelineTranslator.fromOptions(options)
             .translate(
-                p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList())
+                p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList())
             .getJob();
 
     assertEquals(1, job.getEnvironment().getWorkerPools().size());
@@ -410,7 +410,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     Job job =
         DataflowPipelineTranslator.fromOptions(options)
             .translate(
-                p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList())
+                p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList())
             .getJob();
 
     assertEquals(1, job.getEnvironment().getWorkerPools().size());
@@ -431,7 +431,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     Job job =
         DataflowPipelineTranslator.fromOptions(options)
             .translate(
-                p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList())
+                p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList())
             .getJob();
 
     assertEquals(1, job.getEnvironment().getWorkerPools().size());
@@ -646,7 +646,8 @@ public class DataflowPipelineTranslatorTest implements Serializable {
 
   @Test
   public void testMultiGraphPipelineSerialization() throws Exception {
-    Pipeline p = Pipeline.create(buildPipelineOptions());
+    DataflowPipelineOptions options = buildPipelineOptions();
+    Pipeline p = Pipeline.create(options);
 
     PCollection<Integer> input = p.begin()
         .apply(Create.of(1, 2, 3));
@@ -659,7 +660,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
 
     // Check that translation doesn't fail.
     JobSpecification jobSpecification = t.translate(
-        p, (DataflowRunner) p.getRunner(), Collections.<DataflowPackage>emptyList());
+        p, DataflowRunner.fromOptions(options), Collections.<DataflowPackage>emptyList());
     assertAllStepOutputsHaveUniqueIds(jobSpecification.getJob());
   }
 
@@ -703,7 +704,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     // Check that translation doesn't fail.
     JobSpecification jobSpecification = t.translate(
         pipeline,
-        (DataflowRunner) pipeline.getRunner(),
+        DataflowRunner.fromOptions(options),
         Collections.<DataflowPackage>emptyList());
     assertAllStepOutputsHaveUniqueIds(jobSpecification.getJob());
   }
@@ -730,7 +731,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
         ThrowableMessageMatcher.hasMessage(containsString("Unsupported wildcard usage"))));
     t.translate(
         pipeline,
-        (DataflowRunner) pipeline.getRunner(),
+        DataflowRunner.fromOptions(options),
         Collections.<DataflowPackage>emptyList());
   }
 
@@ -757,7 +758,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     // Check that translation does not fail.
     t.translate(
         pipeline,
-        (DataflowRunner) pipeline.getRunner(),
+        DataflowRunner.fromOptions(options),
         Collections.<DataflowPackage>emptyList());
   }
 
@@ -778,7 +779,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
         translator
             .translate(
                 pipeline,
-                (DataflowRunner) pipeline.getRunner(),
+                DataflowRunner.fromOptions(options),
                 Collections.<DataflowPackage>emptyList())
             .getJob();
     assertAllStepOutputsHaveUniqueIds(job);
@@ -810,7 +811,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
         translator
             .translate(
                 pipeline,
-                (DataflowRunner) pipeline.getRunner(),
+                DataflowRunner.fromOptions(options),
                 Collections.<DataflowPackage>emptyList())
             .getJob();
     assertAllStepOutputsHaveUniqueIds(job);
@@ -939,7 +940,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
         translator
             .translate(
                 pipeline,
-                (DataflowRunner) pipeline.getRunner(),
+                DataflowRunner.fromOptions(options),
                 Collections.<DataflowPackage>emptyList())
             .getJob();
     assertAllStepOutputsHaveUniqueIds(job);
