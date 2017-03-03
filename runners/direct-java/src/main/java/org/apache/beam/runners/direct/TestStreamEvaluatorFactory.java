@@ -169,7 +169,7 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory {
 
     @Override
     public PTransform<PBegin, PCollection<T>> getReplacementTransform(
-        TestStream<T> transform) {
+        TestStream<T> transform, List<TaggedPValue> originalOutputs) {
       return new DirectTestStream<>(transform);
     }
 

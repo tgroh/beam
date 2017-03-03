@@ -435,7 +435,8 @@ public class Pipeline {
     // and its replacement.
     getOptions().setStableUniqueNames(CheckEnabled.OFF);
     PTransform<InputT, OutputT> replacement =
-        replacementFactory.getReplacementTransform((TransformT) original.getTransform());
+        replacementFactory.getReplacementTransform(
+            (TransformT) original.getTransform(), original.getOutputs());
     if (replacement == original.getTransform()) {
       return;
     }

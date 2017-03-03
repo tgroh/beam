@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import org.apache.beam.runners.core.construction.SingleInputOutputOverrideFactory;
 import org.apache.beam.runners.dataflow.internal.IsmFormat;
 import org.apache.beam.runners.dataflow.internal.IsmFormat.IsmRecord;
 import org.apache.beam.runners.dataflow.internal.IsmFormat.IsmRecordCoder;
@@ -64,6 +65,11 @@ import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.View;
+import org.apache.beam.sdk.transforms.View.AsIterable;
+import org.apache.beam.sdk.transforms.View.AsList;
+import org.apache.beam.sdk.transforms.View.AsMap;
+import org.apache.beam.sdk.transforms.View.AsMultimap;
+import org.apache.beam.sdk.transforms.View.AsSingleton;
 import org.apache.beam.sdk.transforms.View.CreatePCollectionView;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
@@ -189,11 +195,9 @@ class BatchViewOverrides {
     }
 
     private final DataflowRunner runner;
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
-    @SuppressWarnings("unused") // used via reflection in DataflowRunner#apply()
-    public BatchViewAsMap(DataflowRunner runner, View.AsMap<K, V> transform) {
+
+    /** Builds an instance of this class from the overridden transform. */
+    BatchViewAsMap(DataflowRunner runner) {
       this.runner = runner;
     }
 
@@ -259,6 +263,23 @@ class BatchViewOverrides {
           true,
           defaultValue,
           finalValueCoder);
+    }
+
+    static class Factory<K, V>
+        extends SingleInputOutputOverrideFactory<
+            PCollection<KV<K, V>>, PCollectionView<Map<K, V>>, View.AsMap<K, V>> {
+      private final DataflowRunner runner;
+
+      Factory(DataflowRunner runner) {
+        this.runner = runner;
+      }
+
+      @Override
+      protected PTransform<PCollection<KV<K, V>>, PCollectionView<Map<K, V>>>
+          getReplacementTransform(
+              AsMap<K, V> transform, PCollectionView<Map<K, V>> originalOutput) {
+        return new BatchViewAsMap<>(runner);
+      }
     }
   }
 
@@ -677,11 +698,8 @@ class BatchViewOverrides {
     }
 
     private final DataflowRunner runner;
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
-    @SuppressWarnings("unused") // used via reflection in DataflowRunner#apply()
-    public BatchViewAsMultimap(DataflowRunner runner, View.AsMultimap<K, V> transform) {
+    /** Builds an instance of this class from the overridden transform. */
+    BatchViewAsMultimap(DataflowRunner runner) {
       this.runner = runner;
     }
 
@@ -849,6 +867,23 @@ class BatchViewOverrides {
               BigEndianLongCoder.of()),
           FullWindowedValueCoder.of(valueCoder, windowCoder));
     }
+
+    static class Factory<K, V>
+        extends SingleInputOutputOverrideFactory<
+            PCollection<KV<K, V>>, PCollectionView<Map<K, Iterable<V>>>, View.AsMultimap<K, V>> {
+      private final DataflowRunner runner;
+
+      Factory(DataflowRunner runner) {
+        this.runner = runner;
+      }
+
+      @Override
+      protected PTransform<PCollection<KV<K, V>>, PCollectionView<Map<K, Iterable<V>>>>
+          getReplacementTransform(
+              AsMultimap<K, V> transform, PCollectionView<Map<K, Iterable<V>>> originalOutput) {
+        return new BatchViewAsMultimap<>(runner);
+      }
+    }
   }
 
   /**
@@ -913,11 +948,9 @@ class BatchViewOverrides {
 
     private final DataflowRunner runner;
     private final View.AsSingleton<T> transform;
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
-    @SuppressWarnings("unused") // used via reflection in DataflowRunner#apply()
-    public BatchViewAsSingleton(DataflowRunner runner, View.AsSingleton<T> transform) {
+    /** Builds an instance of this class from the overridden transform. */
+    public BatchViewAsSingleton(
+        DataflowRunner runner, View.AsSingleton<T> transform) {
       this.runner = runner;
       this.transform = transform;
     }
@@ -985,6 +1018,22 @@ class BatchViewOverrides {
           0, // There are no metadata records
           ImmutableList.<Coder<?>>of(windowCoder),
           FullWindowedValueCoder.of(valueCoder, windowCoder));
+    }
+
+    static class Factory<T>
+        extends SingleInputOutputOverrideFactory<
+            PCollection<T>, PCollectionView<T>, View.AsSingleton<T>> {
+      private final DataflowRunner runner;
+
+      Factory(DataflowRunner runner) {
+        this.runner = runner;
+      }
+
+      @Override
+      protected PTransform<PCollection<T>, PCollectionView<T>> getReplacementTransform(
+          AsSingleton<T> transform, PCollectionView<T> originalOutput) {
+        return new BatchViewAsSingleton<>(runner, transform);
+      }
     }
   }
 
@@ -1076,11 +1125,8 @@ class BatchViewOverrides {
     }
 
     private final DataflowRunner runner;
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
-    @SuppressWarnings("unused") // used via reflection in DataflowRunner#apply()
-    public BatchViewAsList(DataflowRunner runner, View.AsList<T> transform) {
+    /** Builds an instance of this class from the overridden transform. */
+    public BatchViewAsList(DataflowRunner runner) {
       this.runner = runner;
     }
 
@@ -1142,6 +1188,22 @@ class BatchViewOverrides {
           ImmutableList.of(windowCoder, BigEndianLongCoder.of()),
           FullWindowedValueCoder.of(valueCoder, windowCoder));
     }
+
+    static class Factory<T>
+        extends SingleInputOutputOverrideFactory<
+            PCollection<T>, PCollectionView<List<T>>, View.AsList<T>> {
+      private final DataflowRunner runner;
+
+      Factory(DataflowRunner runner) {
+        this.runner = runner;
+      }
+
+      @Override
+      protected PTransform<PCollection<T>, PCollectionView<List<T>>> getReplacementTransform(
+          AsList<T> transform, PCollectionView<List<T>> originalOutput) {
+        return new BatchViewAsList<>(runner);
+      }
+    }
   }
 
   /**
@@ -1161,11 +1223,8 @@ class BatchViewOverrides {
       extends PTransform<PCollection<T>, PCollectionView<Iterable<T>>> {
 
     private final DataflowRunner runner;
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
-    @SuppressWarnings("unused") // used via reflection in DataflowRunner#apply()
-    public BatchViewAsIterable(DataflowRunner runner, View.AsIterable<T> transform) {
+    /** Builds an instance of this class from the overridden transform. */
+    BatchViewAsIterable(DataflowRunner runner) {
       this.runner = runner;
     }
 
@@ -1174,6 +1233,22 @@ class BatchViewOverrides {
       PCollectionView<Iterable<T>> view = PCollectionViews.iterableView(
           input.getPipeline(), input.getWindowingStrategy(), input.getCoder());
       return BatchViewAsList.applyForIterableLike(runner, input, view);
+    }
+
+    static class Factory<T>
+        extends SingleInputOutputOverrideFactory<
+            PCollection<T>, PCollectionView<Iterable<T>>, View.AsIterable<T>> {
+      private final DataflowRunner runner;
+
+      Factory(DataflowRunner runner) {
+        this.runner = runner;
+      }
+
+      @Override
+      protected PTransform<PCollection<T>, PCollectionView<Iterable<T>>> getReplacementTransform(
+          AsIterable<T> transform, PCollectionView<Iterable<T>> originalOutput) {
+        return new BatchViewAsIterable<>(runner);
+      }
     }
   }
 

@@ -58,7 +58,8 @@ public class PrimitiveCreate<T> extends PTransform<PBegin, PCollection<T>> {
   public static class Factory<T>
       implements PTransformOverrideFactory<PBegin, PCollection<T>, Values<T>> {
     @Override
-    public PTransform<PBegin, PCollection<T>> getReplacementTransform(Values<T> transform) {
+    public PTransform<PBegin, PCollection<T>> getReplacementTransform(
+        Values<T> transform, List<TaggedPValue> originalOutputs) {
       return new PrimitiveCreate<>(transform);
     }
 

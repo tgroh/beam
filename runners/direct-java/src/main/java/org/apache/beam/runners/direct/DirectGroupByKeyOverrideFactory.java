@@ -30,7 +30,7 @@ final class DirectGroupByKeyOverrideFactory<K, V>
         PCollection<KV<K, V>>, PCollection<KV<K, Iterable<V>>>, GroupByKey<K, V>> {
   @Override
   public PTransform<PCollection<KV<K, V>>, PCollection<KV<K, Iterable<V>>>> getReplacementTransform(
-      GroupByKey<K, V> transform) {
+      GroupByKey<K, V> transform, PCollection<KV<K, Iterable<V>>> originalOutput) {
     return new DirectGroupByKey<>(transform);
   }
 }

@@ -24,38 +24,33 @@ import java.util.Map;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.values.PBegin;
+import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TaggedPValue;
 
-/**
- * A {@link PTransformOverrideFactory} which consumes from a {@link PValue} and produces a
- * {@link PValue}. {@link #getInput(List, Pipeline)} and {@link #mapOutputs(List, PValue)} are
- * implemented.
- */
-public abstract class SingleInputOutputOverrideFactory<
-        InputT extends PValue,
-        OutputT extends PValue,
-        TransformT extends PTransform<InputT, OutputT>>
-    implements PTransformOverrideFactory<InputT, OutputT, TransformT> {
-
-  protected abstract PTransform<InputT, OutputT> getReplacementTransform(
-      TransformT transform, OutputT originalOutput);
+/** Created by tgroh on 3/3/17. */
+public abstract class SingleOutputRootOverrideFactory<
+        T, TransformT extends PTransform<PBegin, PCollection<T>>>
+    implements PTransformOverrideFactory<PBegin, PCollection<T>, TransformT> {
+  public abstract PTransform<PBegin, PCollection<T>> getReplacementTransform(
+      TransformT transform, PCollection<T> originalOutput);
 
   @Override
-  public final PTransform<InputT, OutputT> getReplacementTransform(
+  public final PTransform<PBegin, PCollection<T>> getReplacementTransform(
       TransformT transform, List<TaggedPValue> originalOutputs) {
     PValue originalOutput = Iterables.getOnlyElement(originalOutputs).getValue();
-    return getReplacementTransform(transform, (OutputT) originalOutput);
+    return getReplacementTransform(transform, (PCollection<T>) originalOutput);
   }
 
   @Override
-  public final InputT getInput(List<TaggedPValue> inputs, Pipeline p) {
-    return (InputT) Iterables.getOnlyElement(inputs).getValue();
+  public final PBegin getInput(List<TaggedPValue> inputs, Pipeline p) {
+    return p.begin();
   }
 
   @Override
   public final Map<PValue, ReplacementOutput> mapOutputs(
-      List<TaggedPValue> outputs, OutputT newOutput) {
+      List<TaggedPValue> outputs, PCollection<T> newOutput) {
     return ReplacementOutputs.singleton(outputs, newOutput);
   }
 }

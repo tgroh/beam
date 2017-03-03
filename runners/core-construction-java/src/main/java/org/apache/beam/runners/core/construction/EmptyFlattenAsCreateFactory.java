@@ -51,7 +51,7 @@ public class EmptyFlattenAsCreateFactory<T>
 
   @Override
   public PTransform<PCollectionList<T>, PCollection<T>> getReplacementTransform(
-      Flatten.PCollections<T> transform) {
+      Flatten.PCollections<T> transform, List<TaggedPValue> originalOutputs) {
     return (PTransform) Create.empty(VoidCoder.of());
   }
 

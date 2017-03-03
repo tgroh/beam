@@ -41,9 +41,11 @@ public interface PTransformOverrideFactory<
     OutputT extends POutput,
     TransformT extends PTransform<? super InputT, OutputT>> {
   /**
-   * Returns a {@link PTransform} that produces equivalent output to the provided transform.
+   * Returns a {@link PTransform} that produces equivalent output to the provided transform. The
+   * original outputs of the transform are also provided for
    */
-  PTransform<InputT, OutputT> getReplacementTransform(TransformT transform);
+  PTransform<InputT, OutputT> getReplacementTransform(
+      TransformT transform, List<TaggedPValue> originalOutputs);
 
   /**
    * Returns the composite type that replacement transforms consumed from an equivalent expansion.

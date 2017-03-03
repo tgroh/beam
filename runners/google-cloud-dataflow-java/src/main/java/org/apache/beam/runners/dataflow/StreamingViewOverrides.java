@@ -18,10 +18,13 @@
 
 package org.apache.beam.runners.dataflow;
 
+import static com.google.common.base.Ascii.SO;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.apache.beam.runners.core.construction.SingleInputOutputOverrideFactory;
 import org.apache.beam.runners.dataflow.DataflowRunner.StreamingPCollectionViewWriterFn;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.Coder.NonDeterministicException;
@@ -34,7 +37,11 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.View;
-import org.apache.beam.sdk.util.PCollectionViews;
+import org.apache.beam.sdk.transforms.View.AsIterable;
+import org.apache.beam.sdk.transforms.View.AsList;
+import org.apache.beam.sdk.transforms.View.AsMap;
+import org.apache.beam.sdk.transforms.View.AsMultimap;
+import org.apache.beam.sdk.transforms.View.AsSingleton;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
@@ -46,7 +53,8 @@ import org.apache.beam.sdk.values.PCollectionView;
 class StreamingViewOverrides {
   static class StreamingCombineGloballyAsSingletonView<InputT, OutputT>
       extends PTransform<PCollection<InputT>, PCollectionView<OutputT>> {
-    Combine.GloballyAsSingletonView<InputT, OutputT> transform;
+    private final Combine.GloballyAsSingletonView<InputT, OutputT> transform;
+    private final PCollectionView<OutputT> view;
 
     /**
      * Builds an instance of this class from the overridden transform.
@@ -54,8 +62,10 @@ class StreamingViewOverrides {
     @SuppressWarnings("unused") // used via reflection in DataflowRunner#apply()
     public StreamingCombineGloballyAsSingletonView(
         DataflowRunner runner,
-        Combine.GloballyAsSingletonView<InputT, OutputT> transform) {
+        Combine.GloballyAsSingletonView<InputT, OutputT> transform,
+        PCollectionView<OutputT> originalOutput) {
       this.transform = transform;
+      this.view = originalOutput;
     }
 
     @Override
@@ -65,13 +75,6 @@ class StreamingViewOverrides {
               .withoutDefaults()
               .withFanout(transform.getFanout()));
 
-      PCollectionView<OutputT> view = PCollectionViews.singletonView(
-          combined.getPipeline(),
-          combined.getWindowingStrategy(),
-          transform.getInsertDefault(),
-          transform.getInsertDefault()
-              ? transform.getCombineFn().defaultValue() : null,
-          combined.getCoder());
       return combined
           .apply(ParDo.of(new WrapAsList<OutputT>()))
           .apply(ParDo.of(StreamingPCollectionViewWriterFn.create(view, combined.getCoder())))
@@ -99,20 +102,17 @@ class StreamingViewOverrides {
   static class StreamingViewAsMap<K, V>
       extends PTransform<PCollection<KV<K, V>>, PCollectionView<Map<K, V>>> {
     private final DataflowRunner runner;
+    private final PCollectionView<Map<K, V>> view;
 
-    @SuppressWarnings("unused") // used via reflection in DataflowRunner#apply()
-    public StreamingViewAsMap(DataflowRunner runner, View.AsMap<K, V> transform) {
+    private StreamingViewAsMap(
+        DataflowRunner runner,
+        PCollectionView<Map<K, V>> originalOutput) {
       this.runner = runner;
+      this.view = originalOutput;
     }
 
     @Override
     public PCollectionView<Map<K, V>> expand(PCollection<KV<K, V>> input) {
-      PCollectionView<Map<K, V>> view =
-          PCollectionViews.mapView(
-              input.getPipeline(),
-              input.getWindowingStrategy(),
-              input.getCoder());
-
       @SuppressWarnings({"rawtypes", "unchecked"})
       KvCoder<K, V> inputCoder = (KvCoder) input.getCoder();
       try {
@@ -131,33 +131,44 @@ class StreamingViewOverrides {
     protected String getKindString() {
       return "StreamingViewAsMap";
     }
+
+    static class Factory<K, V>
+        extends SingleInputOutputOverrideFactory<
+            PCollection<KV<K, V>>, PCollectionView<Map<K, V>>, View.AsMap<K, V>> {
+      private final DataflowRunner runner;
+
+      Factory(DataflowRunner runner) {
+        this.runner = runner;
+      }
+
+      @Override
+      protected PTransform<PCollection<KV<K, V>>, PCollectionView<Map<K, V>>> getReplacementTransform(
+          AsMap<K, V> transform, PCollectionView<Map<K, V>> originalOutput) {
+        return new StreamingViewAsMap<>(runner, originalOutput);
+      }
+    }
   }
 
   /**
-   * Specialized expansion for {@link
-   * org.apache.beam.sdk.transforms.View.AsMultimap View.AsMultimap} for the
-   * Dataflow runner in streaming mode.
+   * Specialized expansion for {@link org.apache.beam.sdk.transforms.View.AsMultimap
+   * View.AsMultimap} for the Dataflow runner in streaming mode.
    */
   static class StreamingViewAsMultimap<K, V>
       extends PTransform<PCollection<KV<K, V>>, PCollectionView<Map<K, Iterable<V>>>> {
     private final DataflowRunner runner;
+    private final PCollectionView<Map<K, Iterable<V>>> view;
 
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
+    /** Builds an instance of this class from the overridden transform. */
     @SuppressWarnings("unused") // used via reflection in DataflowRunner#apply()
-    public StreamingViewAsMultimap(DataflowRunner runner, View.AsMultimap<K, V> transform) {
+    public StreamingViewAsMultimap(
+        DataflowRunner runner,
+        PCollectionView<Map<K, Iterable<V>>> originalOutput) {
       this.runner = runner;
+      this.view = originalOutput;
     }
 
     @Override
     public PCollectionView<Map<K, Iterable<V>>> expand(PCollection<KV<K, V>> input) {
-      PCollectionView<Map<K, Iterable<V>>> view =
-          PCollectionViews.multimapView(
-              input.getPipeline(),
-              input.getWindowingStrategy(),
-              input.getCoder());
-
       @SuppressWarnings({"rawtypes", "unchecked"})
       KvCoder<K, V> inputCoder = (KvCoder) input.getCoder();
       try {
@@ -176,29 +187,38 @@ class StreamingViewOverrides {
     protected String getKindString() {
       return "StreamingViewAsMultimap";
     }
+
+    static class Factory<K, V>
+        extends SingleInputOutputOverrideFactory<
+            PCollection<KV<K, V>>, PCollectionView<Map<K, Iterable<V>>>, View.AsMultimap<K, V>> {
+      private final DataflowRunner runner;
+
+      Factory(DataflowRunner runner) {
+        this.runner = runner;
+      }
+
+      @Override
+      protected PTransform<PCollection<KV<K, V>>, PCollectionView<Map<K, Iterable<V>>>> getReplacementTransform(
+          AsMultimap<K, V> transform, PCollectionView<Map<K, Iterable<V>>> originalOutput) {
+        return new StreamingViewAsMultimap<>(runner, originalOutput);
+      }
+    }
   }
 
   /**
-   * Specialized implementation for
-   * {@link org.apache.beam.sdk.transforms.View.AsList View.AsList} for the
-   * Dataflow runner in streaming mode.
+   * Specialized implementation for {@link org.apache.beam.sdk.transforms.View.AsList View.AsList}
+   * for the Dataflow runner in streaming mode.
    */
-  static class StreamingViewAsList<T>
-      extends PTransform<PCollection<T>, PCollectionView<List<T>>> {
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
-    @SuppressWarnings("unused") // used via reflection in DataflowRunner#apply()
-    public StreamingViewAsList(DataflowRunner runner, View.AsList<T> transform) {}
+  static class StreamingViewAsList<T> extends PTransform<PCollection<T>, PCollectionView<List<T>>> {
+    private final PCollectionView<List<T>> view;
+
+    /** Builds an instance of this class from the overridden transform. */
+    public StreamingViewAsList(PCollectionView<List<T>> originalOutput) {
+      this.view = originalOutput;
+    }
 
     @Override
     public PCollectionView<List<T>> expand(PCollection<T> input) {
-      PCollectionView<List<T>> view =
-          PCollectionViews.listView(
-              input.getPipeline(),
-              input.getWindowingStrategy(),
-              input.getCoder());
-
       return input.apply(Combine.globally(new Concatenate<T>()).withoutDefaults())
           .apply(ParDo.of(StreamingPCollectionViewWriterFn.create(view, input.getCoder())))
           .apply(View.CreatePCollectionView.<T, List<T>>of(view));
@@ -207,6 +227,16 @@ class StreamingViewOverrides {
     @Override
     protected String getKindString() {
       return "StreamingViewAsList";
+    }
+
+    static class Factory<T>
+        extends SingleInputOutputOverrideFactory<
+            PCollection<T>, PCollectionView<List<T>>, View.AsList<T>> {
+      @Override
+      protected PTransform<PCollection<T>, PCollectionView<List<T>>> getReplacementTransform(
+          AsList<T> transform, PCollectionView<List<T>> originalOutput) {
+        return new StreamingViewAsList<>(originalOutput);
+      }
     }
   }
 
@@ -217,20 +247,14 @@ class StreamingViewOverrides {
    */
   static class StreamingViewAsIterable<T>
       extends PTransform<PCollection<T>, PCollectionView<Iterable<T>>> {
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
-    @SuppressWarnings("unused") // used via reflection in DataflowRunner#apply()
-    public StreamingViewAsIterable(DataflowRunner runner, View.AsIterable<T> transform) { }
+    private final PCollectionView<Iterable<T>> view;
+
+    StreamingViewAsIterable(PCollectionView<Iterable<T>> originalOutput) {
+      this.view = originalOutput;
+    }
 
     @Override
     public PCollectionView<Iterable<T>> expand(PCollection<T> input) {
-      PCollectionView<Iterable<T>> view =
-          PCollectionViews.iterableView(
-              input.getPipeline(),
-              input.getWindowingStrategy(),
-              input.getCoder());
-
       return input.apply(Combine.globally(new Concatenate<T>()).withoutDefaults())
           .apply(ParDo.of(StreamingPCollectionViewWriterFn.create(view, input.getCoder())))
           .apply(View.CreatePCollectionView.<T, Iterable<T>>of(view));
@@ -239,6 +263,16 @@ class StreamingViewOverrides {
     @Override
     protected String getKindString() {
       return "StreamingViewAsIterable";
+    }
+
+    static class Factory<T>
+        extends SingleInputOutputOverrideFactory<
+            PCollection<T>, PCollectionView<Iterable<T>>, View.AsIterable<T>> {
+      @Override
+      protected PTransform<PCollection<T>, PCollectionView<Iterable<T>>> getReplacementTransform(
+          AsIterable<T> transform, PCollectionView<Iterable<T>> originalOutput) {
+        return new StreamingViewAsIterable<>(originalOutput);
+      }
     }
   }
 
@@ -251,18 +285,18 @@ class StreamingViewOverrides {
       extends PTransform<PCollection<T>, PCollectionView<T>> {
     private View.AsSingleton<T> transform;
 
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
+    /** Builds an instance of this class from the overridden transform. */
     @SuppressWarnings("unused") // used via reflection in DataflowRunner#apply()
-    public StreamingViewAsSingleton(DataflowRunner runner, View.AsSingleton<T> transform) {
+    public StreamingViewAsSingleton(
+        View.AsSingleton<T> transform, PCollectionView<T> originalOutput) {
       this.transform = transform;
     }
 
     @Override
     public PCollectionView<T> expand(PCollection<T> input) {
-      Combine.Globally<T, T> combine = Combine.globally(
-          new SingletonCombine<>(transform.hasDefaultValue(), transform.defaultValue()));
+      Combine.Globally<T, T> combine =
+          Combine.globally(
+              new SingletonCombine<>(transform.hasDefaultValue(), transform.defaultValue()));
       if (!transform.hasDefaultValue()) {
         combine = combine.withoutDefaults();
       }
@@ -299,6 +333,14 @@ class StreamingViewOverrides {
               "Empty PCollection accessed as a singleton view. "
                   + "Consider setting withDefault to provide a default value");
         }
+      }
+    }
+
+    static class Factory<T> extends SingleInputOutputOverrideFactory<PCollection<T>, PCollectionView<T>, View.AsSingleton<T>> {
+      @Override
+      protected PTransform<PCollection<T>, PCollectionView<T>> getReplacementTransform(
+          AsSingleton<T> transform, PCollectionView<T> originalOutput) {
+        return new StreamingViewAsSingleton<>(originalOutput);
       }
     }
   }

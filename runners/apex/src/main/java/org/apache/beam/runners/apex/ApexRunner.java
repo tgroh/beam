@@ -260,7 +260,8 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
             Combine.GloballyAsSingletonView<InputT, OutputT>> {
       @Override
       public PTransform<PCollection<InputT>, PCollectionView<OutputT>> getReplacementTransform(
-          GloballyAsSingletonView<InputT, OutputT> transform) {
+          GloballyAsSingletonView<InputT, OutputT> transform,
+          PCollectionView<OutputT> originalOutput) {
         return new StreamingCombineGloballyAsSingletonView<>(transform);
       }
     }
@@ -323,7 +324,7 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
             PCollection<T>, PCollectionView<T>, View.AsSingleton<T>> {
       @Override
       public PTransform<PCollection<T>, PCollectionView<T>> getReplacementTransform(
-          AsSingleton<T> transform) {
+          AsSingleton<T> transform, PCollectionView<T> originalOutput) {
         return new StreamingViewAsSingleton<>(transform);
       }
     }
@@ -354,7 +355,7 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
             PCollection<T>, PCollectionView<Iterable<T>>, View.AsIterable<T>> {
       @Override
       public PTransform<PCollection<T>, PCollectionView<Iterable<T>>> getReplacementTransform(
-          AsIterable<T> transform) {
+          AsIterable<T> transform, PCollectionView<Iterable<T>> originalOutput) {
         return new StreamingViewAsIterable<>();
       }
     }

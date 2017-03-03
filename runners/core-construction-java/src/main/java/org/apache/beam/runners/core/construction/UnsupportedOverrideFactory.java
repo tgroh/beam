@@ -55,7 +55,8 @@ public final class UnsupportedOverrideFactory<
   }
 
   @Override
-  public PTransform<InputT, OutputT> getReplacementTransform(TransformT transform) {
+  public PTransform<InputT, OutputT> getReplacementTransform(
+      TransformT transform, List<TaggedPValue> originalOutputs) {
     throw new UnsupportedOperationException(message);
   }
 

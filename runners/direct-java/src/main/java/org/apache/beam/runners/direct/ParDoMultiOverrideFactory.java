@@ -65,7 +65,7 @@ class ParDoMultiOverrideFactory<InputT, OutputT>
   @Override
   @SuppressWarnings("unchecked")
   public PTransform<PCollection<? extends InputT>, PCollectionTuple> getReplacementTransform(
-      BoundMulti<InputT, OutputT> transform) {
+      BoundMulti<InputT, OutputT> transform, List<TaggedPValue> originalOutputs) {
 
     DoFn<InputT, OutputT> fn = transform.getFn();
     DoFnSignature signature = DoFnSignatures.getSignature(fn.getClass());

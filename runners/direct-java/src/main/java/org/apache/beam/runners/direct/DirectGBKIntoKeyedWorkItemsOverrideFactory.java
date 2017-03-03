@@ -34,7 +34,9 @@ class DirectGBKIntoKeyedWorkItemsOverrideFactory<KeyT, InputT>
         GBKIntoKeyedWorkItems<KeyT, InputT>> {
   @Override
   public PTransform<PCollection<KV<KeyT, InputT>>, PCollection<KeyedWorkItem<KeyT, InputT>>>
-      getReplacementTransform(GBKIntoKeyedWorkItems<KeyT, InputT> transform) {
+      getReplacementTransform(
+          GBKIntoKeyedWorkItems<KeyT, InputT> transform,
+          PCollection<KeyedWorkItem<KeyT, InputT>> originalOutput) {
     return new DirectGroupByKey.DirectGroupByKeyOnly<>();
   }
 }

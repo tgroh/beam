@@ -53,8 +53,7 @@ class WriteWithShardingFactory<InputT>
 
   @Override
   public PTransform<PCollection<InputT>, PDone> getReplacementTransform(
-      Write<InputT> transform) {
-
+      Write<InputT> transform, List<TaggedPValue> originalOutputs) {
       return transform.withSharding(new LogElementShardsWithDrift<InputT>());
   }
 

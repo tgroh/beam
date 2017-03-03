@@ -56,7 +56,8 @@ public class SingleInputOutputOverrideFactoryTest implements Serializable {
               MapElements<Integer, Integer>>() {
             @Override
             public PTransform<PCollection<? extends Integer>, PCollection<Integer>>
-                getReplacementTransform(MapElements<Integer, Integer> transform) {
+                getReplacementTransform(
+                    MapElements<Integer, Integer> transform, PCollection<Integer> originalOutput) {
               return transform;
             }
           };

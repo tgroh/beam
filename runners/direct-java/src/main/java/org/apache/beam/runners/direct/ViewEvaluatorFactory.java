@@ -101,7 +101,7 @@ class ViewEvaluatorFactory implements TransformEvaluatorFactory {
                 PCollection<ElemT>, PCollectionView<ViewT>, CreatePCollectionView<ElemT, ViewT>> {
     @Override
     public PTransform<PCollection<ElemT>, PCollectionView<ViewT>> getReplacementTransform(
-        CreatePCollectionView<ElemT, ViewT> transform) {
+        CreatePCollectionView<ElemT, ViewT> transform, PCollectionView<ViewT> originalOutputs) {
       return new DirectCreatePCollectionView<>(transform);
     }
   }

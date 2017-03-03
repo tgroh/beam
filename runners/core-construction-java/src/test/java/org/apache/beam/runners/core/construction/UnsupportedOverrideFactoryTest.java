@@ -22,6 +22,9 @@ import java.util.Collections;
 import org.apache.beam.sdk.coders.VoidCoder;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.Create;
+import org.apache.beam.sdk.util.WindowingStrategy;
+import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PCollection.IsBounded;
 import org.apache.beam.sdk.values.PDone;
 import org.apache.beam.sdk.values.TaggedPValue;
 import org.junit.Rule;
@@ -46,7 +49,11 @@ public class UnsupportedOverrideFactoryTest {
   public void getReplacementTransformThrows() {
     thrown.expect(UnsupportedOperationException.class);
     thrown.expectMessage(message);
-    factory.getReplacementTransform(Create.empty(VoidCoder.of()));
+    factory.getReplacementTransform(
+        Create.empty(VoidCoder.of()),
+        PCollection.createPrimitiveOutputInternal(
+                pipeline, WindowingStrategy.globalDefault(), IsBounded.BOUNDED)
+            .expand());
   }
 
   @Test

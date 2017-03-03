@@ -36,7 +36,7 @@ class ParDoSingleViaMultiOverrideFactory<InputT, OutputT>
             PCollection<? extends InputT>, PCollection<OutputT>, Bound<InputT, OutputT>> {
   @Override
   public PTransform<PCollection<? extends InputT>, PCollection<OutputT>> getReplacementTransform(
-      Bound<InputT, OutputT> transform) {
+      Bound<InputT, OutputT> transform, PCollection<OutputT> originalOutput) {
     return new ParDoSingleViaMulti<>(transform);
   }
 
