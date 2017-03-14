@@ -28,6 +28,7 @@ import static org.junit.Assert.assertThat;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.base.Function;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -45,11 +46,13 @@ import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.MapCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.io.CountingInput;
 import org.apache.beam.sdk.testing.NeedsRunner;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.RunnableOnService;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
 import org.apache.beam.sdk.transforms.windowing.InvalidWindows;
 import org.apache.beam.sdk.transforms.windowing.OutputTimeFns;
@@ -62,6 +65,7 @@ import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.beam.sdk.values.TypeDescriptor;
+import org.hamcrest.Matchers;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.junit.Assert;
@@ -146,6 +150,144 @@ public class GroupByKeyTest {
 
     PAssert.that(output)
         .satisfies(new AssertThatHasExpectedContentsForTestGroupByKeyAndWindows());
+
+    p.run();
+  }
+
+  @Test
+  @Category(RunnableOnService.class)
+  public void testGroupByKeyReassignsTimestamp() {
+    PCollection<KV<String, Iterable<Long>>> grouped =
+        p.apply(CountingInput.upTo(5L))
+            .apply(
+                WithTimestamps.of(
+                    new SerializableFunction<Long, Instant>() {
+                      @Override
+                      public Instant apply(Long input) {
+                        return new Instant(input);
+                      }
+                    }))
+            .apply(WithKeys.<String, Long>of("key"))
+            .apply(GroupByKey.<String, Long>create());
+
+    grouped.apply(
+        ParDo.of(
+            new DoFn<KV<String, Iterable<Long>>, Void>() {
+              @ProcessElement
+              public void assertTimestamp(ProcessContext context, BoundedWindow window) {
+                assertThat(context.timestamp(), Matchers.equalTo(window.maxTimestamp()));
+              }
+            }));
+
+    PAssert.that(grouped)
+        .containsInAnyOrder(
+            KV.<String, Iterable<Long>>of("key", ImmutableSet.<Long>of(0L, 1L, 2L, 3L, 4L)));
+
+    p.run();
+  }
+
+  @Test
+  @Category(RunnableOnService.class)
+  public void testGroupByKeyReassignsTimestampWithOutputTimeFn() {
+    PCollection<KV<String, Iterable<Long>>> grouped =
+        p.apply(CountingInput.upTo(5L))
+            .apply(
+                WithTimestamps.of(
+                    new SerializableFunction<Long, Instant>() {
+                      @Override
+                      public Instant apply(Long input) {
+                        return new Instant(input);
+                      }
+                    }))
+            .apply(Window.<Long>withOutputTimeFn(OutputTimeFns.outputAtEarliestInputTimestamp()))
+            .apply(WithKeys.<String, Long>of("key"))
+            .apply(GroupByKey.<String, Long>create());
+
+    grouped.apply(
+        ParDo.of(
+            new DoFn<KV<String, Iterable<Long>>, Void>() {
+              @ProcessElement
+              public void assertTimestamp(ProcessContext context) {
+                assertThat(context.timestamp(), Matchers.equalTo(new Instant(0L)));
+              }
+            }));
+
+    PAssert.that(grouped)
+        .containsInAnyOrder(
+            KV.<String, Iterable<Long>>of("key", ImmutableSet.<Long>of(0L, 1L, 2L, 3L, 4L)));
+
+    p.run();
+  }
+
+  @Test
+  @Category(RunnableOnService.class)
+  public void testGroupByKeyReassignsTimestampInWindow() {
+    PCollection<KV<String, Iterable<Long>>> grouped =
+        p.apply(CountingInput.upTo(5L))
+            .apply(
+                WithTimestamps.of(
+                    new SerializableFunction<Long, Instant>() {
+                      @Override
+                      public Instant apply(Long input) {
+                        return new Instant(input);
+                      }
+                    }))
+            .apply(Window.<Long>into(FixedWindows.of(Duration.millis(3L))))
+            .apply(WithKeys.<String, Long>of("key"))
+            .apply(GroupByKey.<String, Long>create());
+
+    grouped.apply(
+        ParDo.of(
+            new DoFn<KV<String, Iterable<Long>>, Void>() {
+              @ProcessElement
+              public void assertTimestamp(ProcessContext context, BoundedWindow window) {
+                assertThat(
+                    context.timestamp(), Matchers.equalTo(new Instant(window.maxTimestamp())));
+              }
+            }));
+
+    PAssert.that(grouped)
+        .containsInAnyOrder(
+            KV.<String, Iterable<Long>>of("key", ImmutableSet.<Long>of(0L, 1L, 2L, 3L, 4L)));
+
+    p.run();
+  }
+
+  @Test
+  @Category(RunnableOnService.class)
+  public void testGroupByKeyReassignsTimestampInWindowWithOutputTimeFn() {
+    PCollection<KV<String, Iterable<Long>>> grouped =
+        p.apply(CountingInput.upTo(5L))
+            .apply(
+                WithTimestamps.of(
+                    new SerializableFunction<Long, Instant>() {
+                      @Override
+                      public Instant apply(Long input) {
+                        return new Instant(input);
+                      }
+                    }))
+            .apply(
+                Window.<Long>into(FixedWindows.of(Duration.millis(3L)))
+                    .withOutputTimeFn(OutputTimeFns.outputAtEarliestInputTimestamp()))
+            .apply(WithKeys.<String, Long>of("key"))
+            .apply(GroupByKey.<String, Long>create());
+
+    grouped.apply(
+        ParDo.of(
+            new DoFn<KV<String, Iterable<Long>>, Void>() {
+              @ProcessElement
+              public void assertTimestamp(ProcessContext context) {
+                long minValue = Long.MAX_VALUE;
+                for (Long groupedLong : context.element().getValue()) {
+                  minValue = Math.min(minValue, groupedLong);
+                }
+                assertThat(context.timestamp(), Matchers.equalTo(new Instant(minValue)));
+              }
+            }));
+
+    PAssert.that(grouped)
+        .containsInAnyOrder(
+            KV.<String, Iterable<Long>>of("key", ImmutableSet.<Long>of(0L, 1L, 2L, 3L, 4L)));
 
     p.run();
   }
