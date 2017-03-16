@@ -482,6 +482,33 @@ public class WindowTest implements Serializable {
   }
 
   @Test
+  @Category(RunnableOnService.class)
+  public void testPrimitiveDisplayDataWindowFnUnchanged() {
+    AfterWatermark.FromEndOfWindow triggerBuilder = AfterWatermark.pastEndOfWindow();
+    Duration allowedLateness = Duration.standardMinutes(10);
+    Window.ClosingBehavior closingBehavior = Window.ClosingBehavior.FIRE_IF_NON_EMPTY;
+    OutputTimeFn<BoundedWindow> outputTimeFn = OutputTimeFns.outputAtEndOfWindow();
+
+    Window.Bound<?> window = Window
+        .triggering(triggerBuilder)
+        .accumulatingFiredPanes()
+        .withAllowedLateness(allowedLateness, closingBehavior)
+        .withOutputTimeFn(outputTimeFn);
+
+    DisplayData primitiveDisplayData =
+        Iterables.getOnlyElement(
+            DisplayDataEvaluator.create().displayDataForPrimitiveTransforms(window));
+
+    assertThat(primitiveDisplayData, hasDisplayItem("trigger", triggerBuilder.toString()));
+    assertThat(primitiveDisplayData,
+        hasDisplayItem("accumulationMode", AccumulationMode.ACCUMULATING_FIRED_PANES.toString()));
+    assertThat(primitiveDisplayData,
+        hasDisplayItem("allowedLateness", allowedLateness));
+    assertThat(primitiveDisplayData, hasDisplayItem("closingBehavior", closingBehavior.toString()));
+    assertThat(primitiveDisplayData, hasDisplayItem("outputTimeFn", outputTimeFn.getClass()));
+  }
+
+  @Test
   public void testAssignDisplayDataUnchanged() {
     FixedWindows windowFn = FixedWindows.of(Duration.standardHours(5));
 
