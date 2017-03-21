@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.testing;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 import com.fasterxml.jackson.core.JsonParser;
@@ -30,6 +31,7 @@ import com.google.common.base.Predicates;
 import com.google.common.base.Strings;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.Iterators;
+import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -99,7 +101,7 @@ import org.junit.runners.model.Statement;
  */
 public class TestPipeline extends Pipeline implements TestRule {
 
-  private static class PipelineRunEnforcement {
+  private static class PipelineRunEnforcement implements Closeable {
 
     @SuppressWarnings("WeakerAccess")
     protected boolean enableAutoRunIfMissing;
@@ -116,14 +118,15 @@ public class TestPipeline extends Pipeline implements TestRule {
       enableAutoRunIfMissing = enable;
     }
 
-    protected void afterPipelineExecution() {
-      runInvoked = true;
-    }
-
     protected void afterTestCompletion() {
       if (!runInvoked && enableAutoRunIfMissing) {
         pipeline.run().waitUntilFinish();
       }
+    }
+
+    @Override
+    public void close() {
+      runInvoked = true;
     }
   }
 
@@ -196,9 +199,9 @@ public class TestPipeline extends Pipeline implements TestRule {
     }
 
     @Override
-    protected void afterPipelineExecution() {
+    public void close() {
       runVisitedNodes = recordPipelineNodes(pipeline);
-      super.afterPipelineExecution();
+      super.close();
     }
 
     @Override
@@ -231,8 +234,19 @@ public class TestPipeline extends Pipeline implements TestRule {
   static final String PROPERTY_USE_DEFAULT_DUMMY_RUNNER = "beamUseDummyRunner";
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-  private Optional<? extends PipelineRunEnforcement> enforcement = Optional.absent();
+  // Set in the first call to Pipeline.run()
+  private PipelineRunEnforcement enforcement;
+  private EnforcementStrategy enforcementStrategy = new DefaultEnforcementStrategy();
+
+  private interface EnforcementStrategy {
+    PipelineRunEnforcement getEnforcement();
+  }
+  private class DefaultEnforcementStrategy implements EnforcementStrategy {
+    @Override
+    public PipelineRunEnforcement getEnforcement() {
+      return new PipelineRunEnforcement(TestPipeline.this);
+    }
+  }
 
   /**
    * Creates and returns a new test pipeline.
@@ -259,7 +273,7 @@ public class TestPipeline extends Pipeline implements TestRule {
 
       private void setDeducedEnforcementLevel() {
         // if the enforcement level has not been set by the user do auto-inference
-        if (!enforcement.isPresent()) {
+        if (enforcementStrategy instanceof DefaultEnforcementStrategy) {
 
           final boolean annotatedWithNeedsRunner =
               FluentIterable.from(description.getAnnotations())
@@ -285,7 +299,7 @@ public class TestPipeline extends Pipeline implements TestRule {
       public void evaluate() throws Throwable {
         setDeducedEnforcementLevel();
         statement.evaluate();
-        enforcement.get().afterTestCompletion();
+        enforcement.afterTestCompletion();
       }
     };
   }
@@ -296,12 +310,13 @@ public class TestPipeline extends Pipeline implements TestRule {
    */
   @Override
   public PipelineResult run() {
-    checkState(
-        enforcement.isPresent(),
-        "Is your TestPipeline declaration missing a @Rule annotation? Usage: "
-        + "@Rule public final transient TestPipeline pipeline = TestPipeline.Create();");
-
-    try {
+    try (@SuppressWarnings("unused") // obtained to be automatically closed
+        PipelineRunEnforcement openedEnforcement = enforcementStrategy.getEnforcement()) {
+      enforcement = openedEnforcement;
+      checkNotNull(
+          enforcement,
+          "Is your TestPipeline declaration missing a @Rule annotation? Usage: "
+              + "@Rule public final transient TestPipeline pipeline = TestPipeline.Create();");
       return super.run();
     } catch (RuntimeException exc) {
       Throwable cause = exc.getCause();
@@ -310,8 +325,6 @@ public class TestPipeline extends Pipeline implements TestRule {
       } else {
         throw exc;
       }
-    } finally {
-      enforcement.get().afterPipelineExecution();
     }
   }
 
@@ -319,20 +332,26 @@ public class TestPipeline extends Pipeline implements TestRule {
    * Enables the abandoned node detection. Abandoned nodes are <code>PTransforms</code>, <code>
    * PAsserts</code> included, that were not executed by the pipeline runner. Abandoned nodes are
    * most likely to occur due to the one of the following scenarios:
+   *
    * <ul>
-   * <li>Lack of a <code>pipeline.run()</code> statement at the end of a test.
-   * <li>Addition of PTransforms after the pipeline has already run.
+   *   <li>Lack of a <code>pipeline.run()</code> statement at the end of a test.
+   *   <li>Addition of PTransforms after the pipeline has already run.
    * </ul>
+   *
    * Abandoned node detection is automatically enabled when a real pipeline runner (i.e. not a
    * {@link CrashingRunner}) and/or a {@link NeedsRunner} or a {@link RunnableOnService} annotation
    * are detected.
    */
   public TestPipeline enableAbandonedNodeEnforcement(final boolean enable) {
-    enforcement =
-        enable
-            ? Optional.of(new PipelineAbandonedNodeEnforcement(this))
-            : Optional.of(new PipelineRunEnforcement(this));
-
+    enforcementStrategy =
+        new EnforcementStrategy() {
+          @Override
+          public PipelineRunEnforcement getEnforcement() {
+            return enable
+                ? new PipelineAbandonedNodeEnforcement(TestPipeline.this)
+                : new PipelineRunEnforcement(TestPipeline.this);
+          }
+        };
     return this;
   }
 
@@ -341,7 +360,7 @@ public class TestPipeline extends Pipeline implements TestRule {
    * missing in the test.
    */
   public TestPipeline enableAutoRunIfMissing(final boolean enable) {
-    enforcement.get().enableAutoRunIfMissing(enable);
+    enforcement.enableAutoRunIfMissing(enable);
     return this;
   }
 
