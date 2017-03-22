@@ -19,6 +19,7 @@ package org.apache.beam.sdk.transforms.reflect;
 
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderRegistry;
+import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.DoFn.FinishBundle;
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement;
@@ -112,6 +113,11 @@ public interface DoFnInvoker<InputT, OutputT> {
     DoFn<InputT, OutputT>.OnTimerContext onTimerContext(DoFn<InputT, OutputT> doFn);
 
     /**
+     * Provide the {@link PipelineOptions} of the pipeline.
+     */
+    PipelineOptions getPipelineOptions();
+
+    /**
      * If this is a splittable {@link DoFn}, returns the {@link RestrictionTracker} associated with
      * the current {@link ProcessElement} call.
      */
@@ -143,6 +149,11 @@ public interface DoFnInvoker<InputT, OutputT> {
 
     @Override
     public DoFn<InputT, OutputT>.OnTimerContext onTimerContext(DoFn<InputT, OutputT> doFn) {
+      return null;
+    }
+
+    @Override
+    public PipelineOptions getPipelineOptions() {
       return null;
     }
 

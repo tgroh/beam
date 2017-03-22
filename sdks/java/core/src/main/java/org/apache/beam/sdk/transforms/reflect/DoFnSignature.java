@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.DoFn.ProcessContinuation;
 import org.apache.beam.sdk.transforms.DoFn.StateId;
@@ -184,6 +185,8 @@ public abstract class DoFnSignature {
         return cases.dispatch((ProcessContextParameter) this);
       } else if (this instanceof OnTimerContextParameter) {
         return cases.dispatch((OnTimerContextParameter) this);
+      } else if (this instanceof PipelineOptionsParameter) {
+        return cases.dispatch((PipelineOptionsParameter) this);
       } else if (this instanceof WindowParameter) {
         return cases.dispatch((WindowParameter) this);
       } else if (this instanceof RestrictionTrackerParameter) {
@@ -205,6 +208,7 @@ public abstract class DoFnSignature {
     public interface Cases<ResultT> {
       ResultT dispatch(ContextParameter p);
       ResultT dispatch(ProcessContextParameter p);
+      ResultT dispatch(PipelineOptionsParameter p);
       ResultT dispatch(OnTimerContextParameter p);
       ResultT dispatch(WindowParameter p);
       ResultT dispatch(RestrictionTrackerParameter p);
@@ -230,6 +234,11 @@ public abstract class DoFnSignature {
 
         @Override
         public ResultT dispatch(OnTimerContextParameter p) {
+          return dispatchDefault(p);
+        }
+
+        @Override
+        public ResultT dispatch(PipelineOptionsParameter p) {
           return dispatchDefault(p);
         }
 
@@ -330,6 +339,17 @@ public abstract class DoFnSignature {
     public abstract static class OnTimerContextParameter extends Parameter {
       OnTimerContextParameter() {}
     }
+
+    /**
+     * Descriptor for a {@link Parameter} of type {@link PipelineOptions}.
+     *
+     * <p>All such descriptors are equal.
+     */
+    @AutoValue
+    public abstract static class PipelineOptionsParameter extends Parameter {
+      PipelineOptionsParameter() {}
+    }
+
     /**
      * Descriptor for a {@link Parameter} of type {@link BoundedWindow}.
      *
