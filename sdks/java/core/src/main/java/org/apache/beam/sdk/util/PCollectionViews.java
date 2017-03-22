@@ -42,6 +42,7 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.PValueBase;
 import org.apache.beam.sdk.values.TupleTag;
+import org.apache.beam.sdk.values.ViewMultimap;
 
 /**
  * Implementations of {@link PCollectionView} shared across the SDK.
@@ -54,15 +55,16 @@ public class PCollectionViews {
    * Returns a {@code PCollectionView<T>} capable of processing elements encoded using the provided
    * {@link Coder} and windowed using the provided * {@link WindowingStrategy}.
    *
-   * <p>If {@code hasDefault} is {@code true}, then the view will take on the value
-   * {@code defaultValue} for any empty windows.
+   * <p>If {@code hasDefault} is {@code true}, then the view will take on the value {@code
+   * defaultValue} for any empty windows.
    */
-  public static <T, W extends BoundedWindow> PCollectionView<T> singletonView(
-      Pipeline pipeline,
-      WindowingStrategy<?, W> windowingStrategy,
-      boolean hasDefault,
-      @Nullable T defaultValue,
-      Coder<T> valueCoder) {
+  public static <T, W extends BoundedWindow>
+      PCollectionView<T, ViewMultimap<Void, T>, T> singletonView(
+          Pipeline pipeline,
+          WindowingStrategy<?, W> windowingStrategy,
+          boolean hasDefault,
+          @Nullable T defaultValue,
+          Coder<T> valueCoder) {
     // TODO: as soon as runners are ported off the indicator classes,
     // return new SimplePCollectionView<>(
     //    pipeline,

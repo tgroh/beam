@@ -18,61 +18,48 @@
 package org.apache.beam.sdk.values;
 
 import java.io.Serializable;
-import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.transforms.ViewFn;
-import org.apache.beam.sdk.util.WindowedValue;
-import org.apache.beam.sdk.util.WindowingStrategy;
 
 /**
  * A {@link PCollectionView PCollectionView&lt;T&gt;} is an immutable view of a {@link PCollection}
- * as a value of type {@code T} that can be accessed
- * as a side input to a {@link ParDo} transform.
+ * as a value of type {@code T} that can be accessed as a side input to a {@link ParDo} transform. A
+ * {@link PCollectionView} consists of a {@link ViewFn}, a WindowMappingFn
  *
- * <p>A {@link PCollectionView} should always be the output of a
- * {@link org.apache.beam.sdk.transforms.PTransform}. It is the joint responsibility of
- * this transform and each {@link org.apache.beam.sdk.runners.PipelineRunner} to implement
- * the view in a runner-specific manner.
+ * <p>It is the responsibility of each {@link org.apache.beam.sdk.runners.PipelineRunner} to
+ * implement the view in a runner-specific manner.
  *
- * <p>The most common case is using the {@link View} transforms to prepare a {@link PCollection}
- * for use as a side input to {@link ParDo}. See {@link View#asSingleton()},
- * {@link View#asIterable()}, and {@link View#asMap()} for more detail on specific views
- * available in the SDK.
+ * <p>The most common case is using the {@link View} transforms to prepare a {@link PCollection} for
+ * use as a side input to {@link ParDo}. See {@link View#asSingleton()}, {@link View#asIterable()},
+ * and {@link View#asMap()} for more detail on specific views available in the SDK.
  *
- * @param <T> the type of the value(s) accessible via this {@link PCollectionView}
+ * @param <ViewT> the type of the value(s) accessible via this {@link PCollectionView}
  */
-public interface PCollectionView<T> extends PValue, Serializable {
+public interface PCollectionView<ElemT, PrimitiveViewT, ViewT> extends PValue, Serializable {
   /**
-   * @deprecated this method will be removed entirely. The {@link PCollection} underlying a side
-   *     input, is part of the side input's specification with a {@link ParDo} transform, which will
-   *     obtain that information via a package-private channel.
+   * Get a {@link TupleTag} that specifies this {@link PCollectionView}.
+   *
+   * <p>{@link PCollectionView PCollectionViews} with the same tag are considered to be equal.
    */
-  @Deprecated
-  TupleTag<Iterable<WindowedValue<?>>> getTagInternal();
+  TupleTag<ViewT> getTag();
 
   /**
-   * @deprecated this method will be removed entirely. The {@link ViewFn} for a side input is an
-   *     attribute of the side input's specification with a {@link ParDo} transform, which will
-   *     obtain this specification via a package-private channel.
+   * Get the {@link PCollection} to be materialized and provided to the {@link ViewFn} to create
+   * the view.
    */
-  @Deprecated
-  ViewFn<Iterable<WindowedValue<?>>, T> getViewFn();
+  PCollection<ElemT> getPCollection();
 
   /**
-   * @deprecated this method will be removed entirely. The {@link PCollection} underlying a side
-   *     input, including its {@link WindowingStrategy}, is part of the side input's specification
-   *     with a {@link ParDo} transform, which will obtain that information via a package-private
-   *     channel.
+   * Gets the {@link ViewFn} capable of adapting the {@link PrimitiveViewT} of the materialized
+   * {@link PCollection} into a {@link ViewT}.
    */
-  @Deprecated
-  WindowingStrategy<?, ?> getWindowingStrategyInternal();
+  ViewFn<PrimitiveViewT, ViewT> getViewFn();
 
   /**
-   * @deprecated this method will be removed entirely. The {@link PCollection} underlying a side
-   *     input, including its {@link Coder}, is part of the side input's specification with a {@link
-   *     ParDo} transform, which will obtain that information via a package-private channel.
+   * The possible Materialization Strategies for a view.
    */
-  @Deprecated
-  Coder<Iterable<WindowedValue<?>>> getCoderInternal();
+  enum MaterializationStrategy {
+    MULTIMAP;
+  }
 }
