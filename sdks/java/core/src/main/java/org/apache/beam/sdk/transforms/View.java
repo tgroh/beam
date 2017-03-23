@@ -19,8 +19,6 @@ package org.apache.beam.sdk.transforms;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.beam.sdk.runners.PipelineRunner;
-import org.apache.beam.sdk.runners.TransformHierarchy.Node;
 import org.apache.beam.sdk.util.PCollectionViews;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
@@ -160,8 +158,8 @@ public class View {
    * element, throws {@link IllegalArgumentException} in the
    * consuming {@link DoFn}.
    */
-  public static <T> AsSingleton<T> asSingleton() {
-    return new AsSingleton<>();
+  public static <T> PCollectionView<T> asSingleton(PCollection<T> singleton) {
+    return PCollectionViews.singletonView(singleton, false, null);
   }
 
   /**
@@ -171,8 +169,8 @@ public class View {
    *
    * <p>The resulting list is required to fit in memory.
    */
-  public static <T> AsList<T> asList() {
-    return new AsList<>();
+  public static <T> PCollectionView<List<T>> asList(PCollection<T> pCollection) {
+    return PCollectionViews.listView(pCollection);
   }
 
   /**
@@ -184,8 +182,8 @@ public class View {
    * but they may also not be effectively cached. If it is known that every window fits in memory,
    * and stronger caching is desired, use {@link #asList}.
    */
-  public static <T> AsIterable<T> asIterable() {
-    return new AsIterable<>();
+  public static <T> PCollectionView<Iterable<T>> asIterable(PCollection<T> pCollection) {
+    return PCollectionViews.iterableView(pCollection);
   }
 
   /**
@@ -208,249 +206,26 @@ public class View {
    *
    * <p>Currently, the resulting map is required to fit into memory.
    */
-  public static <K, V> AsMap<K, V> asMap() {
-    return new AsMap<K, V>();
+  public static <K, V> PCollectionView<Map<K, V>> asMap(PCollection<KV<K, V>> pCollection) {
+    return PCollectionViews.mapView(pCollection);
   }
 
   /**
-   * Returns a {@link View.AsMultimap} transform that takes a
-   * {@link PCollection PCollection&lt;KV&lt;K, V&gt;&gt;}
-   * as input and produces a {@link PCollectionView} mapping
-   * each window to its contents as a {@link Map Map&lt;K, Iterable&lt;V&gt;&gt;}
-   * for use as a side input.
-   * In contrast to {@link View#asMap()}, it is not required that the keys in the
-   * input collection be unique.
+   * Returns a {@link View.AsMultimap} transform that takes a {@link PCollection
+   * PCollection&lt;KV&lt;K, V&gt;&gt;} as input and produces a {@link PCollectionView} mapping each
+   * window to its contents as a {@link Map Map&lt;K, Iterable&lt;V&gt;&gt;} for use as a side
+   * input. In contrast to {@link View#asMap()}, it is not required that the keys in the input
+   * collection be unique.
    *
-   * <pre>
-   * {@code
+   * <pre>{@code
    * PCollection<KV<K, V>> input = ... // maybe more than one occurrence of a some keys
    * PCollectionView<Map<K, V>> output = input.apply(View.<K, V>asMultimap());
    * }</pre>
    *
    * <p>Currently, the resulting map is required to fit into memory.
    */
-  public static <K, V> AsMultimap<K, V> asMultimap() {
-    return new AsMultimap<K, V>();
-  }
-
-  /**
-   * Not intended for direct use by pipeline authors; public only so a {@link PipelineRunner} may
-   * override its behavior.
-   *
-   * <p>See {@link View#asList()}.
-   */
-  public static class AsList<T> extends PTransform<PCollection<T>, PCollectionView<List<T>>> {
-    private AsList() { }
-
-    @Override
-    public void validate(PCollection<T> input) {
-      try {
-        GroupByKey.applicableTo(input);
-      } catch (IllegalStateException e) {
-        throw new IllegalStateException("Unable to create a side-input view from input", e);
-      }
-    }
-
-    @Override
-    public PCollectionView<List<T>> expand(PCollection<T> input) {
-      return input.apply(CreatePCollectionView.<T, List<T>>of(PCollectionViews.listView(
-          input.getPipeline(), input.getWindowingStrategy(), input.getCoder())));
-    }
-  }
-
-  /**
-   * Not intended for direct use by pipeline authors; public only so a {@link PipelineRunner} may
-   * override its behavior.
-   *
-   * <p>See {@link View#asIterable()}.
-   */
-  public static class AsIterable<T>
-      extends PTransform<PCollection<T>, PCollectionView<Iterable<T>>> {
-    private AsIterable() { }
-
-    @Override
-    public void validate(PCollection<T> input) {
-      try {
-        GroupByKey.applicableTo(input);
-      } catch (IllegalStateException e) {
-        throw new IllegalStateException("Unable to create a side-input view from input", e);
-      }
-    }
-
-    @Override
-    public PCollectionView<Iterable<T>> expand(PCollection<T> input) {
-      return input.apply(CreatePCollectionView.<T, Iterable<T>>of(PCollectionViews.iterableView(
-          input.getPipeline(), input.getWindowingStrategy(), input.getCoder())));
-    }
-  }
-
-  /**
-   * Not intended for direct use by pipeline authors; public only so a {@link PipelineRunner} may
-   * override its behavior.
-   *
-   * <p>See {@link View#asSingleton()}.
-   */
-  public static class AsSingleton<T> extends PTransform<PCollection<T>, PCollectionView<T>> {
-    private final T defaultValue;
-    private final boolean hasDefault;
-
-    private AsSingleton() {
-      this.defaultValue = null;
-      this.hasDefault = false;
-    }
-
-    private AsSingleton(T defaultValue) {
-      this.defaultValue = defaultValue;
-      this.hasDefault = true;
-    }
-
-    /**
-     * Returns whether this transform has a default value.
-     */
-    public boolean hasDefaultValue() {
-      return hasDefault;
-    }
-
-    /**
-     * Returns the default value of this transform, or null if there isn't one.
-     */
-    public T defaultValue() {
-      return defaultValue;
-    }
-
-    /**
-     * Default value to return for windows with no value in them.
-     */
-    public AsSingleton<T> withDefaultValue(T defaultValue) {
-      return new AsSingleton<>(defaultValue);
-    }
-
-    @Override
-    public void validate(PCollection<T> input) {
-      try {
-        GroupByKey.applicableTo(input);
-      } catch (IllegalStateException e) {
-        throw new IllegalStateException("Unable to create a side-input view from input", e);
-      }
-    }
-
-    @Override
-    public PCollectionView<T> expand(PCollection<T> input) {
-      return input.apply(CreatePCollectionView.<T, T>of(PCollectionViews.singletonView(
-          input.getPipeline(),
-          input.getWindowingStrategy(),
-          hasDefault,
-          defaultValue,
-          input.getCoder())));
-    }
-  }
-
-  /**
-   * Not intended for direct use by pipeline authors; public only so a {@link PipelineRunner} may
-   * override its behavior.
-   *
-   * <p>See {@link View#asMultimap()}.
-   */
-  public static class AsMultimap<K, V>
-      extends PTransform<PCollection<KV<K, V>>, PCollectionView<Map<K, Iterable<V>>>> {
-    private AsMultimap() { }
-
-    @Override
-    public void validate(PCollection<KV<K, V>> input) {
-      try {
-        GroupByKey.applicableTo(input);
-      } catch (IllegalStateException e) {
-        throw new IllegalStateException("Unable to create a side-input view from input", e);
-      }
-    }
-
-    @Override
-    public PCollectionView<Map<K, Iterable<V>>> expand(PCollection<KV<K, V>> input) {
-      return input.apply(CreatePCollectionView.<KV<K, V>, Map<K, Iterable<V>>>of(
-          PCollectionViews.multimapView(
-              input.getPipeline(),
-              input.getWindowingStrategy(),
-              input.getCoder())));
-    }
-  }
-
-  /**
-   * Not intended for direct use by pipeline authors; public only so a {@link PipelineRunner} may
-   * override its behavior.
-   *
-   * <p>See {@link View#asMap()}.
-   */
-  public static class AsMap<K, V>
-      extends PTransform<PCollection<KV<K, V>>, PCollectionView<Map<K, V>>> {
-    private AsMap() { }
-
-    /**
-     * @deprecated this method simply returns this AsMap unmodified
-     */
-    @Deprecated()
-    public AsMap<K, V> withSingletonValues() {
-      return this;
-    }
-
-    @Override
-    public void validate(PCollection<KV<K, V>> input) {
-      try {
-        GroupByKey.applicableTo(input);
-      } catch (IllegalStateException e) {
-        throw new IllegalStateException("Unable to create a side-input view from input", e);
-      }
-    }
-
-    @Override
-    public PCollectionView<Map<K, V>> expand(PCollection<KV<K, V>> input) {
-      return input.apply(CreatePCollectionView.<KV<K, V>, Map<K, V>>of(
-          PCollectionViews.mapView(
-              input.getPipeline(),
-              input.getWindowingStrategy(),
-              input.getCoder())));
-    }
-  }
-
-  ////////////////////////////////////////////////////////////////////////////
-  // Internal details below
-
-  /**
-   * Creates a primitive {@link PCollectionView}.
-   *
-   * <p>For internal use only by runner implementors.
-   *
-   * @param <ElemT> The type of the elements of the input PCollection
-   * @param <ViewT> The type associated with the {@link PCollectionView} used as a side input
-   */
-  public static class CreatePCollectionView<ElemT, ViewT>
-      extends PTransform<PCollection<ElemT>, PCollectionView<ViewT>> {
-    private PCollectionView<ViewT> view;
-
-    private CreatePCollectionView(PCollectionView<ViewT> view) {
-      this.view = view;
-    }
-
-    public static <ElemT, ViewT> CreatePCollectionView<ElemT, ViewT> of(
-        PCollectionView<ViewT> view) {
-      return new CreatePCollectionView<>(view);
-    }
-
-    /**
-     * Return the {@link PCollectionView} that is returned by applying this {@link PTransform}.
-     *
-     * <p>This should not be used to obtain the output of any given application of this
-     * {@link PTransform}. That should be obtained by inspecting the {@link Node}
-     * that contains this {@link CreatePCollectionView}, as this view may have been replaced within
-     * pipeline surgery.
-     */
-    @Deprecated
-    public PCollectionView<ViewT> getView() {
-      return view;
-    }
-
-    @Override
-    public PCollectionView<ViewT> expand(PCollection<ElemT> input) {
-      return view;
-    }
+  public static <K, V> PCollectionView<Map<K, Iterable<V>>> asMultimap(
+      PCollection<KV<K, V>> pCollection) {
+    return PCollectionViews.multimapView(pCollection);
   }
 }

@@ -22,6 +22,7 @@ import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.transforms.ViewFn;
+import org.apache.beam.sdk.transforms.windowing.WindowMappingFn;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.WindowingStrategy;
 
@@ -66,7 +67,7 @@ public interface PCollectionView<T> extends PValue, Serializable {
    *     channel.
    */
   @Deprecated
-  WindowingStrategy<?, ?> getWindowingStrategyInternal();
+  WindowMappingFn<?> getWindowMappingFn();
 
   /**
    * @deprecated this method will be removed entirely. The {@link PCollection} underlying a side
