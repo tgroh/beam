@@ -696,7 +696,7 @@ class BatchViewOverrides {
       KvCoder<K, V> inputCoder = (KvCoder) input.getCoder();
       try {
         PCollectionView<Map<K, Iterable<V>>> view = PCollectionViews.multimapView(
-            input.getPipeline(), input.getWindowingStrategy(), inputCoder);
+            input.getPipeline(), input.getWindowingStrategy(), inputCoder, windowMappingFn);
 
         return applyForMapLike(runner, input, view, false /* unique keys not expected */);
       } catch (NonDeterministicException e) {

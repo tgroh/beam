@@ -106,7 +106,7 @@ class FlinkStreamingViewOverrides {
           PCollectionViews.multimapView(
               input.getPipeline(),
               input.getWindowingStrategy(),
-              input.getCoder());
+              input.getCoder(), windowMappingFn);
 
       @SuppressWarnings({"rawtypes", "unchecked"})
       KvCoder<K, V> inputCoder = (KvCoder) input.getCoder();

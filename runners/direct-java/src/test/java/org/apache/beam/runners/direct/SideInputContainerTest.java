@@ -209,7 +209,7 @@ public class SideInputContainerTest {
         PCollectionViews.multimapView(
             pipeline,
             WindowingStrategy.globalDefault(),
-            KvCoder.of(StringUtf8Coder.of(), StringUtf8Coder.of()));
+            KvCoder.of(StringUtf8Coder.of(), StringUtf8Coder.of()), windowMappingFn);
 
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage("with unknown views " + ImmutableList.of(newView).toString());
@@ -223,7 +223,7 @@ public class SideInputContainerTest {
         PCollectionViews.multimapView(
             pipeline,
             WindowingStrategy.globalDefault(),
-            KvCoder.of(StringUtf8Coder.of(), StringUtf8Coder.of()));
+            KvCoder.of(StringUtf8Coder.of(), StringUtf8Coder.of()), windowMappingFn);
 
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage("unknown views");
