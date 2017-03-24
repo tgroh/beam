@@ -139,7 +139,7 @@ public class PCollectionViews {
    * language-independent metadata of the {@link ViewFn}.
    */
   @Deprecated
-  public static class SingletonPCollectionView<T, W extends BoundedWindow>
+  private static class SingletonPCollectionView<T, W extends BoundedWindow>
       extends SimplePCollectionView<T, T, W> {
     public SingletonPCollectionView(
         Pipeline pipeline,
@@ -167,7 +167,7 @@ public class PCollectionViews {
    * language-independent metadata of the {@link ViewFn}.
    */
   @Deprecated
-  public static class IterablePCollectionView<ElemT, W extends BoundedWindow>
+  private static class IterablePCollectionView<ElemT, W extends BoundedWindow>
       extends SimplePCollectionView<ElemT, Iterable<ElemT>, W> {
     public IterablePCollectionView(
         Pipeline pipeline, WindowingStrategy<?, W> windowingStrategy, Coder<ElemT> valueCoder) {
@@ -183,7 +183,7 @@ public class PCollectionViews {
    * language-independent metadata of the {@link ViewFn}.
    */
   @Deprecated
-  public static class ListPCollectionView<ElemT, W extends BoundedWindow>
+  private static class ListPCollectionView<ElemT, W extends BoundedWindow>
       extends SimplePCollectionView<ElemT, List<ElemT>, W> {
     public ListPCollectionView(
         Pipeline pipeline, WindowingStrategy<?, W> windowingStrategy, Coder<ElemT> valueCoder) {
@@ -199,7 +199,7 @@ public class PCollectionViews {
    * language-independent metadata of the {@link ViewFn}.
    */
   @Deprecated
-  public static class MapPCollectionView<K, V, W extends BoundedWindow>
+  private static class MapPCollectionView<K, V, W extends BoundedWindow>
       extends SimplePCollectionView<KV<K, V>, Map<K, V>, W> {
     public MapPCollectionView(
         Pipeline pipeline, WindowingStrategy<?, W> windowingStrategy, Coder<KV<K, V>> valueCoder) {
@@ -215,7 +215,7 @@ public class PCollectionViews {
    * language-independent metadata of the {@link ViewFn}.
    */
   @Deprecated
-  public static class MultimapPCollectionView<K, V, W extends BoundedWindow>
+  private static class MultimapPCollectionView<K, V, W extends BoundedWindow>
       extends SimplePCollectionView<KV<K, V>, Map<K, Iterable<V>>, W> {
     public MultimapPCollectionView(
         Pipeline pipeline, WindowingStrategy<?, W> windowingStrategy, Coder<KV<K, V>> valueCoder) {
