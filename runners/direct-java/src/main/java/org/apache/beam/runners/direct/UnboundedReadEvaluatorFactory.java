@@ -41,6 +41,7 @@ import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
+import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
@@ -152,7 +153,12 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
             toClose.close();
             residual =
                 UnboundedSourceShard.of(
-                    shard.getSource(), shard.getDeduplicator(), null, finishedCheckpoint);
+                    shard.getSource(),
+                    shard.getDeduplicator(),
+                    Resumption.<OutputT>forReader(
+                        CoderUtils.encodeToByteArray(
+                            shard.getSource().getCheckpointMarkCoder(), finishedCheckpoint)),
+                    finishedCheckpoint);
           } else {
             residual = shard.withCheckpoint(finishedCheckpoint);
           }
@@ -170,7 +176,7 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
                       UnboundedSourceShard.of(
                           shard.getSource(),
                           shard.getDeduplicator(),
-                          reader,
+                          Resumption.forReader(reader),
                           shard.getCheckpoint()),
                       reader.getWatermark())));
         }
@@ -184,24 +190,29 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
 
     private UnboundedReader<OutputT> getReader(UnboundedSourceShard<OutputT, CheckpointMarkT> shard)
         throws IOException {
-      UnboundedReader<OutputT> existing = shard.getExistingReader();
-      if (existing == null) {
-        CheckpointMarkT checkpoint = shard.getCheckpoint();
+      if (shard.getResumption() == null || shard.getResumption().getReader() == null) {
+        CheckpointMarkT checkpoint = null;
+        if (shard.getResumption() != null && shard.getResumption().getEncodedCheckpoint() != null) {
+          checkpoint =
+              CoderUtils.decodeFromByteArray(
+                  shard.getSource().getCheckpointMarkCoder(),
+                  shard.getResumption().getEncodedCheckpoint());
+        }
         return shard
             .getSource()
             .createReader(evaluationContext.getPipelineOptions(), checkpoint);
       } else {
-        return existing;
+        return shard.getResumption().getReader();
       }
     }
 
     private boolean startReader(
         UnboundedReader<OutputT> reader, UnboundedSourceShard<OutputT, CheckpointMarkT> shard)
         throws IOException {
-      if (shard.getExistingReader() == null) {
+      if (shard.getResumption() == null || shard.getResumption().getReader() == null) {
         return reader.start();
       } else {
-        return shard.getExistingReader().advance();
+        return shard.getResumption().getReader().advance();
       }
     }
 
@@ -260,10 +271,10 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
     static <T, CheckpointT extends CheckpointMark> UnboundedSourceShard<T, CheckpointT> of(
         UnboundedSource<T, CheckpointT> source,
         UnboundedReadDeduplicator deduplicator,
-        @Nullable UnboundedReader<T> reader,
+        @Nullable Resumption<T> resumption,
         @Nullable CheckpointT checkpoint) {
       return new AutoValue_UnboundedReadEvaluatorFactory_UnboundedSourceShard<>(
-          source, deduplicator, reader, checkpoint);
+          source, deduplicator, resumption, checkpoint);
     }
 
     abstract UnboundedSource<T, CheckpointT> getSource();
@@ -271,14 +282,29 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
     abstract UnboundedReadDeduplicator getDeduplicator();
 
     @Nullable
-    abstract UnboundedReader<T> getExistingReader();
-
+    abstract Resumption<T> getResumption();
     @Nullable
     abstract CheckpointT getCheckpoint();
 
     UnboundedSourceShard<T, CheckpointT> withCheckpoint(CheckpointT newCheckpoint) {
-      return of(getSource(), getDeduplicator(), getExistingReader(), newCheckpoint);
+      return of(getSource(), getDeduplicator(), getResumption(), newCheckpoint);
     }
+  }
+
+  @AutoValue
+  abstract static class Resumption<T> {
+    public static <T> Resumption<T> forReader(UnboundedReader<T> reader) {
+      return new AutoValue_UnboundedReadEvaluatorFactory_Resumption<T>(reader, null);
+    }
+
+    public static <T> Resumption<T> forReader(byte[] checkpoint) {
+      return new AutoValue_UnboundedReadEvaluatorFactory_Resumption<T>(null, checkpoint);
+    }
+
+    @Nullable
+    abstract UnboundedReader<T> getReader();
+    @Nullable
+    abstract byte[] getEncodedCheckpoint();
   }
 
   static class InputProvider<OutputT>
