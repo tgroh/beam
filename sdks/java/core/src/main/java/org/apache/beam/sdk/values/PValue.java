@@ -51,5 +51,6 @@ public interface PValue extends POutput, PInput {
    *     output
    * @param upstreamTransform the {@link PTransform} that produced this {@link PValue}
    */
-  void finishSpecifying(PInput upstreamInput, PTransform<?, ?> upstreamTransform);
+  void finishSpecifying(
+      String producerName, PInput upstreamInput, PTransform<?, ?> upstreamTransform);
 }

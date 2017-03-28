@@ -69,7 +69,8 @@ public abstract class TypedPValue<T> extends PValueBase implements PValue {
   }
 
   @Override
-  public void finishSpecifyingOutput(PInput input, PTransform<?, ?> transform) {
+  public void finishSpecifyingOutput(
+      String producerName, PInput input, PTransform<?, ?> transform) {
     this.coderOrFailure = inferCoderOrFail(input, transform, getPipeline().getCoderRegistry());
   }
 
@@ -80,7 +81,7 @@ public abstract class TypedPValue<T> extends PValueBase implements PValue {
    * run (useful if this is a {@link PValue} with no consumers).
    */
   @Override
-  public void finishSpecifying(PInput input, PTransform<?, ?> transform) {
+  public void finishSpecifying(String producerName, PInput input, PTransform<?, ?> transform) {
     if (isFinishedSpecifyingInternal()) {
       return;
     }
@@ -88,7 +89,7 @@ public abstract class TypedPValue<T> extends PValueBase implements PValue {
     // Ensure that this TypedPValue has a coder by inferring the coder if none exists; If not,
     // this will throw an exception.
     getCoder();
-    super.finishSpecifying(input, transform);
+    super.finishSpecifying(producerName, input, transform);
   }
 
   /////////////////////////////////////////////////////////////////////////////

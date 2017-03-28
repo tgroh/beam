@@ -53,51 +53,10 @@ public abstract class POutputValueBase implements POutput {
   }
 
   /**
-   * Returns the {@link AppliedPTransform} that this {@link POutputValueBase}
-   * is an output of.
-   *
-   * <p>For internal use only.
-   */
-  public AppliedPTransform<?, ?, ?> getProducingTransformInternal() {
-    return producingTransform;
-  }
-
-  /**
-   * Records that this {@link POutputValueBase} is an output with the
-   * given name of the given {@link AppliedPTransform}.
-   *
-   * <p>To be invoked only by {@link POutput#recordAsOutput}
-   * implementations.  Not to be invoked directly by user code.
+   * Default behavior for {@link #finishSpecifyingOutput(String, PInput, PTransform)}} is to do
+   * nothing. Override if your {@link PValue} requires finalization.
    */
   @Override
-  public void recordAsOutput(AppliedPTransform<?, ?, ?> transform) {
-    if (producingTransform != null) {
-      // Already used this POutput as a PTransform output.  This can
-      // happen if the POutput is an output of a transform within a
-      // composite transform, and is also the result of the composite.
-      // We want to record the "immediate" atomic transform producing
-      // this output, and ignore all later composite transforms that
-      // also produce this output.
-      //
-      // Pipeline.applyInternal() uses !hasProducingTransform() to
-      // avoid calling this operation redundantly, but
-      // hasProducingTransform() doesn't apply to POutputValueBases
-      // that aren't PValues or composites of PValues, e.g., PDone.
-      return;
-    }
-    producingTransform = transform;
-  }
-
-  /**
-   * Default behavior for {@link #finishSpecifyingOutput(PInput, PTransform)}} is
-   * to do nothing. Override if your {@link PValue} requires
-   * finalization.
-   */
-  @Override
-  public void finishSpecifyingOutput(PInput input, PTransform<?, ?> transform) { }
-
-  /**
-   * The {@link PTransform} that produces this {@link POutputValueBase}.
-   */
-  private AppliedPTransform<?, ?, ?> producingTransform;
+  public void finishSpecifyingOutput(
+      String fullName, PInput input, PTransform<?, ?> producingTransform) {}
 }

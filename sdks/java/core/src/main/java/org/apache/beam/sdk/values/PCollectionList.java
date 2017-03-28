@@ -23,7 +23,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.Flatten;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.Partition;
@@ -223,18 +222,14 @@ public class PCollectionList<T> implements PInput, POutput {
   }
 
   @Override
-  public void recordAsOutput(AppliedPTransform<?, ?, ?> transform) {
+  public void finishSpecifyingOutput(String inputName, PInput input, PTransform<?, ?> transform) {
     int i = 0;
     for (TaggedPValue tpv : pcollections) {
       @SuppressWarnings("unchecked")
       PCollection<T> pc = (PCollection<T>) tpv.getValue();
-      pc.recordAsOutput(transform, "out" + i);
+      pc.setDefaultName(inputName, "out" + i);
       i++;
     }
-  }
-
-  @Override
-  public void finishSpecifyingOutput(PInput input, PTransform<?, ?> transform) {
     // All component PCollections will have already been finished.
   }
 

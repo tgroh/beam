@@ -140,7 +140,9 @@ public class TransformHierarchy {
     for (TaggedPValue inputValue : current.getInputs()) {
       Node producerNode = getProducer(inputValue.getValue());
       PInput input = producerInput.remove(inputValue.getValue());
-      inputValue.getValue().finishSpecifying(input, producerNode.getTransform());
+      inputValue
+          .getValue()
+          .finishSpecifying(producerNode.getFullName(), input, producerNode.getTransform());
       checkState(
           producers.get(inputValue.getValue()) != null,
           "Producer unknown for input %s",
@@ -167,13 +169,15 @@ public class TransformHierarchy {
       if (!producers.containsKey(value.getValue())) {
         producers.put(value.getValue(), current);
       }
-      value.getValue().finishSpecifyingOutput(unexpandedInputs.get(current), current.transform);
+      value
+          .getValue()
+          .finishSpecifyingOutput(
+              current.getFullName(), unexpandedInputs.get(current), current.transform);
       producerInput.put(value.getValue(), unexpandedInputs.get(current));
     }
-    output.finishSpecifyingOutput(unexpandedInputs.get(current), current.transform);
+    output.finishSpecifyingOutput(
+        current.getFullName(), unexpandedInputs.get(current), current.transform);
     current.setOutput(output);
-    // TODO: Replace with a "generateDefaultNames" method.
-    output.recordAsOutput(current.toAppliedPTransform());
   }
 
   /**
@@ -215,7 +219,10 @@ public class TransformHierarchy {
   private void finishSpecifying() {
     for (Entry<PValue, PInput> producerInputEntry : producerInput.entrySet()) {
       PValue value = producerInputEntry.getKey();
-      value.finishSpecifying(producerInputEntry.getValue(), getProducer(value).getTransform());
+      value.finishSpecifying(
+          getProducer(value).getFullName(),
+          producerInputEntry.getValue(),
+          getProducer(value).getTransform());
     }
     producerInput.clear();
   }

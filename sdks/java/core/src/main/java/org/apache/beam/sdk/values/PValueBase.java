@@ -20,7 +20,6 @@ package org.apache.beam.sdk.values;
 import java.util.Collections;
 import java.util.List;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.util.NameUtils;
 
@@ -101,24 +100,15 @@ public abstract class PValueBase extends POutputValueBase implements PValue {
    */
   private boolean finishedSpecifying = false;
 
-  @Override
-  public void recordAsOutput(AppliedPTransform<?, ?, ?> transform) {
-    recordAsOutput(transform, "out");
-  }
-
   /**
-   * Records that this {@link POutputValueBase} is an output with the
-   * given name of the given {@link AppliedPTransform} in the given
-   * {@link Pipeline}.
+   * Sets the name of this {@link PValue} to the default name if its name is not set.
    *
-   * <p>To be invoked only by {@link POutput#recordAsOutput}
-   * implementations.  Not to be invoked directly by user code.
+   * <p>To be invoked only by {@link POutput#finishSpecifyingOutput(String, PInput, PTransform)}
+   * implementations. Not to be invoked directly by user code.
    */
-  protected void recordAsOutput(AppliedPTransform<?, ?, ?> transform,
-                                String outName) {
-    super.recordAsOutput(transform);
+  protected void setDefaultName(String producerName, String outName) {
     if (name == null) {
-      name = transform.getFullName() + "." + outName;
+      name = producerName + "." + outName;
     }
   }
 
@@ -138,7 +128,8 @@ public abstract class PValueBase extends POutputValueBase implements PValue {
   }
 
   @Override
-  public void finishSpecifying(PInput input, PTransform<?, ?> transform) {
+  public void finishSpecifying(String producerName, PInput input, PTransform<?, ?> transform) {
+    setDefaultName(producerName, "out");
     finishedSpecifying = true;
   }
 
