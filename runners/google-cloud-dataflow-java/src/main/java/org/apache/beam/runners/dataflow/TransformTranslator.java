@@ -26,6 +26,7 @@ import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
@@ -75,11 +76,19 @@ interface TransformTranslator<TransformT extends PTransform> {
     Step addStep(PTransform<?, ? extends PValue> transform, Step step);
     /** Encode a PValue reference as an output reference. */
     OutputReference asOutputReference(PValue value, AppliedPTransform<?, ?, ?> producer);
+    /** Encode a PValue reference as an output reference. */
+    OutputReference asOutputReference(
+        PCollectionView<?> value, AppliedPTransform<?, ?, ?> producer);
 
     /**
      * Get the {@link AppliedPTransform} that produced the provided {@link PValue}.
      */
     AppliedPTransform<?, ?, ?> getProducer(PValue value);
+
+    /**
+     * Get the {@link AppliedPTransform} that produced the provided {@link PValue}.
+     */
+    AppliedPTransform<?, ?, ?> getProducer(PCollectionView<?> value);
   }
 
   /** The interface for a {@link TransformTranslator} to build a Dataflow step. */
@@ -126,6 +135,6 @@ interface TransformTranslator<TransformT extends PTransform> {
      * input {@code PValue} and producing the specified output {@code PValue}. This step requires
      * special treatment for its output encoding. Returns a pipeline level unique id.
      */
-    long addCollectionToSingletonOutput(PValue inputValue, PValue outputValue);
+    long addCollectionToSingletonOutput(PValue inputValue, PCollectionView<?> outputValue);
   }
 }

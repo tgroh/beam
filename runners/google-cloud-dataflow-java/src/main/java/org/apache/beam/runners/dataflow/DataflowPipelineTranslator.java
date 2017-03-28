@@ -264,12 +264,12 @@ public class DataflowPipelineTranslator {
      * A Map from PValues to their output names used by their producer
      * Dataflow steps.
      */
-    private final Map<PValue, String> outputNames = new HashMap<>();
+    private final Map<POutput, String> outputNames = new HashMap<>();
 
     /**
      * A Map from PValues to the Coders used for them.
      */
-    private final Map<PValue, Coder<?>> outputCoders = new HashMap<>();
+    private final Map<POutput, Coder<?>> outputCoders = new HashMap<>();
 
     /**
      * The transform currently being applied.
@@ -504,11 +504,32 @@ public class DataflowPipelineTranslator {
     }
 
     @Override
+    public OutputReference asOutputReference(
+        PCollectionView<?> value, AppliedPTransform<?, ?, ?> producer) {
+      String stepName = stepNames.get(producer);
+      checkArgument(stepName != null, "%s doesn't have a name specified", producer);
+
+      String outputName = outputNames.get(value);
+      checkArgument(outputName != null, "output %s doesn't have a name specified", value);
+
+      return new OutputReference(stepName, outputName);
+    }
+
+    @Override
     public AppliedPTransform<?, ?, ?> getProducer(PValue value) {
       return checkNotNull(
           producers.get(value),
           "Unknown producer for value %s while translating step %s",
           value,
+          currentTransform.getFullName());
+    }
+
+    @Override
+    public AppliedPTransform<?, ?, ?> getProducer(PCollectionView<?> view) {
+      return checkNotNull(
+          producers.get(view),
+          "Unknown producer for view %s while translating step %s",
+          view,
           currentTransform.getFullName());
     }
 
@@ -523,7 +544,7 @@ public class DataflowPipelineTranslator {
      * Records the name of the given output PValue,
      * within its producing transform.
      */
-    private void registerOutputName(PValue value, String name) {
+    private void registerOutputName(POutput value, String name) {
       if (outputNames.put(value, name) != null) {
         throw new IllegalArgumentException(
             "output " + value + " already has a name specified");
@@ -606,7 +627,7 @@ public class DataflowPipelineTranslator {
 
     @Override
     public long addCollectionToSingletonOutput(
-        PValue inputValue, PValue outputValue) {
+        PValue inputValue, PCollectionView<?> outputValue) {
       Coder<?> inputValueCoder =
           checkNotNull(translator.outputCoders.get(inputValue));
       // The inputValueCoder for the input PCollection should be some
@@ -623,10 +644,10 @@ public class DataflowPipelineTranslator {
 
     /**
      * Adds an output with the given name to the previously added
-     * Dataflow step, producing the specified output {@code PValue}
+     * Dataflow step, producing the specified output {@code POutput}
      * with the given {@code Coder} (if not {@code null}).
      */
-    private long addOutput(PValue value, Coder<?> valueCoder) {
+    private long addOutput(POutput value, Coder<?> valueCoder) {
       long id = translator.idGenerator.get();
       translator.registerOutputName(value, Long.toString(id));
 
@@ -704,7 +725,7 @@ public class DataflowPipelineTranslator {
                 context.addStep(transform, "CollectionToSingleton");
             PCollection<ElemT> input = context.getInput(transform);
             stepContext.addInput(PropertyNames.PARALLEL_INPUT, input);
-            stepContext.addCollectionToSingletonOutput(input, context.getOutput(transform));
+            stepContext.addCollectionToSingletonOutput(input, transform.getView());
           }
         });
 
