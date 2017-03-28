@@ -106,6 +106,7 @@ public class EvaluationContextTest {
     unbounded = p.apply(CountingInput.unbounded());
 
     KeyedPValueTrackingVisitor keyedPValueTrackingVisitor = KeyedPValueTrackingVisitor.create();
+    p.replaceAll(DirectRunner.fromOptions(p.getOptions()).defaultTransformOverrides());
     p.traverseTopologically(keyedPValueTrackingVisitor);
 
     BundleFactory bundleFactory = ImmutableListBundleFactory.create();
@@ -120,7 +121,7 @@ public class EvaluationContextTest {
 
     createdProducer = graph.getProducer(created);
     downstreamProducer = graph.getProducer(downstream);
-    viewProducer = graph.getProducer(view);
+    viewProducer = graph.getWriter(view);
     unboundedProducer = graph.getProducer(unbounded);
   }
 

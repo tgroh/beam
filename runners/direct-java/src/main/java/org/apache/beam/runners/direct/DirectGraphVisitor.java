@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import org.apache.beam.runners.direct.ViewOverrideFactory.WriteView;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.Pipeline.PipelineVisitor;
 import org.apache.beam.sdk.runners.TransformHierarchy;
@@ -32,7 +33,6 @@ import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.PInput;
-import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TaggedPValue;
 
@@ -42,7 +42,8 @@ import org.apache.beam.sdk.values.TaggedPValue;
  * input after the upstream transform has produced and committed output.
  */
 class DirectGraphVisitor extends PipelineVisitor.Defaults {
-  private Map<POutput, AppliedPTransform<?, ?, ?>> producers = new HashMap<>();
+  private Map<PValue, AppliedPTransform<?, ?, ?>> producers = new HashMap<>();
+  private Map<PCollectionView<?>, AppliedPTransform<?, ?, ?>> viewWriters = new HashMap<>();
 
   private ListMultimap<PInput, AppliedPTransform<?, ?, ?>> primitiveConsumers =
       ArrayListMultimap.create();
@@ -87,14 +88,16 @@ class DirectGraphVisitor extends PipelineVisitor.Defaults {
         primitiveConsumers.put(value.getValue(), appliedTransform);
       }
     }
+    if (node.getTransform() instanceof WriteView) {
+      PCollectionView<?> view = ((WriteView<?, ?>) node.getTransform()).getView();
+      views.add(view);
+      viewWriters.put(view, node.toAppliedPTransform());
+    }
   }
 
  @Override
   public void visitValue(PValue value, TransformHierarchy.Node producer) {
     AppliedPTransform<?, ?, ?> appliedTransform = getAppliedTransform(producer);
-    if (value instanceof PCollectionView) {
-      views.add((PCollectionView<?>) value);
-    }
     if (!producers.containsKey(value)) {
       producers.put(value, appliedTransform);
     }
@@ -116,6 +119,7 @@ class DirectGraphVisitor extends PipelineVisitor.Defaults {
    */
   public DirectGraph getGraph() {
     checkState(finalized, "Can't get a graph before the Pipeline has been completely traversed");
-    return DirectGraph.create(producers, primitiveConsumers, views, rootTransforms, stepNames);
+    return DirectGraph.create(
+        producers, viewWriters, primitiveConsumers, views, rootTransforms, stepNames);
   }
 }

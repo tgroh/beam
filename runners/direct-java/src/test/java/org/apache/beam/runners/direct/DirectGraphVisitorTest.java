@@ -59,8 +59,8 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class DirectGraphVisitorTest implements Serializable {
   @Rule public transient ExpectedException thrown = ExpectedException.none();
-  @Rule public transient TestPipeline p = TestPipeline.create()
-                                                      .enableAbandonedNodeEnforcement(false);
+  @Rule
+  public transient TestPipeline p = TestPipeline.create().enableAbandonedNodeEnforcement(false);
 
   private transient DirectGraphVisitor visitor = new DirectGraphVisitor();
 
@@ -80,6 +80,7 @@ public class DirectGraphVisitorTest implements Serializable {
             .apply(View.<String>asList());
     PCollectionView<Object> singletonView =
         p.apply("singletonCreate", Create.<Object>of(1, 2, 3)).apply(View.<Object>asSingleton());
+    p.replaceAll(DirectRunner.fromOptions(p.getOptions()).defaultTransformOverrides());
     p.traverseTopologically(visitor);
     assertThat(
         visitor.getGraph().getViews(),
@@ -91,6 +92,7 @@ public class DirectGraphVisitorTest implements Serializable {
     PCollection<String> created = p.apply(Create.of("foo", "bar"));
     PCollection<Long> counted = p.apply(Read.from(CountingSource.upTo(1234L)));
     PCollection<Long> unCounted = p.apply(CountingInput.unbounded());
+    p.replaceAll(DirectRunner.fromOptions(p.getOptions()).defaultTransformOverrides());
     p.traverseTopologically(visitor);
     DirectGraph graph = visitor.getGraph();
     assertThat(graph.getRootTransforms(), hasSize(3));
@@ -114,6 +116,7 @@ public class DirectGraphVisitorTest implements Serializable {
     PCollectionList<String> emptyList = PCollectionList.empty(p);
     PCollection<String> empty = emptyList.apply(flatten);
     empty.setCoder(StringUtf8Coder.of());
+    p.replaceAll(DirectRunner.fromOptions(p.getOptions()).defaultTransformOverrides());
     p.traverseTopologically(visitor);
     DirectGraph graph = visitor.getGraph();
     assertThat(
@@ -142,6 +145,7 @@ public class DirectGraphVisitorTest implements Serializable {
     PCollection<String> flattened =
         PCollectionList.of(created).and(transformed).apply(Flatten.<String>pCollections());
 
+    p.replaceAll(DirectRunner.fromOptions(p.getOptions()).defaultTransformOverrides());
     p.traverseTopologically(visitor);
 
     DirectGraph graph = visitor.getGraph();
@@ -167,6 +171,7 @@ public class DirectGraphVisitorTest implements Serializable {
     PCollection<String> flattened =
         PCollectionList.of(created).and(created).apply(Flatten.<String>pCollections());
 
+    p.replaceAll(DirectRunner.fromOptions(p.getOptions()).defaultTransformOverrides());
     p.traverseTopologically(visitor);
 
     DirectGraph graph = visitor.getGraph();
@@ -201,6 +206,7 @@ public class DirectGraphVisitorTest implements Serializable {
               }
             });
 
+    p.replaceAll(DirectRunner.fromOptions(p.getOptions()).defaultTransformOverrides());
     p.traverseTopologically(visitor);
     DirectGraph graph = visitor.getGraph();
     assertThat(graph.getStepName(graph.getProducer(created)), equalTo("s0"));
@@ -214,6 +220,7 @@ public class DirectGraphVisitorTest implements Serializable {
   public void traverseMultipleTimesThrows() {
     p.apply(Create.of(1, 2, 3));
 
+    p.replaceAll(DirectRunner.fromOptions(p.getOptions()).defaultTransformOverrides());
     p.traverseTopologically(visitor);
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage(DirectGraphVisitor.class.getSimpleName());
@@ -226,6 +233,7 @@ public class DirectGraphVisitorTest implements Serializable {
     p.apply("left", Create.of(1, 2, 3));
     p.apply("right", Create.of("foo", "bar", "baz"));
 
+    p.replaceAll(DirectRunner.fromOptions(p.getOptions()).defaultTransformOverrides());
     p.traverseTopologically(visitor);
   }
 

@@ -303,6 +303,29 @@ class EvaluationContext {
   }
 
   /**
+   * Schedule a callback to be executed after output would be produced for the given window
+   * if there had been input.
+   *
+   * <p>Output would be produced when the watermark for a {@link PValue} passes the point at
+   * which the trigger for the specified window (with the specified windowing strategy) must have
+   * fired from the perspective of that {@link PValue}, as specified by the value of
+   * {@link Trigger#getWatermarkThatGuaranteesFiring(BoundedWindow)} for the trigger of the
+   * {@link WindowingStrategy}. When the callback has fired, either values will have been produced
+   * for a key in that window, the window is empty, or all elements in the window are late. The
+   * callback will be executed regardless of whether values have been produced.
+   */
+  public void scheduleAfterOutputWouldBeProduced(
+      PCollectionView<?> value,
+      BoundedWindow window,
+      WindowingStrategy<?, ?> windowingStrategy,
+      Runnable runnable) {
+    AppliedPTransform<?, ?, ?> producing = graph.getWriter(value);
+    callbackExecutor.callOnGuaranteedFiring(producing, window, windowingStrategy, runnable);
+
+    fireAvailableCallbacks(producing);
+  }
+
+  /**
    * Schedule a callback to be executed after the given window is expired.
    *
    * <p>For example, upstream state associated with the window may be cleared.

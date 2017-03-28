@@ -75,7 +75,7 @@ public class ViewEvaluatorFactoryTest {
     when(context.createPCollectionViewWriter(concat, view)).thenReturn(viewWriter);
 
     CommittedBundle<String> inputBundle = bundleFactory.createBundle(input).commit(Instant.now());
-    AppliedPTransform<?, ?, ?> producer = DirectGraphs.getProducer(view);
+    AppliedPTransform<?, ?, ?> producer = DirectGraphs.getWriter(view);
     TransformEvaluator<Iterable<String>> evaluator =
         new ViewEvaluatorFactory(context)
             .forApplication(producer, inputBundle);

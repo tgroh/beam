@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.direct;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
@@ -316,7 +317,8 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
    * iteration order based on the order at which elements are added to it.
    */
   @SuppressWarnings("rawtypes")
-  private List<PTransformOverride> defaultTransformOverrides() {
+  @VisibleForTesting
+  List<PTransformOverride> defaultTransformOverrides() {
     return ImmutableList.<PTransformOverride>builder()
         .add(
             PTransformOverride.of(

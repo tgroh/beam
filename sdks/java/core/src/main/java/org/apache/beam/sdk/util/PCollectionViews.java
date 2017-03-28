@@ -36,13 +36,15 @@ import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Experimental.Kind;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.IterableCoder;
+import org.apache.beam.sdk.transforms.Flatten.PCollections;
 import org.apache.beam.sdk.transforms.ViewFn;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.InvalidWindows;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
-import org.apache.beam.sdk.values.PValueBase;
+import org.apache.beam.sdk.values.POutputValueBase;
+import org.apache.beam.sdk.values.TaggedPValue;
 import org.apache.beam.sdk.values.TupleTag;
 
 /**
@@ -405,7 +407,7 @@ public class PCollectionViews {
    * that are not visible at pipeline assembly time when the view is used as a side input.
    */
   private static class SimplePCollectionView<ElemT, ViewT, W extends BoundedWindow>
-      extends PValueBase
+      extends POutputValueBase
       implements PCollectionView<ViewT> {
     /** A unique tag for the view, typed according to the elements underlying the view. */
     private TupleTag<Iterable<WindowedValue<ElemT>>> tag;
@@ -537,6 +539,15 @@ public class PCollectionViews {
     @Override
     public String toString() {
       return MoreObjects.toStringHelper(this).add("tag", tag).toString();
+    }
+
+    /**
+     * Returns an empty {@link List}. A {@link PCollectionView} is used as a carrier of side input
+     * information, but contains no {@link PCollections} within itself.
+     */
+    @Override
+    public List<TaggedPValue> expand() {
+      return Collections.emptyList();
     }
   }
 }

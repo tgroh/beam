@@ -171,7 +171,8 @@ class SideInputContainer {
       AtomicReference<Iterable<? extends WindowedValue<?>>> contents = new AtomicReference<>();
       WindowingStrategy<?, ?> windowingStrategy = view.getView().getWindowingStrategyInternal();
 
-      context.scheduleAfterOutputWouldBeProduced(view.getView(),
+      context.scheduleAfterOutputWouldBeProduced(
+          view.getView(),
           view.getWindow(),
           windowingStrategy,
           new WriteEmptyViewContents(view.getView(), view.getWindow(), contents));
