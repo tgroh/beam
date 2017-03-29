@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import javax.annotation.Nullable;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.Pipeline.PipelineVisitor;
 import org.apache.beam.sdk.coders.Coder;
@@ -279,7 +280,7 @@ public class PAssert {
    * Constructs an {@link IterableAssert} for the elements of the provided {@link PCollection}.
    */
   public static <T> IterableAssert<T> that(PCollection<T> actual) {
-    return that(actual.getName(), actual);
+    return that(null, actual);
   }
 
   /**
@@ -296,7 +297,7 @@ public class PAssert {
    */
   public static <T> IterableAssert<T> thatSingletonIterable(
       PCollection<? extends Iterable<T>> actual) {
-    return thatSingletonIterable(actual.getName(), actual);
+    return thatSingletonIterable(null, actual);
   }
 
   /**
@@ -326,7 +327,7 @@ public class PAssert {
    * {@code PCollection PCollection<T>}, which must be a singleton.
    */
   public static <T> SingletonAssert<T> thatSingleton(PCollection<T> actual) {
-    return thatSingleton(actual.getName(), actual);
+    return thatSingleton(null, actual);
   }
 
   /**
@@ -348,7 +349,7 @@ public class PAssert {
    */
   public static <K, V> SingletonAssert<Map<K, Iterable<V>>> thatMultimap(
       PCollection<KV<K, V>> actual) {
-    return thatMultimap(actual.getName(), actual);
+    return thatMultimap(null, actual);
   }
 
   /**
@@ -359,7 +360,7 @@ public class PAssert {
    * {@code Coder<K, V>}.
    */
   public static <K, V> SingletonAssert<Map<K, Iterable<V>>> thatMultimap(
-      String reason, PCollection<KV<K, V>> actual) {
+      @Nullable String reason, PCollection<KV<K, V>> actual) {
     @SuppressWarnings("unchecked")
     KvCoder<K, V> kvCoder = (KvCoder<K, V>) actual.getCoder();
     return new PCollectionViewAssert<>(
@@ -377,7 +378,7 @@ public class PAssert {
    * {@code Coder<K, V>}.
    */
   public static <K, V> SingletonAssert<Map<K, V>> thatMap(PCollection<KV<K, V>> actual) {
-    return thatMap(actual.getName(), actual);
+    return thatMap(null, actual);
   }
 
   /**
@@ -401,11 +402,18 @@ public class PAssert {
   ////////////////////////////////////////////////////////////
 
   private static class PAssertionSite implements Serializable {
-    private final String message;
+    @Nullable private final String message;
     private final StackTraceElement[] creationStackTrace;
 
-    static PAssertionSite capture(String message) {
+    static PAssertionSite capture(@Nullable String message) {
       return new PAssertionSite(message, new Throwable().getStackTrace());
+    }
+
+    PAssertionSite withDefaultMessage(String defaultMessage) {
+      if (message == null) {
+        return new PAssertionSite(defaultMessage, creationStackTrace);
+      }
+      return this;
     }
 
     PAssertionSite(String message, StackTraceElement[] creationStackTrace) {
@@ -416,7 +424,11 @@ public class PAssert {
     public AssertionError wrap(Throwable t) {
       AssertionError res =
           new AssertionError(
-              message.isEmpty() ? t.getMessage() : (message + ": " + t.getMessage()), t);
+              // We will pass null when unspecified; users may pass an empty string
+              message.isEmpty()
+                  ? t.getMessage()
+                  : (message + ": " + t.getMessage()),
+              t);
       res.setStackTrace(creationStackTrace);
       return res;
     }
@@ -1031,7 +1043,11 @@ public class PAssert {
           .apply("GroupGlobally", new GroupGlobally<T>(rewindowingStrategy))
           .apply("GetPane", MapElements.via(paneExtractor))
           .setCoder(IterableCoder.of(input.getCoder()))
-          .apply("RunChecks", ParDo.of(new GroupedValuesCheckerDoFn<>(checkerFn, site)));
+          .apply(
+              "RunChecks",
+              ParDo.of(
+                  new GroupedValuesCheckerDoFn<>(
+                      checkerFn, site.withDefaultMessage(input.getName()))));
 
       return PDone.in(input.getPipeline());
     }
@@ -1067,7 +1083,10 @@ public class PAssert {
           .apply("GroupGlobally", new GroupGlobally<Iterable<T>>(rewindowingStrategy))
           .apply("GetPane", MapElements.via(paneExtractor))
           .setCoder(IterableCoder.of(input.getCoder()))
-          .apply("RunChecks", ParDo.of(new SingletonCheckerDoFn<>(checkerFn, site)));
+          .apply(
+              "RunChecks",
+              ParDo.of(
+                  new SingletonCheckerDoFn<>(checkerFn, site.withDefaultMessage(input.getName()))));
 
       return PDone.in(input.getPipeline());
     }
@@ -1110,7 +1129,8 @@ public class PAssert {
           .apply("WindowToken", windowToken)
           .apply(
               "RunChecks",
-              ParDo.withSideInputs(actual).of(new SideInputCheckerDoFn<>(checkerFn, actual, site)));
+              ParDo.withSideInputs(actual)
+                  .of(new SideInputCheckerDoFn<>(checkerFn, actual, site.withDefaultMessage(""))));
 
       return PDone.in(input.getPipeline());
     }

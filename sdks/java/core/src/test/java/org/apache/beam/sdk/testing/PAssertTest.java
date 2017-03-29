@@ -446,7 +446,8 @@ public class PAssertTest implements Serializable {
 
     String message = thrown.getMessage();
 
-    assertThat(message,
+    assertThat(
+        message,
         containsString("CountingInput.BoundedCountingInput/Read(BoundedCountingSource).out"));
     assertThat(message, containsString("Expected: iterable over [] in any order"));
   }

@@ -163,7 +163,6 @@ public class TransformHierarchyTest implements Serializable {
     thrown.expectMessage("contains a primitive POutput produced by it");
     thrown.expectMessage("AddPc");
     thrown.expectMessage("Create");
-    thrown.expectMessage(appended.expand().toString());
     hierarchy.setOutput(appended);
   }
 
