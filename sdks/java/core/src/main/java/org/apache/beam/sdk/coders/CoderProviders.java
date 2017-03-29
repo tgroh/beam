@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
+import javax.annotation.Nullable;
 import org.apache.beam.sdk.util.InstanceBuilder;
 import org.apache.beam.sdk.values.TypeDescriptor;
 
@@ -97,49 +98,81 @@ public final class CoderProviders {
   }
 
   private static class CoderProviderFromStaticMethods implements CoderProvider {
+    private enum ArgumentTaken {
+      TYPE_DESCRIPTOR,
+      CLASS,
+      NO_ARGUMENT;
+    }
 
     /** If true, then clazz has {@code of(TypeDescriptor)}. If false, {@code of(Class)}. */
-    private final boolean takesTypeDescriptor;
+    private final ArgumentTaken argumentTaken;
     private final Class<?> clazz;
 
     public CoderProviderFromStaticMethods(Class<?> clazz) {
+      argumentTaken = getArgumentTaken(clazz);
       // Note that the second condition supports older classes, which only needed to provide
       // of(Class), not of(TypeDescriptor). Our own classes have updated to accept a
       // TypeDescriptor. Hence the error message points only to the current specification,
       // not both acceptable conditions.
-      checkArgument(classTakesTypeDescriptor(clazz) || classTakesClass(clazz),
-          "Class " + clazz.getCanonicalName()
-          + " is missing required static method of(TypeDescriptor).");
+      checkArgument(
+          argumentTaken != null,
+          "Class "
+              + clazz.getCanonicalName()
+              + " is missing required static method of(TypeDescriptor).");
 
-      this.takesTypeDescriptor = classTakesTypeDescriptor(clazz);
       this.clazz = clazz;
     }
 
     @Override
     public <T> Coder<T> getCoder(TypeDescriptor<T> type) throws CannotProvideCoderException {
       try {
-        if (takesTypeDescriptor) {
-          @SuppressWarnings("unchecked")
-          Coder<T> result = InstanceBuilder.ofType(Coder.class)
-              .fromClass(clazz)
-              .fromFactoryMethod("of")
-              .withArg(TypeDescriptor.class, type)
-              .build();
-          return result;
-        } else {
-          @SuppressWarnings("unchecked")
-          Coder<T> result = InstanceBuilder.ofType(Coder.class)
-              .fromClass(clazz)
-              .fromFactoryMethod("of")
-              .withArg(Class.class, type.getRawType())
-              .build();
-          return result;
+        Coder<T> result;
+        switch (argumentTaken) {
+          case TYPE_DESCRIPTOR:
+            result =
+                InstanceBuilder.ofType(Coder.class)
+                    .fromClass(clazz)
+                    .fromFactoryMethod("of")
+                    .withArg(TypeDescriptor.class, type)
+                    .build();
+            return result;
+          case CLASS:
+            result =
+                InstanceBuilder.ofType(Coder.class)
+                    .fromClass(clazz)
+                    .fromFactoryMethod("of")
+                    .withArg(Class.class, type.getRawType())
+                    .build();
+            return result;
+          case NO_ARGUMENT:
+            result =
+                InstanceBuilder.ofType(Coder.class)
+                    .fromClass(clazz)
+                    .fromFactoryMethod("of")
+                    .build();
+            return result;
+          default:
+            throw new IllegalArgumentException(
+                String.format("Unknown argument to of: %s", argumentTaken));
         }
       } catch (RuntimeException exc) {
         if (exc.getCause() instanceof InvocationTargetException) {
           throw new CannotProvideCoderException(exc.getCause().getCause());
         }
         throw exc;
+      }
+    }
+
+    @Nullable
+    private ArgumentTaken getArgumentTaken(Class<?> clazz) {
+      if (classTakesTypeDescriptor(clazz)) {
+        return ArgumentTaken.TYPE_DESCRIPTOR;
+      } else if (classTakesClass(clazz)) {
+        return ArgumentTaken.CLASS;
+      } else if (classTakesNoArgs(clazz)) {
+        return ArgumentTaken.NO_ARGUMENT;
+      } else {
+        return null;
       }
     }
 
@@ -155,6 +188,15 @@ public final class CoderProviders {
     private boolean classTakesClass(Class<?> clazz) {
       try {
         clazz.getDeclaredMethod("of", Class.class);
+        return true;
+      } catch (NoSuchMethodException | SecurityException exc) {
+        return false;
+      }
+    }
+
+    private boolean classTakesNoArgs(Class<?> clazz) {
+      try {
+        clazz.getDeclaredMethod("of");
         return true;
       } catch (NoSuchMethodException | SecurityException exc) {
         return false;
