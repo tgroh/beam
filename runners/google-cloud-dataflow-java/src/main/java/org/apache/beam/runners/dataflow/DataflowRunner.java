@@ -113,6 +113,7 @@ import org.apache.beam.sdk.util.IOChannelUtils;
 import org.apache.beam.sdk.util.InstanceBuilder;
 import org.apache.beam.sdk.util.MimeTypes;
 import org.apache.beam.sdk.util.NameUtils;
+import org.apache.beam.sdk.util.PCollectionViews;
 import org.apache.beam.sdk.util.PathValidator;
 import org.apache.beam.sdk.util.PropertyNames;
 import org.apache.beam.sdk.util.ReleaseInfo;
@@ -349,24 +350,21 @@ public class DataflowRunner extends PipelineRunner<DataflowPipelineJob> {
           // Write uses views internally
           .put(PTransformMatchers.classEqualTo(Write.class), new BatchWriteFactory(this))
           .put(
-              PTransformMatchers.classEqualTo(View.AsMap.class),
+              PTransformMatchers.createViewWithViewFn(PCollectionViews.MapViewFn.class),
               new ReflectiveOneToOneOverrideFactory(BatchViewOverrides.BatchViewAsMap.class, this))
           .put(
-              PTransformMatchers.classEqualTo(View.AsMultimap.class),
+              PTransformMatchers.createViewWithViewFn(PCollectionViews.MultimapViewFn.class),
               new ReflectiveOneToOneOverrideFactory(
                   BatchViewOverrides.BatchViewAsMultimap.class, this))
           .put(
-              PTransformMatchers.classEqualTo(Combine.GloballyAsSingletonView.class),
-              new BatchViewOverrides.BatchCombineGloballyAsSingletonViewFactory(this))
-          .put(
-              PTransformMatchers.classEqualTo(View.AsSingleton.class),
+              PTransformMatchers.createViewWithViewFn(PCollectionViews.SingletonViewFn.class),
               new ReflectiveOneToOneOverrideFactory(
                   BatchViewOverrides.BatchViewAsSingleton.class, this))
           .put(
-              PTransformMatchers.classEqualTo(View.AsList.class),
+              PTransformMatchers.createViewWithViewFn(PCollectionViews.ListViewFn.class),
               new ReflectiveOneToOneOverrideFactory(BatchViewOverrides.BatchViewAsList.class, this))
           .put(
-              PTransformMatchers.classEqualTo(View.AsIterable.class),
+              PTransformMatchers.createViewWithViewFn(PCollectionViews.IterableViewFn.class),
               new ReflectiveOneToOneOverrideFactory(
                   BatchViewOverrides.BatchViewAsIterable.class, this));
     }

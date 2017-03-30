@@ -151,6 +151,15 @@ public class PCollectionViews {
     }
 
     /**
+     * Returns if the {@link ViewFn} has a default value.
+     *
+     * <p>For internal use only.
+     */
+    public boolean hasDefaultValue() {
+      return hasDefault;
+    }
+
+    /**
      * Returns the default value that was specified.
      *
      * <p>For internal use only.

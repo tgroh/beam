@@ -530,7 +530,7 @@ public class DataflowPipelineTranslatorTest implements Serializable {
                 Collections.<DataflowPackage>emptyList())
             .getJob();
 
-    assertEquals(13, job.getSteps().size());
+    assertEquals(17, job.getSteps().size());
     Step step = job.getSteps().get(1);
     assertEquals(stepName, getString(step.getProperties(), PropertyNames.USER_NAME));
     assertAllStepOutputsHaveUniqueIds(job);
@@ -934,15 +934,15 @@ public class DataflowPipelineTranslatorTest implements Serializable {
     assertAllStepOutputsHaveUniqueIds(job);
 
     List<Step> steps = job.getSteps();
-    assertEquals(5, steps.size());
+    assertEquals(9, steps.size());
 
     @SuppressWarnings("unchecked")
     List<Map<String, Object>> toIsmRecordOutputs =
-        (List<Map<String, Object>>) steps.get(3).getProperties().get(PropertyNames.OUTPUT_INFO);
+        (List<Map<String, Object>>) steps.get(7).getProperties().get(PropertyNames.OUTPUT_INFO);
     assertTrue(
         Structs.getBoolean(Iterables.getOnlyElement(toIsmRecordOutputs), "use_indexed_format"));
 
-    Step collectionToSingletonStep = steps.get(4);
+    Step collectionToSingletonStep = steps.get(8);
     assertEquals("CollectionToSingleton", collectionToSingletonStep.getKind());
   }
 
