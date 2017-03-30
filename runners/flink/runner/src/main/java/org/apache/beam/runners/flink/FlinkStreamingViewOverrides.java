@@ -17,6 +17,8 @@
  */
 package org.apache.beam.runners.flink;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -29,8 +31,13 @@ import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.transforms.View;
+import org.apache.beam.sdk.transforms.View.AsIterable;
+import org.apache.beam.sdk.transforms.View.AsList;
+import org.apache.beam.sdk.transforms.View.AsMultimap;
+import org.apache.beam.sdk.transforms.View.AsSingleton;
+import org.apache.beam.sdk.transforms.View.CreatePCollectionView;
 import org.apache.beam.sdk.util.PCollectionViews;
+import org.apache.beam.sdk.util.PCollectionViews.SingletonViewFn;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
@@ -51,7 +58,8 @@ class FlinkStreamingViewOverrides {
     private final transient FlinkRunner runner;
 
     @SuppressWarnings("unused") // used via reflection in FlinkRunner#apply()
-    public StreamingViewAsMap(FlinkRunner runner, View.AsMap<K, V> transform) {
+    public StreamingViewAsMap(
+        FlinkRunner runner, CreatePCollectionView<KV<K, V>, Map<K, V>> transform) {
       this.runner = runner;
     }
 
@@ -83,20 +91,18 @@ class FlinkStreamingViewOverrides {
   }
 
   /**
-   * Specialized expansion for {@link
-   * View.AsMultimap View.AsMultimap} for the
-   * Flink runner in streaming mode.
+   * Specialized expansion for {@link AsMultimap View.AsMultimap} for the Flink runner in
+   * streaming mode.
    */
   static class StreamingViewAsMultimap<K, V>
       extends PTransform<PCollection<KV<K, V>>, PCollectionView<Map<K, Iterable<V>>>> {
 
     private final transient FlinkRunner runner;
 
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
+    /** Builds an instance of this class from the overridden transform. */
     @SuppressWarnings("unused") // used via reflection in FlinkRunner#apply()
-    public StreamingViewAsMultimap(FlinkRunner runner, View.AsMultimap<K, V> transform) {
+    public StreamingViewAsMultimap(
+        FlinkRunner runner, CreatePCollectionView<KV<K, V>, Map<K, Iterable<V>>> transform) {
       this.runner = runner;
     }
 
@@ -128,17 +134,15 @@ class FlinkStreamingViewOverrides {
   }
 
   /**
-   * Specialized implementation for
-   * {@link View.AsList View.AsList} for the
-   * Flink runner in streaming mode.
+   * Specialized implementation for {@link AsList View.AsList} for the Flink runner in
+   * streaming mode.
    */
-  static class StreamingViewAsList<T>
-      extends PTransform<PCollection<T>, PCollectionView<List<T>>> {
+  static class StreamingViewAsList<T> extends PTransform<PCollection<T>, PCollectionView<List<T>>> {
     /**
      * Builds an instance of this class from the overridden transform.
      */
     @SuppressWarnings("unused") // used via reflection in FlinkRunner#apply()
-    public StreamingViewAsList(FlinkRunner runner, View.AsList<T> transform) {}
+    public StreamingViewAsList(FlinkRunner runner, CreatePCollectionView<T, List<T>> transform) {}
 
     @Override
     public PCollectionView<List<T>> expand(PCollection<T> input) {
@@ -160,16 +164,15 @@ class FlinkStreamingViewOverrides {
 
   /**
    * Specialized implementation for
-   * {@link View.AsIterable View.AsIterable} for the
+   * {@link AsIterable View.AsIterable} for the
    * Flink runner in streaming mode.
    */
   static class StreamingViewAsIterable<T>
       extends PTransform<PCollection<T>, PCollectionView<Iterable<T>>> {
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
+    /** Builds an instance of this class from the overridden transform. */
     @SuppressWarnings("unused") // used via reflection in FlinkRunner#apply()
-    public StreamingViewAsIterable(FlinkRunner runner, View.AsIterable<T> transform) { }
+    public StreamingViewAsIterable(
+        FlinkRunner runner, CreatePCollectionView<T, Iterable<T>> transform) {}
 
     @Override
     public PCollectionView<Iterable<T>> expand(PCollection<T> input) {
@@ -190,27 +193,31 @@ class FlinkStreamingViewOverrides {
   }
 
   /**
-   * Specialized expansion for
-   * {@link View.AsSingleton View.AsSingleton} for the
-   * Flink runner in streaming mode.
+   * Specialized expansion for {@link AsSingleton View.AsSingleton} for the Flink runner in
+   * streaming mode.
    */
-  static class StreamingViewAsSingleton<T>
-      extends PTransform<PCollection<T>, PCollectionView<T>> {
-    private View.AsSingleton<T> transform;
+  static class StreamingViewAsSingleton<T> extends PTransform<PCollection<T>, PCollectionView<T>> {
+    private SingletonViewFn<T> viewFn;
 
-    /**
-     * Builds an instance of this class from the overridden transform.
-     */
+    /** Builds an instance of this class from the overridden transform. */
     @SuppressWarnings("unused") // used via reflection in FlinkRunner#apply()
-    public StreamingViewAsSingleton(FlinkRunner runner, View.AsSingleton<T> transform) {
-      this.transform = transform;
+    public StreamingViewAsSingleton(FlinkRunner runner, CreatePCollectionView<T, T> transform) {
+      checkArgument(
+          transform.getView().getViewFn() instanceof SingletonViewFn,
+          "Cannot apply %s to a view without a %s. Got: %s",
+          StreamingViewAsSingleton.class.getSimpleName(),
+          SingletonViewFn.class.getSimpleName(),
+          transform.getView().getViewFn().getClass().getSimpleName());
+      this.viewFn = (SingletonViewFn) transform.getView().getViewFn();
     }
 
     @Override
     public PCollectionView<T> expand(PCollection<T> input) {
-      Combine.Globally<T, T> combine = Combine.globally(
-          new SingletonCombine<>(transform.hasDefaultValue(), transform.defaultValue()));
-      if (!transform.hasDefaultValue()) {
+      boolean hasDefault = viewFn.hasDefaultValue();
+      Combine.Globally<T, T> combine =
+          Combine.globally(
+              new SingletonCombine<>(hasDefault, hasDefault ? viewFn.getDefaultValue() : null));
+      if (!hasDefault) {
         combine = combine.withoutDefaults();
       }
       return input.apply(combine.asSingletonView());
