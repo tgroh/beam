@@ -17,6 +17,8 @@
  */
 package org.apache.beam.runners.apex;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import com.datatorrent.api.Attribute;
 import com.datatorrent.api.Context.DAGContext;
 import com.datatorrent.api.DAG;
@@ -58,10 +60,10 @@ import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.transforms.View;
-import org.apache.beam.sdk.transforms.View.AsIterable;
-import org.apache.beam.sdk.transforms.View.AsSingleton;
+import org.apache.beam.sdk.transforms.View.CreatePCollectionView;
 import org.apache.beam.sdk.util.PCollectionViews;
+import org.apache.beam.sdk.util.PCollectionViews.IterableViewFn;
+import org.apache.beam.sdk.util.PCollectionViews.SingletonViewFn;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.hadoop.conf.Configuration;
@@ -100,10 +102,10 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
     return ImmutableMap.<PTransformMatcher, PTransformOverrideFactory>builder()
         .put(PTransformMatchers.classEqualTo(Create.Values.class), new PrimitiveCreate.Factory())
         .put(
-            PTransformMatchers.classEqualTo(View.AsSingleton.class),
+            PTransformMatchers.createViewWithViewFn(SingletonViewFn.class),
             new StreamingViewAsSingleton.Factory())
         .put(
-            PTransformMatchers.classEqualTo(View.AsIterable.class),
+            PTransformMatchers.createViewWithViewFn(IterableViewFn.class),
             new StreamingViewAsIterable.Factory())
         .put(
             PTransformMatchers.classEqualTo(Combine.GloballyAsSingletonView.class),
@@ -271,17 +273,21 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
       extends PTransform<PCollection<T>, PCollectionView<T>> {
     private static final long serialVersionUID = 1L;
 
-    private View.AsSingleton<T> transform;
+    private SingletonViewFn<T> viewFn;
 
-    public StreamingViewAsSingleton(View.AsSingleton<T> transform) {
-      this.transform = transform;
+    public StreamingViewAsSingleton(CreatePCollectionView<T, T> transform) {
+      checkArgument(transform.getView().getViewFn() instanceof SingletonViewFn);
+      this.viewFn = (SingletonViewFn) transform.getView().getViewFn();
     }
 
     @Override
     public PCollectionView<T> expand(PCollection<T> input) {
-      Combine.Globally<T, T> combine = Combine
-          .globally(new SingletonCombine<>(transform.hasDefaultValue(), transform.defaultValue()));
-      if (!transform.hasDefaultValue()) {
+      Combine.Globally<T, T> combine =
+          Combine.globally(
+              new SingletonCombine<>(
+                  viewFn.hasDefaultValue(),
+                  viewFn.hasDefaultValue() ? viewFn.getDefaultValue() : null));
+      if (!viewFn.hasDefaultValue()) {
         combine = combine.withoutDefaults();
       }
       return input.apply(combine.asSingletonView());
@@ -321,10 +327,10 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
 
     static class Factory<T>
         extends SingleInputOutputOverrideFactory<
-            PCollection<T>, PCollectionView<T>, View.AsSingleton<T>> {
+            PCollection<T>, PCollectionView<T>, CreatePCollectionView<T, T>> {
       @Override
       public PTransform<PCollection<T>, PCollectionView<T>> getReplacementTransform(
-          AsSingleton<T> transform) {
+          CreatePCollectionView<T, T> transform) {
         return new StreamingViewAsSingleton<>(transform);
       }
     }
@@ -352,10 +358,10 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
 
     static class Factory<T>
         extends SingleInputOutputOverrideFactory<
-            PCollection<T>, PCollectionView<Iterable<T>>, View.AsIterable<T>> {
+            PCollection<T>, PCollectionView<Iterable<T>>, CreatePCollectionView<T, Iterable<T>>> {
       @Override
       public PTransform<PCollection<T>, PCollectionView<Iterable<T>>> getReplacementTransform(
-          AsIterable<T> transform) {
+          CreatePCollectionView<T, Iterable<T>> transform) {
         return new StreamingViewAsIterable<>();
       }
     }
