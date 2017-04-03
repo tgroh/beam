@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.IterableCoder;
+import org.apache.beam.sdk.transforms.Materializations;
 import org.apache.beam.sdk.transforms.ViewFn;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
@@ -85,6 +86,11 @@ public final class PCollectionViewTesting {
    */
   public static class IdentityViewFn<T> extends ViewFn<Iterable<WindowedValue<T>>, Iterable<T>> {
     @Override
+    public Materialization<Iterable<WindowedValue<T>>> getMaterialization() {
+      return Materializations.iterable();
+    }
+
+    @Override
     public Iterable<T> apply(Iterable<WindowedValue<T>> contents) {
       return Iterables.transform(contents, new Function<WindowedValue<T>, T>() {
         @Override
@@ -103,6 +109,11 @@ public final class PCollectionViewTesting {
    */
   public static class LengthViewFn<T> extends ViewFn<Iterable<WindowedValue<T>>, Long> {
     @Override
+    public Materialization<Iterable<WindowedValue<T>>> getMaterialization() {
+      return Materializations.iterable();
+    }
+
+    @Override
     public Long apply(Iterable<WindowedValue<T>> contents) {
       return (long) Iterables.size(contents);
     }
@@ -117,6 +128,11 @@ public final class PCollectionViewTesting {
 
     public ConstantViewFn(ViewT value) {
       this.value = value;
+    }
+
+    @Override
+    public Materialization<Iterable<WindowedValue<ElemT>>> getMaterialization() {
+      return Materializations.iterable();
     }
 
     @Override
