@@ -27,8 +27,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Uninterruptibles;
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.beam.runners.core.UnboundedReadFromBoundedSource;
@@ -53,7 +51,7 @@ import org.apache.beam.sdk.util.ValueWithRecordId;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PValue;
-import org.apache.beam.sdk.values.TaggedPValue;
+import org.apache.beam.sdk.values.TupleTag;
 import org.apache.commons.io.FileUtils;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
@@ -251,13 +249,13 @@ public final class TestSparkRunner extends PipelineRunner<SparkPipelineResult> {
       }
 
       @Override
-      public PBegin getInput(List<TaggedPValue> inputs, Pipeline p) {
+      public PBegin getInput(Map<TupleTag<?>, PValue> inputs, Pipeline p) {
         return p.begin();
       }
 
       @Override
       public Map<PValue, ReplacementOutput> mapOutputs(
-          List<TaggedPValue> outputs, PCollection<T> newOutput) {
+          Map<TupleTag<?>, PValue> outputs, PCollection<T> newOutput) {
         return ReplacementOutputs.singleton(outputs, newOutput);
       }
     }

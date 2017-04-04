@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 import javax.annotation.Nonnull;
@@ -78,7 +79,7 @@ import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.TaggedPValue;
+import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.spark.Accumulator;
@@ -192,19 +193,19 @@ public final class StreamingTransformTranslator {
       @SuppressWarnings("unchecked")
       @Override
       public void evaluate(Flatten.PCollections<T> transform, EvaluationContext context) {
-        List<TaggedPValue> pcs = context.getInputs(transform);
+        Map<TupleTag<?>, PValue> pcs = context.getInputs(transform);
         // since this is a streaming pipeline, at least one of the PCollections to "flatten" are
         // unbounded, meaning it represents a DStream.
         // So we could end up with an unbounded unified DStream.
         final List<JavaDStream<WindowedValue<T>>> dStreams = new ArrayList<>();
         final List<Integer> streamingSources = new ArrayList<>();
-        for (TaggedPValue pv : pcs) {
+        for (PValue pv : pcs.values()) {
           checkArgument(
-              pv.getValue() instanceof PCollection,
+              pv instanceof PCollection,
               "Flatten had non-PCollection value in input: %s of type %s",
-              pv.getValue(),
-              pv.getValue().getClass().getSimpleName());
-          PCollection<T> pcol = (PCollection<T>) pv.getValue();
+              pv,
+              pv.getClass().getSimpleName());
+          PCollection<T> pcol = (PCollection<T>) pv;
           Dataset dataset = context.borrowDataset(pcol);
           if (dataset instanceof UnboundedDataset) {
             UnboundedDataset<T> unboundedDataset = (UnboundedDataset<T>) dataset;
@@ -420,7 +421,7 @@ public final class StreamingTransformTranslator {
 
           PCollection<OutputT> output =
               (PCollection<OutputT>)
-                  Iterables.getOnlyElement(context.getOutputs(transform)).getValue();
+                  Iterables.getOnlyElement(context.getOutputs(transform).values());
           context.putDataset(
               output, new UnboundedDataset<>(outStream, unboundedDataset.getStreamSources()));
         } else {
@@ -457,10 +458,10 @@ public final class StreamingTransformTranslator {
                         }
                       })
                   .cache();
-          for (TaggedPValue output : context.getOutputs(transform)) {
+          for (Entry<TupleTag<?>, PValue> output : context.getOutputs(transform).entrySet()) {
             @SuppressWarnings("unchecked")
             JavaPairDStream<TupleTag<?>, WindowedValue<?>> filtered =
-                all.filter(new TranslationUtils.TupleTagFilter(output.getTag()));
+                all.filter(new TranslationUtils.TupleTagFilter(output.getKey()));
             @SuppressWarnings("unchecked")
             // Object is the best we can do since different outputs can have different tags
             JavaDStream<WindowedValue<Object>> values =
