@@ -19,12 +19,13 @@ package org.apache.beam.sdk.values;
 
 import java.io.Serializable;
 import javax.annotation.Nullable;
-import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.annotations.Experimental;
+import org.apache.beam.sdk.annotations.Experimental.Kind;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.transforms.ViewFn;
+import org.apache.beam.sdk.transforms.windowing.WindowMappingFn;
 import org.apache.beam.sdk.util.WindowedValue;
-import org.apache.beam.sdk.util.WindowingStrategy;
 
 /**
  * A {@link PCollectionView PCollectionView&lt;T&gt;} is an immutable view of a {@link PCollection}
@@ -69,19 +70,9 @@ public interface PCollectionView<T> extends PValue, Serializable {
   ViewFn<Iterable<WindowedValue<?>>, T> getViewFn();
 
   /**
-   * @deprecated this method will be removed entirely. The {@link PCollection} underlying a side
-   *     input, including its {@link WindowingStrategy}, is part of the side input's specification
-   *     with a {@link ParDo} transform, which will obtain that information via a package-private
-   *     channel.
+   * Returns the {@link WindowMappingFn} used to map windows from a main input to the side input of
+   * this {@link PCollectionView}.
    */
-  @Deprecated
-  WindowingStrategy<?, ?> getWindowingStrategyInternal();
-
-  /**
-   * @deprecated this method will be removed entirely. The {@link PCollection} underlying a side
-   *     input, including its {@link Coder}, is part of the side input's specification with a {@link
-   *     ParDo} transform, which will obtain that information via a package-private channel.
-   */
-  @Deprecated
-  Coder<Iterable<WindowedValue<?>>> getCoderInternal();
+  @Experimental(Kind.CORE_RUNNERS_ONLY)
+  WindowMappingFn<?> getWindowMappingFn();
 }

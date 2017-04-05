@@ -55,7 +55,6 @@ public class SideInputHandlerTest {
       PCollectionViewTesting.testingView(
           new TupleTag<Iterable<WindowedValue<String>>>() {},
           new PCollectionViewTesting.IdentityViewFn<String>(),
-          StringUtf8Coder.of(),
           windowingStrategy1);
 
   private WindowingStrategy<Object, IntervalWindow> windowingStrategy2 =
@@ -65,7 +64,6 @@ public class SideInputHandlerTest {
       PCollectionViewTesting.testingView(
           new TupleTag<Iterable<WindowedValue<String>>>() {},
           new PCollectionViewTesting.IdentityViewFn<String>(),
-          StringUtf8Coder.of(),
           windowingStrategy2);
 
   @Test

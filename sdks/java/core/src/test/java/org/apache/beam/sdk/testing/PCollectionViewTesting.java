@@ -157,9 +157,8 @@ public final class PCollectionViewTesting {
   public static <ElemT, ViewT> PCollectionView<ViewT> testingView(
       TupleTag<Iterable<WindowedValue<ElemT>>> tag,
       ViewFn<Iterable<WindowedValue<ElemT>>, ViewT> viewFn,
-      Coder<ElemT> elemCoder,
       WindowingStrategy<?, ?> windowingStrategy) {
-    return testingView(null, tag, viewFn, elemCoder, windowingStrategy);
+    return testingView(null, tag, viewFn, windowingStrategy);
   }
 
   /**
@@ -171,8 +170,33 @@ public final class PCollectionViewTesting {
   }
 
   /**
+<<<<<<< Updated upstream
    * A {@link PCollectionView} explicitly built from its {@link TupleTag},
    * {@link WindowingStrategy}, {@link Coder}, and conversion function.
+=======
+   * A {@link PCollectionView} explicitly built from its {@link TupleTag}, {@link
+   * WindowingStrategy}, {@link Coder}, and conversion function.
+   *
+   * <p>This method is only recommended for use by runner implementors to test their
+   * implementations. It is very easy to construct a {@link PCollectionView} that does not respect
+   * the invariants required for proper functioning.
+   *
+   * <p>Note that if the provided {@code WindowingStrategy} does not match that of the windowed
+   * values provided to the view during execution, results are unpredictable.
+   */
+  public static <ElemT, ViewT> PCollectionView<ViewT> testingView(
+      PCollection<ElemT> pCollection,
+      TupleTag<Iterable<WindowedValue<ElemT>>> tag,
+      ViewFn<Iterable<WindowedValue<ElemT>>, ViewT> viewFn,
+      WindowingStrategy<?, ?> windowingStrategy) {
+    return testingView(
+        pCollection, tag, viewFn, windowingStrategy.getWindowFn().getDefaultWindowMappingFn());
+  }
+
+  /**
+   * A {@link PCollectionView} explicitly built from its {@link TupleTag}, {@link
+   * WindowingStrategy}, {@link Coder}, {@link ViewFn} and {@link WindowMappingFn}.
+>>>>>>> Stashed changes
    *
    * <p>This method is only recommended for use by runner implementors to test their
    * implementations. It is very easy to construct a {@link PCollectionView} that does
@@ -185,15 +209,23 @@ public final class PCollectionViewTesting {
       PCollection<ElemT> pCollection,
       TupleTag<Iterable<WindowedValue<ElemT>>> tag,
       ViewFn<Iterable<WindowedValue<ElemT>>, ViewT> viewFn,
+<<<<<<< Updated upstream
       Coder<ElemT> elemCoder,
       WindowingStrategy<?, ?> windowingStrategy) {
+=======
+      WindowMappingFn<?> windowMappingFn) {
+>>>>>>> Stashed changes
     return new PCollectionViewFromParts<>(
         pCollection,
         tag,
         viewFn,
+<<<<<<< Updated upstream
         windowingStrategy,
         IterableCoder.of(
             WindowedValue.getFullCoder(elemCoder, windowingStrategy.getWindowFn().windowCoder())));
+=======
+        windowMappingFn);
+>>>>>>> Stashed changes
   }
 
   /**
@@ -242,13 +274,18 @@ public final class PCollectionViewTesting {
     private PCollection<ElemT> pCollection;
     private TupleTag<Iterable<WindowedValue<ElemT>>> tag;
     private ViewFn<Iterable<WindowedValue<ElemT>>, ViewT> viewFn;
+<<<<<<< Updated upstream
     private WindowingStrategy<?, ?> windowingStrategy;
     private Coder<Iterable<WindowedValue<ElemT>>> coder;
+=======
+    private WindowMappingFn<?> windowMappingFn;
+>>>>>>> Stashed changes
 
     public PCollectionViewFromParts(
         PCollection<ElemT> pCollection,
         TupleTag<Iterable<WindowedValue<ElemT>>> tag,
         ViewFn<Iterable<WindowedValue<ElemT>>, ViewT> viewFn,
+<<<<<<< Updated upstream
         WindowingStrategy<?, ?> windowingStrategy,
         Coder<Iterable<WindowedValue<ElemT>>> coder) {
       this.pCollection = pCollection;
@@ -256,6 +293,13 @@ public final class PCollectionViewTesting {
       this.viewFn = viewFn;
       this.windowingStrategy = windowingStrategy;
       this.coder = coder;
+=======
+        WindowMappingFn<?> windowMappingFn) {
+      this.pCollection = pCollection;
+      this.tag = tag;
+      this.viewFn = viewFn;
+      this.windowMappingFn = windowMappingFn;
+>>>>>>> Stashed changes
     }
 
     @Override
@@ -278,6 +322,7 @@ public final class PCollectionViewTesting {
     }
 
     @Override
+<<<<<<< Updated upstream
     public WindowingStrategy<?, ?> getWindowingStrategyInternal() {
       return windowingStrategy;
     }
@@ -286,6 +331,10 @@ public final class PCollectionViewTesting {
     @Override
     public Coder<Iterable<WindowedValue<?>>> getCoderInternal() {
       return (Coder) coder;
+=======
+    public WindowMappingFn<?> getWindowMappingFn() {
+      return windowMappingFn;
+>>>>>>> Stashed changes
     }
 
     @Override
