@@ -20,7 +20,6 @@ package org.apache.beam.sdk.util;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
-import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TupleTag;
 
@@ -58,17 +57,13 @@ public class DirectSideInputReader implements SideInputReader {
       throw new IllegalArgumentException("calling getSideInput() with unknown view");
     }
 
-    if (view.getWindowingStrategyInternal().getWindowFn() instanceof GlobalWindows) {
-      return view.getViewFn().apply(sideInputValues.get(tag));
-    } else {
-      return view.getViewFn().apply(
-          Iterables.filter(sideInputValues.get(tag),
-              new Predicate<WindowedValue<?>>() {
-                  @Override
-                  public boolean apply(WindowedValue<?> element) {
-                    return element.getWindows().contains(window);
-                  }
-                }));
-    }
+    return view.getViewFn().apply(
+        Iterables.filter(sideInputValues.get(tag),
+            new Predicate<WindowedValue<?>>() {
+              @Override
+              public boolean apply(WindowedValue<?> element) {
+                return element.getWindows().contains(window);
+              }
+            }));
   }
 }
