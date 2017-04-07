@@ -30,13 +30,21 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.protobuf.Any;
+import com.google.protobuf.BoolValue;
+import com.google.protobuf.DoubleValue;
+import com.google.protobuf.Int64Value;
+import com.google.protobuf.StringValue;
+import com.google.protobuf.Timestamp;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
+import org.apache.beam.sdk.common.runner.v1.RunnerApi;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.joda.time.Duration;
@@ -955,5 +963,77 @@ public class DisplayData implements Serializable {
     checkNotNull(type, "type argument cannot be null");
 
     return ItemSpec.create(key, type, value);
+  }
+
+  public RunnerApi.DisplayData toProto() {
+    RunnerApi.DisplayData.Builder protoBuilder = RunnerApi.DisplayData.newBuilder();
+    for (Map.Entry<Identifier, Item> entry : entries.entrySet()) {
+      RunnerApi.DisplayData.Item item = toProto(entry.getKey(), entry.getValue());
+    }
+    return protoBuilder.build();
+  }
+
+  private RunnerApi.DisplayData.Item toProto(Identifier identifier, Item item) {
+    RunnerApi.DisplayData.Item.Builder itemBuilder = RunnerApi.DisplayData.Item.newBuilder();
+    itemBuilder.setId(toProto(identifier));
+    item.getType();
+    item.getValue();
+    item.getShortValue();
+    item.getLabel();
+    item.getLinkUrl();
+    return itemBuilder.build();
+  }
+
+  private RunnerApi.DisplayData.ItemOrBuilder toProto(Item item) {
+    RunnerApi.DisplayData.Item.Builder builder = RunnerApi.DisplayData.Item.newBuilder();
+    switch (item.getType()) {
+      case FLOAT:
+        builder.setValue(
+            Any.pack(DoubleValue.newBuilder().setValue((Double) item.getValue()).build()));
+        break;
+      case INTEGER:
+        builder.setValue(
+            Any.pack(Int64Value.newBuilder().setValue((Long) item.getValue()).build()));
+        break;
+      case TIMESTAMP:
+        Instant timestamp = (Instant) item.getValue();
+        builder.setValue(
+            Any.pack(
+                Timestamp.newBuilder()
+                    .setSeconds(TimeUnit.MILLISECONDS.toSeconds(timestamp.getMillis()))
+                    .setNanos((int) TimeUnit.MILLISECONDS.toNanos(timestamp.getMillis()))
+                    .build()));
+        break;
+      case DURATION:
+        Duration duration = (Duration) item.getValue();
+        builder.setValue(
+            Any.pack(
+                com.google.protobuf.Duration.newBuilder()
+                    .setSeconds(TimeUnit.MILLISECONDS.toSeconds(duration.getMillis()))
+                    .setNanos((int) TimeUnit.MILLISECONDS.toNanos(duration.getMillis()))
+                    .build()));
+        break;
+      case BOOLEAN:
+        builder.setValue(
+            Any.pack(BoolValue.newBuilder().setValue((boolean) item.getValue()).build()));
+        break;
+      case JAVA_CLASS:
+        builder.setValue(Any.pack(StringValue.newBuilder().setValue()))
+      case STRING:
+        builder.setValue(
+            Any.pack(StringValue.newBuilder().setValue((String) item.getValue()).build()));
+        break;
+      default:
+        throw new IllegalArgumentException(String.format("Unknown Item Type %s", item.getType()));
+    }
+    return builder;
+  }
+
+  private RunnerApi.DisplayData.Identifier toProto(Identifier identifier) {
+    return RunnerApi.DisplayData.Identifier.newBuilder()
+        .setKey(identifier.getKey())
+        .setTransformId(Joiner.on("/").join(identifier.getPath().getComponents()))
+        // TODO: .setTransformUrn(transformUrn)
+        .build();
   }
 }
