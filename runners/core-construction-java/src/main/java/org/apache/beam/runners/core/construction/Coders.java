@@ -24,7 +24,10 @@ import com.google.common.collect.ImmutableBiMap;
 import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.BytesValue;
+import com.google.protobuf.StringValue;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -32,6 +35,7 @@ import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.IterableCoder;
 import org.apache.beam.sdk.coders.KvCoder;
+import org.apache.beam.sdk.coders.StandardCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.coders.VarLongCoder;
 import org.apache.beam.sdk.common.runner.v1.RunnerApi;
@@ -49,6 +53,9 @@ import org.apache.beam.sdk.util.WindowedValue.FullWindowedValueCoder;
 public class Coders {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+  // This URN says that the coder is a StandardCoder, and can be constructed from its components
+  // TODO: standardize such things
+  public static final String STANDARD_CODER_URN = "urn:beam:coders:javasdk:standardcoder:0.1";
   // This URN says that the coder is just a UDF blob this SDK understands
   // TODO: standardize such things
   public static final String CUSTOM_CODER_URN = "urn:beam:coders:javasdk:0.1";
@@ -69,18 +76,15 @@ public class Coders {
       Coder<?> coder, @SuppressWarnings("unused") SdkComponents components) throws IOException {
     if (KNOWN_CODER_URNS.containsKey(coder.getClass())) {
       return toKnownCoder(coder, components);
+    } else if (coder instanceof StandardCoder) {
+      return toStandardCoder((StandardCoder) coder, components);
     }
     return toCustomCoder(coder);
   }
 
   private static RunnerApi.Coder toKnownCoder(Coder<?> coder, SdkComponents components)
       throws IOException {
-    List<String> componentIds = new ArrayList<>();
-    if (coder.getCoderArguments() != null) {
-      for (Coder<?> componentCoder : coder.getCoderArguments()) {
-        componentIds.add(components.registerCoder(componentCoder));
-      }
-    }
+    List<String> componentIds = getComponentIds(coder, components);
     return RunnerApi.Coder.newBuilder()
         .addAllComponentCoderIds(componentIds)
         .setSpec(
@@ -88,6 +92,37 @@ public class Coders {
                 .setSpec(FunctionSpec.newBuilder().setUrn(KNOWN_CODER_URNS.get(coder.getClass()))))
         .build();
   }
+
+  private static RunnerApi.Coder toStandardCoder(
+      StandardCoder<?> coder, SdkComponents components) throws IOException {
+    List<String> componentIds = getComponentIds(coder, components);
+    return RunnerApi.Coder.newBuilder()
+        .addAllComponentCoderIds(componentIds)
+        .setSpec(
+            SdkFunctionSpec.newBuilder()
+                .setSpec(
+                    FunctionSpec.newBuilder()
+                        .setUrn(STANDARD_CODER_URN)
+                        .setParameter(
+                            Any.pack(
+                                StringValue.newBuilder()
+                                    .setValue(coder.getClass().getCanonicalName())
+                                    .build()))
+                        .build()))
+        .build();
+  }
+
+  private static List<String> getComponentIds(Coder<?> coder, SdkComponents components)
+      throws IOException {
+    List<String> componentIds = new ArrayList<>();
+    if (coder.getCoderArguments() != null) {
+      for (Coder<?> componentCoder : coder.getCoderArguments()) {
+        componentIds.add(components.registerCoder(componentCoder));
+      }
+    }
+    return componentIds;
+  }
+
 
   private static RunnerApi.Coder toCustomCoder(Coder<?> coder) throws IOException {
     RunnerApi.Coder.Builder coderBuilder = RunnerApi.Coder.newBuilder();
@@ -119,11 +154,7 @@ public class Coders {
   private static Coder<?> fromKnownCoder(RunnerApi.Coder coder, Components components)
       throws IOException {
     String coderUrn = coder.getSpec().getSpec().getUrn();
-    List<Coder<?>> coderComponents = new LinkedList<>();
-    for (String componentId : coder.getComponentCoderIdsList()) {
-      Coder<?> innerCoder = fromProto(components.getCodersOrThrow(componentId), components);
-      coderComponents.add(innerCoder);
-    }
+    List<Coder<?>> coderComponents = componentCodersFromProto(coder, components);
     switch (coderUrn) {
       case "urn:beam:coders:bytes:0.1":
         return ByteArrayCoder.of();
@@ -144,6 +175,42 @@ public class Coders {
             String.format(
                 "Unknown coder URN %s. Known URNs: %s", coderUrn, KNOWN_CODER_URNS.values()));
     }
+  }
+
+  private static Coder<?> fromStandardCoder(
+      RunnerApi.Coder protoCoder, RunnerApi.Components components) throws IOException {
+    List<Coder<?>> componentCoders = componentCodersFromProto(protoCoder, components);
+    String coderClassName =
+        protoCoder.getSpec().getSpec().getParameter().unpack(StringValue.class).getValue();
+    Class<?> coderClass;
+    try {
+      coderClass = Class.forName(coderClassName);
+    } catch (ClassNotFoundException e) {
+      throw new IllegalStateException("Could not load coder class " + coderClassName, e);
+    }
+    Method constructor;
+    try {
+      constructor = coderClass.getMethod("of", List.class);
+    } catch (NoSuchMethodException e) {
+      throw new IllegalStateException(
+          "Could not find Static coder constructor taking components", e);
+    }
+    try {
+      return (Coder<?>) constructor.invoke(null, componentCoders);
+    } catch (IllegalAccessException | InvocationTargetException e) {
+      throw new IllegalStateException(
+          String.format("Could not invoke coder constructor %s", constructor), e);
+    }
+  }
+
+  private static List<Coder<?>> componentCodersFromProto(
+      RunnerApi.Coder coder, Components components) throws IOException {
+    List<Coder<?>> coderComponents = new LinkedList<>();
+    for (String componentId : coder.getComponentCoderIdsList()) {
+      Coder<?> innerCoder = fromProto(components.getCodersOrThrow(componentId), components);
+      coderComponents.add(innerCoder);
+    }
+    return coderComponents;
   }
 
   private static Coder<?> fromCustomCoder(
