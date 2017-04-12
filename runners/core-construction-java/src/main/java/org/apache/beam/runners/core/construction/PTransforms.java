@@ -21,13 +21,19 @@ package org.apache.beam.runners.core.construction;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.protobuf.Any;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.BytesValue;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 import org.apache.beam.sdk.common.runner.v1.RunnerApi;
 import org.apache.beam.sdk.common.runner.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.transforms.ParameterizableTransformRegistrar;
+import org.apache.beam.sdk.transforms.ParameterizedPayloadFactory;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TupleTag;
@@ -39,6 +45,25 @@ public class PTransforms {
           ImmutableMap.<Class<? extends PTransform>, TransformPayloadTranslator>builder().build();
   // TODO: ParDoPayload, WindowIntoPayload, ReadPayload, CombinePayload
   // TODO: "Flatten Payload", etc?
+
+  private static final Map<Class<? extends PTransform>, ParameterizedPayloadFactory<?, ?>>
+      CUSTOM_REGISTERED_TRANSLATORS = getRegisteredTranslators();
+  private static final String CUSTOM_TRANFORM_URN_PREFIX = "urn:beam:ptransform:0.1:custom";
+
+  private static Map<Class<? extends PTransform>, ParameterizedPayloadFactory<?, ?>>
+      getRegisteredTranslators() {
+    ServiceLoader<ParameterizableTransformRegistrar> registrars =
+        ServiceLoader.load(ParameterizableTransformRegistrar.class);
+    ImmutableMap.Builder<Class<? extends PTransform>, ParameterizedPayloadFactory<?, ?>>
+        registeredPayloadFactories = ImmutableMap.builder();
+    for (ParameterizableTransformRegistrar registrar : registrars) {
+      for (ParameterizedPayloadFactory registeredFactory : registrar.getFactories()) {
+        registeredPayloadFactories.put(registeredFactory.getTargetClass(), registeredFactory);
+      }
+    }
+    return registeredPayloadFactories.build();
+  }
+
   private PTransforms() {}
 
   /**
@@ -76,9 +101,24 @@ public class PTransforms {
       FunctionSpec payload =
           PAYLOAD_TRANSLATORS.get(transform.getClass()).translate(application, components);
       transformBuilder.setSpec(payload);
+    } else if (CUSTOM_REGISTERED_TRANSLATORS.containsKey(transform.getClass())) {
+      ParameterizedPayloadFactory<?, ?> factory =
+          CUSTOM_REGISTERED_TRANSLATORS.get(transform.getClass());
+      toPayload(transform, factory);
     }
 
     return transformBuilder.build();
+  }
+
+  private static <T extends PTransform, TargetT> FunctionSpec toPayload(
+      PTransform<?, ?> transform, ParameterizedPayloadFactory<T, TargetT> factory) {
+    T typedTransform = (T) transform;
+    byte[] payload = factory.toBytes(factory.toTarget(typedTransform));
+    FunctionSpec.newBuilder()
+        .setUrn(String.format("%s:%s", CUSTOM_TRANFORM_URN_PREFIX, factory.getCustomUrnPart()))
+        .setParameter(
+            Any.pack(BytesValue.newBuilder().setValue(ByteString.copyFrom(payload)).build()))
+        .build();
   }
 
   private static String toProto(TupleTag<?> tag) {
