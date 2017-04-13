@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryHelpers.Status;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryHelpers.TableRefToJson;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryHelpers.TableRefToProjectId;
@@ -122,7 +121,9 @@ class BigQueryQuerySource extends BigQuerySourceBase {
 
     // 2. Create the temporary dataset in the query location.
     TableReference tableToExtract =
-        BigQueryIO.JSON_FACTORY.fromString(jsonQueryTempTable.get(), TableReference.class);
+        setDefaultProjectIfAbsent(
+            bqOptions,
+            BigQueryIO.JSON_FACTORY.fromString(jsonQueryTempTable.get(), TableReference.class));
     tableService.createDataset(
         tableToExtract.getProjectId(),
         tableToExtract.getDatasetId(),
@@ -143,7 +144,9 @@ class BigQueryQuerySource extends BigQuerySourceBase {
   protected void cleanupTempResource(BigQueryOptions bqOptions) throws Exception {
     checkState(jsonQueryTempTable.isAccessible());
     TableReference tableToRemove =
-        BigQueryIO.JSON_FACTORY.fromString(jsonQueryTempTable.get(), TableReference.class);
+        setDefaultProjectIfAbsent(
+            bqOptions,
+            BigQueryIO.JSON_FACTORY.fromString(jsonQueryTempTable.get(), TableReference.class));
 
     DatasetService tableService = bqServices.getDatasetService(bqOptions);
     tableService.deleteTable(tableToRemove);

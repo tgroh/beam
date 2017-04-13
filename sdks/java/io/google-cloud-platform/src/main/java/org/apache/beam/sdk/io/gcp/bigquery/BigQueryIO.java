@@ -32,13 +32,11 @@ import com.google.auto.value.AutoValue;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
-
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
-
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.TableRowJsonCoder;
 import org.apache.beam.sdk.coders.VoidCoder;
@@ -468,17 +466,19 @@ public class BigQueryIO {
 
     @Override
     public PCollection<TableRow> expand(PBegin input) {
-      String stepUuid = BigQueryHelpers.randomUUIDString();
       BigQueryOptions bqOptions = input.getPipeline().getOptions().as(BigQueryOptions.class);
+      String jobName = bqOptions.getJobName();
+      String tempLocation = bqOptions.getTempLocation();
+      final String executingProject = bqOptions.getProject();
+      String stepUuid = BigQueryHelpers.randomUUIDString();
       ValueProvider<String> jobUuid = NestedValueProvider.of(
-         StaticValueProvider.of(bqOptions.getJobName()), new CreatePerBeamJobUuid(stepUuid));
+         StaticValueProvider.of(jobName), new CreatePerBeamJobUuid(stepUuid));
       final ValueProvider<String> jobIdToken = NestedValueProvider.of(
           jobUuid, new BeamJobUuidToBigQueryJobUuid());
 
       BoundedSource<TableRow> source;
 
       final String extractDestinationDir;
-      String tempLocation = bqOptions.getTempLocation();
       try {
         IOChannelFactory factory = IOChannelUtils.getFactory(tempLocation);
         extractDestinationDir = factory.resolve(tempLocation, stepUuid);
@@ -487,7 +487,6 @@ public class BigQueryIO {
             String.format("Failed to resolve extract destination directory in %s", tempLocation));
       }
 
-      final String executingProject = bqOptions.getProject();
       if (getQuery() != null
           && (!getQuery().isAccessible() || !Strings.isNullOrEmpty(getQuery().get()))) {
         source =

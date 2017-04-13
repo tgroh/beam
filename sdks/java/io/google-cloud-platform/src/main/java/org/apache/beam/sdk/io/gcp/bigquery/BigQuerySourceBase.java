@@ -18,7 +18,9 @@
 
 package org.apache.beam.sdk.io.gcp.bigquery;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 import com.google.api.services.bigquery.model.Job;
 import com.google.api.services.bigquery.model.JobConfigurationExtract;
@@ -26,6 +28,7 @@ import com.google.api.services.bigquery.model.JobReference;
 import com.google.api.services.bigquery.model.TableReference;
 import com.google.api.services.bigquery.model.TableRow;
 import com.google.api.services.bigquery.model.TableSchema;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import java.io.IOException;
@@ -85,6 +88,9 @@ abstract class BigQuerySourceBase extends BoundedSource<TableRow> {
       long desiredBundleSizeBytes, PipelineOptions options) throws Exception {
     BigQueryOptions bqOptions = options.as(BigQueryOptions.class);
     TableReference tableToExtract = getTableToExtract(bqOptions);
+    checkArgument(
+        !Strings.isNullOrEmpty(tableToExtract.getProjectId()),
+        "Table to Extract does not have a Project ID set");
     JobService jobService = bqServices.getJobService(bqOptions);
     String extractJobId = BigQueryIO.getExtractJobId(jobIdToken);
     List<String> tempFiles = executeExtract(extractJobId, tableToExtract, jobService);
@@ -99,6 +105,33 @@ abstract class BigQuerySourceBase extends BoundedSource<TableRow> {
   protected abstract TableReference getTableToExtract(BigQueryOptions bqOptions) throws Exception;
 
   protected abstract void cleanupTempResource(BigQueryOptions bqOptions) throws Exception;
+
+  /**
+   * Sets the {@link TableReference#projectId} of the provided table reference to the id of the
+   * default project if the table reference does not have a project ID specified.
+   *
+   * <p>TODO: This is brittle (at best). It should be automatable, but the target table is
+   * used in multiple places.
+   */
+  TableReference setDefaultProjectIfAbsent(
+      BigQueryOptions bqOptions, TableReference tableReference) {
+    if (Strings.isNullOrEmpty(tableReference.getProjectId())) {
+      checkState(
+          (executingProject.isAccessible() && !Strings.isNullOrEmpty(executingProject.get()))
+              || !Strings.isNullOrEmpty(bqOptions.getProject()),
+          "No project ID set in %s or %s, cannot construct a complete %s",
+          TableReference.class.getSimpleName(),
+          BigQueryOptions.class.getSimpleName(),
+          TableReference.class.getSimpleName());
+      LOG.info(
+          "Project ID not set in {}. Using default project from {}.",
+          TableReference.class.getSimpleName(),
+          BigQueryOptions.class.getSimpleName());
+      tableReference.setProjectId(bqOptions.getProject());
+    }
+    return tableReference;
+  }
+
 
   @Override
   public void validate() {
