@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryHelpers.Status;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryHelpers.TableRefToJson;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryHelpers.TableRefToProjectId;
@@ -42,6 +41,7 @@ import org.apache.beam.sdk.options.BigQueryOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.options.ValueProvider.NestedValueProvider;
+import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.transforms.display.DisplayData;
 
 
@@ -52,17 +52,17 @@ import org.apache.beam.sdk.transforms.display.DisplayData;
 class BigQueryQuerySource extends BigQuerySourceBase {
 
   static BigQueryQuerySource create(
-      ValueProvider<String> jobIdToken,
+      SerializableFunction<PipelineOptions, String> jobIdTokenGenerator,
       ValueProvider<String> query,
-      ValueProvider<TableReference> queryTempTableRef,
+      SerializableFunction<PipelineOptions, TableReference> queryTempTableNameGenerator,
       Boolean flattenResults,
       Boolean useLegacySql,
       String extractDestinationDir,
       BigQueryServices bqServices) {
     return new BigQueryQuerySource(
-        jobIdToken,
+        jobIdTokenGenerator,
         query,
-        queryTempTableRef,
+        queryTempTableNameGenerator,
         flattenResults,
         useLegacySql,
         extractDestinationDir,
@@ -76,19 +76,23 @@ class BigQueryQuerySource extends BigQuerySourceBase {
   private transient AtomicReference<JobStatistics> dryRunJobStats;
 
   private BigQueryQuerySource(
-      ValueProvider<String> jobIdToken,
+      SerializableFunction<PipelineOptions, String> jobIdTokenGenerator,
       ValueProvider<String> query,
-      ValueProvider<TableReference> queryTempTableRef,
+      SerializableFunction<PipelineOptions, TableReference> queryTempTableRefGenerator,
       Boolean flattenResults,
       Boolean useLegacySql,
       String extractDestinationDir,
       BigQueryServices bqServices) {
-    super(jobIdToken, extractDestinationDir, bqServices,
+    super(
+        jobIdTokenGenerator,
+        extractDestinationDir,
+        bqServices,
         NestedValueProvider.of(
-            checkNotNull(queryTempTableRef, "queryTempTableRef"), new TableRefToProjectId()));
+            checkNotNull(queryTempTableRefGenerator, "queryTempTableRefGenerator"),
+            new TableRefToProjectId()));
     this.query = checkNotNull(query, "query");
-    this.jsonQueryTempTable = NestedValueProvider.of(
-        queryTempTableRef, new TableRefToJson());
+    this.jsonQueryTempTable =
+        NestedValueProvider.of(queryTempTableRefGenerator, new TableRefToJson());
     this.flattenResults = checkNotNull(flattenResults, "flattenResults");
     this.useLegacySql = checkNotNull(useLegacySql, "useLegacySql");
     this.dryRunJobStats = new AtomicReference<>();
@@ -130,7 +134,7 @@ class BigQueryQuerySource extends BigQuerySourceBase {
         "Dataset for BigQuery query job temporary table");
 
     // 3. Execute the query.
-    String queryJobId = jobIdToken.get() + "-query";
+    String queryJobId = jobIdTokenGenerator.apply(bqOptions) + "-query";
     executeQuery(
         executingProject.get(),
         queryJobId,

@@ -32,13 +32,11 @@ import com.google.auto.value.AutoValue;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
-
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
-
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.TableRowJsonCoder;
 import org.apache.beam.sdk.coders.VoidCoder;
@@ -468,12 +466,23 @@ public class BigQueryIO {
 
     @Override
     public PCollection<TableRow> expand(PBegin input) {
-      String stepUuid = BigQueryHelpers.randomUUIDString();
+      final String stepUuid = BigQueryHelpers.randomUUIDString();
       BigQueryOptions bqOptions = input.getPipeline().getOptions().as(BigQueryOptions.class);
-      ValueProvider<String> jobUuid = NestedValueProvider.of(
-         StaticValueProvider.of(bqOptions.getJobName()), new CreatePerBeamJobUuid(stepUuid));
-      final ValueProvider<String> jobIdToken = NestedValueProvider.of(
-          jobUuid, new BeamJobUuidToBigQueryJobUuid());
+      final SerializableFunction<PipelineOptions, String> jobUuidGenerator =
+          new SerializableFunction<PipelineOptions, String>() {
+            @Override
+            public String apply(PipelineOptions input) {
+              return new CreatePerBeamJobUuid(stepUuid)
+                  .apply(input.as(BigQueryOptions.class).getJobName());
+            }
+          };
+      final SerializableFunction<PipelineOptions, String> jobIdTokenGenerator =
+          new SerializableFunction<PipelineOptions, String>() {
+            @Override
+            public String apply(PipelineOptions input) {
+              return new BeamJobUuidToBigQueryJobUuid().apply(jobUuidGenerator.apply(input));
+            }
+          };
 
       BoundedSource<TableRow> source;
 
@@ -490,12 +499,20 @@ public class BigQueryIO {
       final String executingProject = bqOptions.getProject();
       if (getQuery() != null
           && (!getQuery().isAccessible() || !Strings.isNullOrEmpty(getQuery().get()))) {
+        SerializableFunction<PipelineOptions, TableReference> tempTableGenerator =
+            new SerializableFunction<PipelineOptions, TableReference>() {
+              @Override
+              public TableReference apply(PipelineOptions input) {
+                String uuid = jobUuidGenerator.apply(input);
+                return new CreateJsonTableRefFromUuid(input.as(BigQueryOptions.class).getProject())
+                    .apply(uuid);
+              }
+            };
         source =
             BigQueryQuerySource.create(
-                jobIdToken,
+                jobIdTokenGenerator,
                 getQuery(),
-                NestedValueProvider.of(
-                    jobUuid, new CreateJsonTableRefFromUuid(executingProject)),
+                tempTableGenerator,
                 getFlattenResults(),
                 getUseLegacySql(),
                 extractDestinationDir,
@@ -503,7 +520,7 @@ public class BigQueryIO {
       } else {
         source =
             BigQueryTableSource.create(
-                jobIdToken,
+                jobIdTokenGenerator,
                 getTableProvider(),
                 extractDestinationDir,
                 getBigQueryServices(),
@@ -518,7 +535,7 @@ public class BigQueryIO {
               JobReference jobRef =
                   new JobReference()
                       .setProjectId(executingProject)
-                      .setJobId(getExtractJobId(jobIdToken));
+                      .setJobId(getExtractJobId(jobIdTokenGenerator.apply(options)));
 
               Job extractJob = getBigQueryServices().getJobService(bqOptions).getJob(jobRef);
 
@@ -583,8 +600,8 @@ public class BigQueryIO {
     }
   }
 
-  static String getExtractJobId(ValueProvider<String> jobIdToken) {
-    return jobIdToken.get() + "-extract";
+  static String getExtractJobId(String jobIdToken) {
+    return jobIdToken + "-extract";
   }
 
   static String getExtractDestinationUri(String extractDestinationDir) {

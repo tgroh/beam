@@ -32,6 +32,7 @@ import org.apache.beam.sdk.options.BigQueryOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.options.ValueProvider.NestedValueProvider;
+import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.transforms.display.DisplayData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,25 +45,25 @@ class BigQueryTableSource extends BigQuerySourceBase {
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryTableSource.class);
 
   static BigQueryTableSource create(
-      ValueProvider<String> jobIdToken,
+      SerializableFunction<PipelineOptions, String> jobIdTokenGenerator,
       ValueProvider<TableReference> table,
       String extractDestinationDir,
       BigQueryServices bqServices,
       ValueProvider<String> executingProject) {
     return new BigQueryTableSource(
-        jobIdToken, table, extractDestinationDir, bqServices, executingProject);
+        jobIdTokenGenerator, table, extractDestinationDir, bqServices, executingProject);
   }
 
   private final ValueProvider<String> jsonTable;
   private final AtomicReference<Long> tableSizeBytes;
 
   private BigQueryTableSource(
-      ValueProvider<String> jobIdToken,
+      SerializableFunction<PipelineOptions, String> jobIdTokenGenerator,
       ValueProvider<TableReference> table,
       String extractDestinationDir,
       BigQueryServices bqServices,
       ValueProvider<String> executingProject) {
-    super(jobIdToken, extractDestinationDir, bqServices, executingProject);
+    super(jobIdTokenGenerator, extractDestinationDir, bqServices, executingProject);
     this.jsonTable = NestedValueProvider.of(checkNotNull(table, "table"), new TableRefToJson());
     this.tableSizeBytes = new AtomicReference<>();
   }

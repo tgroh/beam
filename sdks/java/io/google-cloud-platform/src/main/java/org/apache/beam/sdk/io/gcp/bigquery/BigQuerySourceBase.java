@@ -64,17 +64,17 @@ abstract class BigQuerySourceBase extends BoundedSource<TableRow> {
   // The maximum number of retries to poll a BigQuery job.
   protected static final int JOB_POLL_MAX_RETRIES = Integer.MAX_VALUE;
 
-  protected final ValueProvider<String> jobIdToken;
+  protected final SerializableFunction<PipelineOptions, String> jobIdTokenGenerator;
   protected final String extractDestinationDir;
   protected final BigQueryServices bqServices;
   protected final ValueProvider<String> executingProject;
 
   BigQuerySourceBase(
-      ValueProvider<String> jobIdToken,
+      SerializableFunction<PipelineOptions, String> jobIdTokenGenerator,
       String extractDestinationDir,
       BigQueryServices bqServices,
       ValueProvider<String> executingProject) {
-    this.jobIdToken = checkNotNull(jobIdToken, "jobIdToken");
+    this.jobIdTokenGenerator = checkNotNull(jobIdTokenGenerator, "jobIdTokenGenerator");
     this.extractDestinationDir = checkNotNull(extractDestinationDir, "extractDestinationDir");
     this.bqServices = checkNotNull(bqServices, "bqServices");
     this.executingProject = checkNotNull(executingProject, "executingProject");
@@ -86,7 +86,7 @@ abstract class BigQuerySourceBase extends BoundedSource<TableRow> {
     BigQueryOptions bqOptions = options.as(BigQueryOptions.class);
     TableReference tableToExtract = getTableToExtract(bqOptions);
     JobService jobService = bqServices.getJobService(bqOptions);
-    String extractJobId = BigQueryIO.getExtractJobId(jobIdToken);
+    String extractJobId = BigQueryIO.getExtractJobId(jobIdTokenGenerator.apply(options));
     List<String> tempFiles = executeExtract(extractJobId, tableToExtract, jobService);
 
     TableSchema tableSchema = bqServices.getDatasetService(bqOptions)

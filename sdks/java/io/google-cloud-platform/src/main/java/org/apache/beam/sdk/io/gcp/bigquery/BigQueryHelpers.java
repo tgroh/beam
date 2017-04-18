@@ -26,7 +26,6 @@ import com.google.api.services.bigquery.model.TableReference;
 import com.google.api.services.bigquery.model.TableSchema;
 import com.google.cloud.hadoop.util.ApiErrorExtractor;
 import com.google.common.annotations.VisibleForTesting;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,7 +33,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import javax.annotation.Nullable;
-
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryServices.DatasetService;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.options.ValueProvider.NestedValueProvider;
@@ -302,8 +300,7 @@ public class BigQueryHelpers {
   }
 
   @VisibleForTesting
-  static class CreatePerBeamJobUuid
-      implements SerializableFunction<String, String> {
+  static class CreatePerBeamJobUuid implements SerializableFunction<String, String> {
     private final String stepUuid;
 
     CreatePerBeamJobUuid(String stepUuid) {
