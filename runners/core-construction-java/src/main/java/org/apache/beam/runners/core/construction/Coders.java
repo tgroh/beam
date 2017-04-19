@@ -22,8 +22,11 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Function;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.BytesValue;
@@ -31,8 +34,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.ServiceLoader;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.coders.CoderTranslator;
+import org.apache.beam.sdk.coders.CoderTranslatorRegistrar;
+import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.IterableCoder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.StandardCoder;
@@ -44,6 +52,7 @@ import org.apache.beam.sdk.common.runner.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow.IntervalWindowCoder;
 import org.apache.beam.sdk.util.CloudObject;
+import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.util.Serializer;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.WindowedValue.FullWindowedValueCoder;
@@ -69,28 +78,52 @@ public class Coders {
           .put(FullWindowedValueCoder.class, "urn:beam:coders:windowed_value:0.1")
           .build();
 
-  public static RunnerApi.Coder toProto(
-      Coder<?> coder, @SuppressWarnings("unused") SdkComponents components) throws IOException {
-    if (KNOWN_CODER_URNS.containsKey(coder.getClass())) {
-      return toKnownCoder(coder, components);
+  static final BiMap<Class<? extends StandardCoder>, String> REGISTERED_CODER_TYPES;
+  static final Map<Class<? extends StandardCoder>, CoderTranslator<?>> REGISTERED_CODER_TRANSLATORS;
+
+  static {
+    ImmutableBiMap.Builder<Class<? extends StandardCoder>, String> registeredCodersBuilder =
+        ImmutableBiMap.builder();
+    ImmutableMap.Builder<Class<? extends StandardCoder>, CoderTranslator<?>>
+        registeredCoderTranslatorsBuilder = ImmutableMap.builder();
+    for (CoderTranslatorRegistrar<?> registrar :
+        ServiceLoader.load(CoderTranslatorRegistrar.class)) {
+      registeredCodersBuilder.put(registrar.getCoderClass(), registrar.getCoderUrn());
+      registeredCoderTranslatorsBuilder.put(registrar.getCoderClass(), registrar.translator());
     }
-    return toCustomCoder(coder);
+    REGISTERED_CODER_TYPES = registeredCodersBuilder.build();
+    REGISTERED_CODER_TRANSLATORS = registeredCoderTranslatorsBuilder.build();
   }
 
-  private static RunnerApi.Coder toKnownCoder(Coder<?> coder, SdkComponents components)
+  public static RunnerApi.Coder toProto(Coder<?> coder, SdkComponents components)
       throws IOException {
-    checkArgument(
-        coder instanceof StandardCoder,
-        "A Known %s must implement %s, but %s of class %s does not",
-        Coder.class.getSimpleName(),
-        StandardCoder.class.getSimpleName(),
-        coder,
-        coder.getClass().getName());
-    StandardCoder<?> stdCoder = (StandardCoder<?>) coder;
-    List<String> componentIds = new ArrayList<>();
-    for (Coder<?> componentCoder : stdCoder.getComponents()) {
-      componentIds.add(components.registerCoder(componentCoder));
+    if (KNOWN_CODER_URNS.containsKey(coder.getClass())) {
+      return toKnownCoder((StandardCoder<?>) coder, components);
+    } else if (coder instanceof CustomCoder) {
+      return toCustomCoder((CustomCoder<?>) coder);
+    } else if (REGISTERED_CODER_TYPES.containsKey(coder.getClass())) {
+      return toRegisteredCoder((StandardCoder<?>) coder, components);
+    } else {
+      throw new IllegalArgumentException(
+          String.format(
+              "Unknown Coder Type %s. Supported Parent Types are %s, %s, and all of %s",
+              coder.getClass(),
+              CustomCoder.class.getSimpleName(),
+              StandardCoder.class.getSimpleName(),
+              Iterables.transform(
+                  KNOWN_CODER_URNS.keySet(),
+                  new Function<Class<? extends StandardCoder>, String>() {
+                    @Override
+                    public String apply(Class<? extends StandardCoder> input) {
+                      return input.getSimpleName();
+                    }
+                  })));
     }
+  }
+
+  private static RunnerApi.Coder toKnownCoder(StandardCoder<?> coder, SdkComponents components)
+      throws IOException {
+    List<String> componentIds = getComponentCoderIds(components, coder.getComponents());
     return RunnerApi.Coder.newBuilder()
         .addAllComponentCoderIds(componentIds)
         .setSpec(
@@ -99,7 +132,37 @@ public class Coders {
         .build();
   }
 
-  private static RunnerApi.Coder toCustomCoder(Coder<?> coder) throws IOException {
+  private static RunnerApi.Coder toRegisteredCoder(StandardCoder<?> coder, SdkComponents components)
+      throws IOException {
+    List<String> componentIds = getComponentCoderIds(components, coder.getComponents());
+    CoderTranslator translator = REGISTERED_CODER_TRANSLATORS.get(coder.getClass());
+    checkArgument(
+        translator != null, "Unregistered Coder Type %s", coder.getClass().getSimpleName());
+    return RunnerApi.Coder.newBuilder()
+        .addAllComponentCoderIds(componentIds)
+        .setSpec(
+            SdkFunctionSpec.newBuilder()
+                .setSpec(
+                    FunctionSpec.newBuilder()
+                        .setUrn(REGISTERED_CODER_TYPES.get(coder.getClass()))
+                        .setParameter(
+                            Any.pack(
+                                BytesValue.newBuilder()
+                                    .setValue(ByteString.copyFrom(translator.getPayload(coder)))
+                                    .build()))))
+        .build();
+  }
+
+  private static List<String> getComponentCoderIds(
+      SdkComponents components, List<? extends Coder<?>> componentCoders) throws IOException {
+    List<String> componentIds = new ArrayList<>();
+    for (Coder<?> componentCoder : componentCoders) {
+      componentIds.add(components.registerCoder(componentCoder));
+    }
+    return componentIds;
+  }
+
+  private static RunnerApi.Coder toCustomCoder(CustomCoder<?> coder) throws IOException {
     RunnerApi.Coder.Builder coderBuilder = RunnerApi.Coder.newBuilder();
     return coderBuilder
         .setSpec(
@@ -112,7 +175,7 @@ public class Coders {
                                 BytesValue.newBuilder()
                                     .setValue(
                                         ByteString.copyFrom(
-                                            OBJECT_MAPPER.writeValueAsBytes(coder.asCloudObject())))
+                                            SerializableUtils.serializeToByteArray(coder)))
                                     .build()))))
         .build();
   }
@@ -129,11 +192,7 @@ public class Coders {
   private static Coder<?> fromKnownCoder(RunnerApi.Coder coder, Components components)
       throws IOException {
     String coderUrn = coder.getSpec().getSpec().getUrn();
-    List<Coder<?>> coderComponents = new LinkedList<>();
-    for (String componentId : coder.getComponentCoderIdsList()) {
-      Coder<?> innerCoder = fromProto(components.getCodersOrThrow(componentId), components);
-      coderComponents.add(innerCoder);
-    }
+    List<Coder<?>> coderComponents = getComponentCodersFromProto(coder, components);
     switch (coderUrn) {
       case "urn:beam:coders:bytes:0.1":
         return ByteArrayCoder.of();
@@ -150,10 +209,33 @@ public class Coders {
       case "urn:beam:coders:windowed_value:0.1":
         return WindowedValue.FullWindowedValueCoder.of(coderComponents);
       default:
-        throw new IllegalStateException(
+        checkArgument(
+            REGISTERED_CODER_TYPES.containsValue(coderUrn),
             String.format(
-                "Unknown coder URN %s. Known URNs: %s", coderUrn, KNOWN_CODER_URNS.values()));
+                "Unknown coder URN %s. Known URNs: %s. Registered URNs: %s",
+                coderUrn, KNOWN_CODER_URNS.values(), REGISTERED_CODER_TYPES.values()));
+        return fromRegisteredCoder(coder, coderComponents);
     }
+  }
+
+  private static Coder<?> fromRegisteredCoder(RunnerApi.Coder coder, List<Coder<?>> componentCoders)
+      throws IOException {
+    CoderTranslator<?> translator =
+        REGISTERED_CODER_TRANSLATORS.get(
+            REGISTERED_CODER_TYPES.inverse().get(coder.getSpec().getSpec().getUrn()));
+    return translator.fromSerializedForm(
+        coder.getSpec().getSpec().getParameter().unpack(BytesValue.class).getValue().toByteArray(),
+        componentCoders);
+  }
+
+  private static List<Coder<?>> getComponentCodersFromProto(RunnerApi.Coder coder, Components components)
+      throws IOException {
+    List<Coder<?>> coderComponents = new LinkedList<>();
+    for (String componentId : coder.getComponentCoderIdsList()) {
+      Coder<?> innerCoder = fromProto(components.getCodersOrThrow(componentId), components);
+      coderComponents.add(innerCoder);
+    }
+    return coderComponents;
   }
 
   private static Coder<?> fromCustomCoder(

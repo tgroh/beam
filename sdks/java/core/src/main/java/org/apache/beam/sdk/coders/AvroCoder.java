@@ -59,6 +59,7 @@ import org.apache.avro.util.ClassUtils;
 import org.apache.avro.util.Utf8;
 import org.apache.beam.sdk.util.CloudObject;
 import org.apache.beam.sdk.util.EmptyOnDeserializationThreadLocal;
+import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.values.TypeDescriptor;
 
 /**
@@ -729,6 +730,36 @@ public class AvroCoder<T> extends StandardCoder<T> {
       }
 
       throw new IllegalArgumentException("Unable to get field " + name + " from " + originalClazz);
+    }
+  }
+
+  public static class Registrar implements CoderTranslatorRegistrar<AvroCoder<?>> {
+    @Override
+    public String getCoderUrn() {
+      // TODO: Common URN?
+      return "urn:beam:coders:java:avro:0.1";
+    }
+
+    @Override
+    public Class<? extends AvroCoder<?>> getCoderClass() {
+      return (Class<? extends AvroCoder<?>>) AvroCoder.class;
+    }
+
+    @Override
+    public CoderTranslator<AvroCoder<?>> translator() {
+      return new CoderTranslator<AvroCoder<?>>() {
+        @Override
+        public AvroCoder<?> fromSerializedForm(
+            byte[] payload, List<Coder<?>> components) {
+          return null;
+        }
+
+        @Override
+        public byte[] getPayload(AvroCoder<?> coder) {
+          List<byte[]> payloadComponents = new ArrayList<>();
+          return SerializableUtils.serializeToByteArray(payloadComponents);
+        }
+      };
     }
   }
 }
