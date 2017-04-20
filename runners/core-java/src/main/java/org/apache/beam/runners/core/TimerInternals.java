@@ -31,6 +31,7 @@ import java.util.List;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
+import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.InstantCoder;
 import org.apache.beam.sdk.coders.StandardCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
@@ -229,22 +230,13 @@ public interface TimerInternals {
   /**
    * A {@link Coder} for {@link TimerData}.
    */
-  class TimerDataCoder extends StandardCoder<TimerData> {
+  class TimerDataCoder extends CustomCoder<TimerData> {
     private static final StringUtf8Coder STRING_CODER = StringUtf8Coder.of();
     private static final InstantCoder INSTANT_CODER = InstantCoder.of();
     private final Coder<? extends BoundedWindow> windowCoder;
 
     public static TimerDataCoder of(Coder<? extends BoundedWindow> windowCoder) {
       return new TimerDataCoder(windowCoder);
-    }
-
-    @SuppressWarnings("unchecked")
-    @JsonCreator
-    public static TimerDataCoder of(
-        @JsonProperty(PropertyNames.COMPONENT_ENCODINGS)
-        List<Coder<?>> components) {
-      checkArgument(components.size() == 1, "Expecting 1 components, got %s", components.size());
-      return of((Coder<? extends BoundedWindow>) components.get(0));
     }
 
     private TimerDataCoder(Coder<? extends BoundedWindow> windowCoder) {

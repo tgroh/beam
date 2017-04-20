@@ -572,11 +572,8 @@ public abstract class WindowedValue<T> {
     return ValueOnlyWindowedValueCoder.of(valueCoder);
   }
 
-  /**
-   * Abstract class for {@code WindowedValue} coder.
-   */
-  public abstract static class WindowedValueCoder<T>
-      extends StandardCoder<WindowedValue<T>> {
+  /** Abstract class for {@code WindowedValue} coder. */
+  public abstract static class WindowedValueCoder<T> extends StandardCoder<WindowedValue<T>> {
     final Coder<T> valueCoder;
 
     WindowedValueCoder(Coder<T> valueCoder) {
@@ -723,14 +720,6 @@ public abstract class WindowedValue<T> {
     public static <T> ValueOnlyWindowedValueCoder<T> of(
         Coder<T> valueCoder) {
       return new ValueOnlyWindowedValueCoder<>(valueCoder);
-    }
-
-    @JsonCreator
-    public static ValueOnlyWindowedValueCoder<?> of(
-        @JsonProperty(PropertyNames.COMPONENT_ENCODINGS)
-        List<Coder<?>> components) {
-      checkArgument(components.size() == 1, "Expecting 1 component, got " + components.size());
-      return of(components.get(0));
     }
 
     ValueOnlyWindowedValueCoder(Coder<T> valueCoder) {

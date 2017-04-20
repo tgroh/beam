@@ -170,20 +170,20 @@ public class IsmFormat {
   /**
    * A {@link Coder} for {@link IsmRecord}s.
    *
-   * <p>Note that this coder standalone will not produce an Ism file. This coder can be used
-   * to materialize a {@link PCollection} of {@link IsmRecord}s. Only when this coder
-   * is combined with an {@code IsmSink} will one produce an Ism file.
+   * <p>Note that this coder standalone will not produce an Ism file. This coder can be used to
+   * materialize a {@link PCollection} of {@link IsmRecord}s. Only when this coder is combined with
+   * an {@code IsmSink} will one produce an Ism file.
    *
    * <p>The {@link IsmRecord} encoded format is:
+   *
    * <ul>
-   *   <li>encoded key component 1 using key component coder 1</li>
-   *   <li>...</li>
-   *   <li>encoded key component N using key component coder N</li>
-   *   <li>encoded value using value coder</li>
+   *   <li>encoded key component 1 using key component coder 1
+   *   <li>...
+   *   <li>encoded key component N using key component coder N
+   *   <li>encoded value using value coder
    * </ul>
    */
-  public static class IsmRecordCoder<V>
-      extends StandardCoder<IsmRecord<V>> {
+  public static class IsmRecordCoder<V> extends CustomCoder<IsmRecord<V>> {
     /** Returns an IsmRecordCoder with the specified key component coders, value coder. */
     public static <V> IsmRecordCoder<V> of(
         int numberOfShardKeyCoders,
@@ -200,24 +200,6 @@ public class IsmFormat {
           numberOfMetadataShardKeyCoders,
           keyComponentCoders,
           valueCoder);
-    }
-
-    /**
-     * Returns an IsmRecordCoder with the specified coders. Note that this method is not meant
-     * to be called by users but used by Jackson when decoding this coder.
-     */
-    @JsonCreator
-    public static IsmRecordCoder<?> of(
-        @JsonProperty(PropertyNames.NUM_SHARD_CODERS) int numberOfShardCoders,
-        @JsonProperty(PropertyNames.NUM_METADATA_SHARD_CODERS) int numberOfMetadataShardCoders,
-        @JsonProperty(PropertyNames.COMPONENT_ENCODINGS) List<Coder<?>> components) {
-      checkArgument(components.size() >= 2,
-          "Expecting at least 2 components, got " + components.size());
-      return of(
-          numberOfShardCoders,
-          numberOfMetadataShardCoders,
-          components.subList(0, components.size() - 1),
-          components.get(components.size() - 1));
     }
 
     private final int numberOfShardKeyCoders;

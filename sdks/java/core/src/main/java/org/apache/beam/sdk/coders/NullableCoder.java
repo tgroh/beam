@@ -40,7 +40,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  *
  * @param <T> the type of the values being transcoded
  */
-public class NullableCoder<T> extends StandardCoder<T> {
+public class NullableCoder<T> extends CustomCoder<T> {
   public static <T> NullableCoder<T> of(Coder<T> valueCoder) {
     if (valueCoder instanceof NullableCoder) {
       return (NullableCoder<T>) valueCoder;

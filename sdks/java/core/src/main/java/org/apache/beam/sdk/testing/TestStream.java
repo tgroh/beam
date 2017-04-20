@@ -21,8 +21,6 @@ package org.apache.beam.sdk.testing;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -33,14 +31,13 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.DurationCoder;
 import org.apache.beam.sdk.coders.InstantCoder;
 import org.apache.beam.sdk.coders.IterableCoder;
-import org.apache.beam.sdk.coders.StandardCoder;
 import org.apache.beam.sdk.runners.PipelineRunner;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
-import org.apache.beam.sdk.util.PropertyNames;
 import org.apache.beam.sdk.util.VarInt;
 import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.PBegin;
@@ -289,7 +286,7 @@ public final class TestStream<T> extends PTransform<PBegin, PCollection<T>> {
    *            this {@link EventCoder}
    */
   @VisibleForTesting
-  static final class EventCoder<T> extends StandardCoder<Event<T>> {
+  static final class EventCoder<T> extends CustomCoder<Event<T>> {
     private static final Coder<ReadableDuration> DURATION_CODER = DurationCoder.of();
     private static final Coder<Instant> INSTANT_CODER = InstantCoder.of();
     private final Coder<T> valueCoder;
@@ -297,16 +294,6 @@ public final class TestStream<T> extends PTransform<PBegin, PCollection<T>> {
 
     public static <T> EventCoder<T> of(Coder<T> valueCoder) {
       return new EventCoder<>(valueCoder);
-    }
-
-    @JsonCreator
-    public static <T> EventCoder<T> of(
-        @JsonProperty(PropertyNames.COMPONENT_ENCODINGS) List<? extends Coder<?>> components) {
-      checkArgument(
-          components.size() == 1,
-          "Was expecting exactly one component coder, got %s",
-          components.size());
-      return new EventCoder<>((Coder<T>) components.get(0));
     }
 
     private EventCoder(Coder<T> valueCoder) {

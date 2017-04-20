@@ -42,8 +42,6 @@ import org.apache.hadoop.io.Writable;
  * @param <T> the type of elements handled by this coder.
  */
 public class WritableCoder<T extends Writable> extends CustomCoder<T> {
-  private static final long serialVersionUID = 0L;
-
   /**
    * Returns a {@code WritableCoder} instance for the provided element class.
    * @param <T> the element type

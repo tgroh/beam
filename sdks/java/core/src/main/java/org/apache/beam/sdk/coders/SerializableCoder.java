@@ -26,6 +26,8 @@ import java.io.ObjectOutputStream;
 import java.io.ObjectStreamClass;
 import java.io.OutputStream;
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.List;
 import org.apache.beam.sdk.util.CloudObject;
 import org.apache.beam.sdk.values.TypeDescriptor;
 
@@ -46,7 +48,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  *
  * @param <T> the type of elements handled by this coder
  */
-public class SerializableCoder<T extends Serializable> extends CustomCoder<T> {
+public class SerializableCoder<T extends Serializable> extends StandardCoder<T> {
 
   /**
    * Returns a {@link SerializableCoder} instance for the provided element type.
@@ -136,6 +138,11 @@ public class SerializableCoder<T extends Serializable> extends CustomCoder<T> {
     } catch (ClassNotFoundException e) {
       throw new CoderException("unable to deserialize record", e);
     }
+  }
+
+  @Override
+  public List<? extends Coder<?>> getCoderArguments() {
+    return Collections.emptyList();
   }
 
   @Override

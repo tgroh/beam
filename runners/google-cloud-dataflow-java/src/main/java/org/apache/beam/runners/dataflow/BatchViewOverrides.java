@@ -53,11 +53,11 @@ import org.apache.beam.sdk.coders.BigEndianLongCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.Coder.NonDeterministicException;
 import org.apache.beam.sdk.coders.CoderException;
+import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.IterableCoder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.MapCoder;
 import org.apache.beam.sdk.coders.SerializableCoder;
-import org.apache.beam.sdk.coders.StandardCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.coders.VarLongCoder;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
@@ -1335,11 +1335,8 @@ class BatchViewOverrides {
     }
   }
 
-  /**
-   * A {@link Coder} for {@link TransformedMap}s.
-   */
-  static class TransformedMapCoder<K, V1, V2>
-      extends StandardCoder<TransformedMap<K, V1, V2>> {
+  /** A {@link Coder} for {@link TransformedMap}s. */
+  static class TransformedMapCoder<K, V1, V2> extends CustomCoder<TransformedMap<K, V1, V2>> {
     private final Coder<Function<V1, V2>> transformCoder;
     private final Coder<Map<K, V1>> originalMapCoder;
 

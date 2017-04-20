@@ -41,7 +41,6 @@ import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.DelegateCoder;
 import org.apache.beam.sdk.coders.IterableCoder;
 import org.apache.beam.sdk.coders.KvCoder;
-import org.apache.beam.sdk.coders.StandardCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.coders.VoidCoder;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -2278,7 +2277,7 @@ public class Combine {
       }
 
       private static class InputOrAccumCoder<InputT, AccumT>
-          extends StandardCoder<InputOrAccum<InputT, AccumT>> {
+          extends CustomCoder<InputOrAccum<InputT, AccumT>> {
 
         private final Coder<InputT> inputCoder;
         private final Coder<AccumT> accumCoder;

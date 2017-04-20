@@ -17,23 +17,17 @@
  */
 package org.apache.beam.sdk.io.kafka;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
-
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.KvCoder;
-import org.apache.beam.sdk.coders.StandardCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.coders.VarLongCoder;
-import org.apache.beam.sdk.util.PropertyNames;
 import org.apache.beam.sdk.values.KV;
 
 /**
@@ -46,13 +40,6 @@ public class KafkaRecordCoder<K, V> extends CustomCoder<KafkaRecord<K, V>> {
   private static final VarIntCoder intCoder = VarIntCoder.of();
 
   private final KvCoder<K, V> kvCoder;
-
-  @JsonCreator
-  public static KafkaRecordCoder<?, ?> of(@JsonProperty(PropertyNames.COMPONENT_ENCODINGS)
-                                          List<Coder<?>> components) {
-    KvCoder<?, ?> kvCoder = KvCoder.of(components);
-    return of(kvCoder.getKeyCoder(), kvCoder.getValueCoder());
-  }
 
   public static <K, V> KafkaRecordCoder<K, V> of(Coder<K> keyCoder, Coder<V> valueCoder) {
     return new KafkaRecordCoder<K, V>(keyCoder, valueCoder);

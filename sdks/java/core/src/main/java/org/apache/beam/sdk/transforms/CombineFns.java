@@ -37,6 +37,7 @@ import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.CoderRegistry;
+import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.StandardCoder;
 import org.apache.beam.sdk.transforms.Combine.CombineFn;
 import org.apache.beam.sdk.transforms.Combine.KeyedCombineFn;
@@ -973,7 +974,7 @@ public class CombineFns {
     }
   }
 
-  private static class ComposedAccumulatorCoder extends StandardCoder<Object[]> {
+  private static class ComposedAccumulatorCoder extends CustomCoder<Object[]> {
     private List<Coder<Object>> coders;
     private int codersCount;
 

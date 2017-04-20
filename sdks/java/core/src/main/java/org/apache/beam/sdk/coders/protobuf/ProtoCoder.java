@@ -32,6 +32,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -42,7 +43,7 @@ import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.CoderProvider;
 import org.apache.beam.sdk.coders.CoderRegistry;
-import org.apache.beam.sdk.coders.CustomCoder;
+import org.apache.beam.sdk.coders.StandardCoder;
 import org.apache.beam.sdk.util.CloudObject;
 import org.apache.beam.sdk.util.Structs;
 import org.apache.beam.sdk.values.PCollection;
@@ -107,7 +108,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  *
  * @param <T> the Protocol Buffers {@link Message} handled by this {@link Coder}.
  */
-public class ProtoCoder<T extends Message> extends CustomCoder<T> {
+public class ProtoCoder<T extends Message> extends StandardCoder<T> {
 
   /**
    * A {@link CoderProvider} that returns a {@link ProtoCoder} with an empty
@@ -195,6 +196,11 @@ public class ProtoCoder<T extends Message> extends CustomCoder<T> {
     } else {
       return getParser().parseDelimitedFrom(inStream, getExtensionRegistry());
     }
+  }
+
+  @Override
+  public List<? extends Coder<?>> getCoderArguments() {
+    return Collections.emptyList();
   }
 
   @Override
