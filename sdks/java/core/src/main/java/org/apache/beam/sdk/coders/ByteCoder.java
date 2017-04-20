@@ -28,7 +28,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
 /**
  * A {@link ByteCoder} encodes {@link Byte} values in 1 byte using Java serialization.
  */
-public class ByteCoder extends AtomicCoder<Byte> {
+public class ByteCoder extends CustomCoder<Byte> {
 
   @JsonCreator
   public static ByteCoder of() {
@@ -85,6 +85,11 @@ public class ByteCoder extends AtomicCoder<Byte> {
   @Override
   public boolean consistentWithEquals() {
     return true;
+  }
+
+  @Override
+  public String getEncodingId() {
+    return "";
   }
 
   /**

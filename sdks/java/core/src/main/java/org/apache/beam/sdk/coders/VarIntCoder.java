@@ -31,7 +31,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  * numbers always take 5 bytes, so {@link BigEndianIntegerCoder} may be preferable for
  * integers that are known to often be large or negative.
  */
-public class VarIntCoder extends AtomicCoder<Integer> {
+public class VarIntCoder extends CustomCoder<Integer> {
 
   @JsonCreator
   public static VarIntCoder of() {
@@ -66,6 +66,9 @@ public class VarIntCoder extends AtomicCoder<Integer> {
     }
   }
 
+  @Override
+  public void verifyDeterministic() {}
+
   /**
    * {@inheritDoc}
    *
@@ -74,6 +77,11 @@ public class VarIntCoder extends AtomicCoder<Integer> {
   @Override
   public boolean consistentWithEquals() {
     return true;
+  }
+
+  @Override
+  public String getEncodingId() {
+    return "";
   }
 
   /**

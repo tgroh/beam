@@ -30,7 +30,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
 /**
  * A {@link DoubleCoder} encodes {@link Double} values in 8 bytes using Java serialization.
  */
-public class DoubleCoder extends AtomicCoder<Double> {
+public class DoubleCoder extends CustomCoder<Double> {
 
   @JsonCreator
   public static DoubleCoder of() {
@@ -87,6 +87,11 @@ public class DoubleCoder extends AtomicCoder<Double> {
   @Override
   public boolean consistentWithEquals() {
     return true;
+  }
+
+  @Override
+  public String getEncodingId() {
+    return "";
   }
 
   /**

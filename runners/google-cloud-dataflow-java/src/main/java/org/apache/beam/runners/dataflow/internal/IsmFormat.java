@@ -37,11 +37,11 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.dataflow.util.RandomAccessData;
-import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.Coder.NonDeterministicException;
 import org.apache.beam.sdk.coders.CoderException;
+import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.ListCoder;
 import org.apache.beam.sdk.coders.StandardCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
@@ -628,7 +628,7 @@ public class IsmFormat {
    *   <li>indexOffset (variable length long encoding)</li>
    * </ul>
    */
-  public static class IsmShardCoder extends AtomicCoder<IsmShard> {
+  public static class IsmShardCoder extends CustomCoder<IsmShard> {
     private static final IsmShardCoder INSTANCE = new IsmShardCoder();
 
     /** Returns an IsmShardCoder. */
@@ -637,8 +637,7 @@ public class IsmFormat {
       return INSTANCE;
     }
 
-    private IsmShardCoder() {
-    }
+    private IsmShardCoder() {}
 
     @Override
     public void encode(IsmShard value, OutputStream outStream, Coder.Context context)
@@ -661,8 +660,19 @@ public class IsmFormat {
     }
 
     @Override
+    public void verifyDeterministic() {
+      VarIntCoder.of().verifyDeterministic();
+      VarLongCoder.of().verifyDeterministic();
+    }
+
+    @Override
     public boolean consistentWithEquals() {
       return true;
+    }
+
+    @Override
+    public String getEncodingId() {
+      return "";
     }
   }
 
@@ -689,7 +699,7 @@ public class IsmFormat {
   }
 
   /** A {@link Coder} for {@link KeyPrefix}. */
-  public static final class KeyPrefixCoder extends AtomicCoder<KeyPrefix> {
+  public static final class KeyPrefixCoder extends CustomCoder<KeyPrefix> {
     private static final KeyPrefixCoder INSTANCE = new KeyPrefixCoder();
 
     @JsonCreator
@@ -711,6 +721,9 @@ public class IsmFormat {
     }
 
     @Override
+    public void verifyDeterministic() {}
+
+    @Override
     public boolean consistentWithEquals() {
       return true;
     }
@@ -726,6 +739,11 @@ public class IsmFormat {
       checkNotNull(value);
       return VarInt.getLength(value.getSharedKeySize())
           + VarInt.getLength(value.getUnsharedKeySize());
+    }
+
+    @Override
+    public String getEncodingId() {
+      return "";
     }
   }
 
@@ -759,7 +777,7 @@ public class IsmFormat {
   }
 
   /** A {@link Coder} for {@link Footer}. */
-  public static final class FooterCoder extends AtomicCoder<Footer> {
+  public static final class FooterCoder extends CustomCoder<Footer> {
     private static final FooterCoder INSTANCE = new FooterCoder();
 
     @JsonCreator
@@ -791,6 +809,9 @@ public class IsmFormat {
     }
 
     @Override
+    public void verifyDeterministic() {}
+
+    @Override
     public boolean consistentWithEquals() {
       return true;
     }
@@ -804,6 +825,11 @@ public class IsmFormat {
     public long getEncodedElementByteSize(Footer value, Coder.Context context)
         throws Exception {
       return Footer.FIXED_LENGTH;
+    }
+
+    @Override
+    public String getEncodingId() {
+      return "";
     }
   }
 }

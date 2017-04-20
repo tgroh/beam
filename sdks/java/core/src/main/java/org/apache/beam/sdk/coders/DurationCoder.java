@@ -30,7 +30,7 @@ import org.joda.time.ReadableDuration;
  * A {@link Coder} that encodes a joda {@link Duration} as a {@link Long} using the format of
  * {@link VarLongCoder}.
  */
-public class DurationCoder extends AtomicCoder<ReadableDuration> {
+public class DurationCoder extends CustomCoder<ReadableDuration> {
 
   @JsonCreator
   public static DurationCoder of() {
@@ -69,6 +69,9 @@ public class DurationCoder extends AtomicCoder<ReadableDuration> {
       throws CoderException, IOException {
       return fromLong(longCoder.decode(inStream, context));
   }
+
+  @Override
+  public void verifyDeterministic() {}
 
   /**
    * {@inheritDoc}

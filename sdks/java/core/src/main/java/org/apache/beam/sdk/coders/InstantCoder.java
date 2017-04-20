@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.coders;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.base.Converter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,9 +29,7 @@ import org.joda.time.Instant;
  * A {@link Coder} for joda {@link Instant} that encodes it as a big endian {@link Long}
  * shifted such that lexicographic ordering of the bytes corresponds to chronological order.
  */
-public class InstantCoder extends AtomicCoder<Instant> {
-
-  @JsonCreator
+public class InstantCoder extends CustomCoder<Instant> {
   public static InstantCoder of() {
     return INSTANCE;
   }
@@ -85,6 +82,9 @@ public class InstantCoder extends AtomicCoder<Instant> {
     return ORDER_PRESERVING_CONVERTER.reverse().convert(longCoder.decode(inStream, context));
   }
 
+  @Override
+  public void verifyDeterministic() {}
+
   /**
    * {@inheritDoc}
    *
@@ -93,6 +93,11 @@ public class InstantCoder extends AtomicCoder<Instant> {
   @Override
   public boolean consistentWithEquals() {
     return true;
+  }
+
+  @Override
+  public String getEncodingId() {
+    return "";
   }
 
   /**

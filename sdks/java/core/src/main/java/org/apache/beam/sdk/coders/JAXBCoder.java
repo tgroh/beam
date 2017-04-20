@@ -17,8 +17,6 @@
  */
 package org.apache.beam.sdk.coders;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.io.ByteStreams;
 import java.io.FilterInputStream;
 import java.io.FilterOutputStream;
@@ -29,9 +27,7 @@ import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
 import javax.xml.bind.Unmarshaller;
-import org.apache.beam.sdk.util.CloudObject;
 import org.apache.beam.sdk.util.EmptyOnDeserializationThreadLocal;
-import org.apache.beam.sdk.util.Structs;
 import org.apache.beam.sdk.util.VarInt;
 import org.apache.beam.sdk.values.TypeDescriptor;
 
@@ -41,10 +37,9 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  *
  * @param <T> type of JAXB annotated objects that will be serialized.
  */
-public class JAXBCoder<T> extends AtomicCoder<T> {
+public class JAXBCoder<T> extends CustomCoder<T> {
 
   private final Class<T> jaxbClass;
-  private final TypeDescriptor<T> typeDescriptor;
   private transient volatile JAXBContext jaxbContext;
   private final EmptyOnDeserializationThreadLocal<Marshaller> jaxbMarshaller;
   private final EmptyOnDeserializationThreadLocal<Unmarshaller> jaxbUnmarshaller;
@@ -55,7 +50,6 @@ public class JAXBCoder<T> extends AtomicCoder<T> {
 
   private JAXBCoder(Class<T> jaxbClass) {
     this.jaxbClass = jaxbClass;
-    this.typeDescriptor = TypeDescriptor.of(jaxbClass);
     this.jaxbMarshaller = new EmptyOnDeserializationThreadLocal<Marshaller>() {
       @Override
       protected Marshaller initialValue() {
@@ -145,7 +139,7 @@ public class JAXBCoder<T> extends AtomicCoder<T> {
 
   @Override
   public TypeDescriptor<T> getEncodedTypeDescriptor() {
-    return typeDescriptor;
+    return TypeDescriptor.of(jaxbClass);
   }
 
   private static class CloseIgnoringInputStream extends FilterInputStream {
@@ -170,32 +164,5 @@ public class JAXBCoder<T> extends AtomicCoder<T> {
     public void close() throws IOException {
       // JAXB closes the underlying stream so we must filter out those calls.
     }
-  }
-
-  ////////////////////////////////////////////////////////////////////////////////////
-  // JSON Serialization details below
-
-  private static final String JAXB_CLASS = "jaxb_class";
-
-  /**
-   * Constructor for JSON deserialization only.
-   */
-  @JsonCreator
-  public static <T> JAXBCoder<T> of(
-      @JsonProperty(JAXB_CLASS) String jaxbClassName) {
-    try {
-      @SuppressWarnings("unchecked")
-      Class<T> jaxbClass = (Class<T>) Class.forName(jaxbClassName);
-      return of(jaxbClass);
-    } catch (ClassNotFoundException e) {
-      throw new IllegalArgumentException(e);
-    }
-  }
-
-  @Override
-  protected CloudObject initializeCloudObject() {
-    CloudObject result = CloudObject.forClass(getClass());
-    Structs.addString(result, JAXB_CLASS, jaxbClass.getName());
-    return result;
   }
 }

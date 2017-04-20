@@ -39,7 +39,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  * If in a nested context, prefixes the string with an integer length field,
  * encoded via a {@link VarIntCoder}.
  */
-public class StringUtf8Coder extends AtomicCoder<String> {
+public class StringUtf8Coder extends CustomCoder<String> {
 
   @JsonCreator
   public static StringUtf8Coder of() {
@@ -104,6 +104,9 @@ public class StringUtf8Coder extends AtomicCoder<String> {
       }
     }
   }
+
+  @Override
+  public void verifyDeterministic() {}
 
   /**
    * {@inheritDoc}

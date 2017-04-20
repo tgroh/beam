@@ -27,7 +27,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  * A {@link Coder} that encodes {@code Integer Integers} as the ASCII bytes of
  * their textual, decimal, representation.
  */
-public class TextualIntegerCoder extends AtomicCoder<Integer> {
+public class TextualIntegerCoder extends CustomCoder<Integer> {
 
   @JsonCreator
   public static TextualIntegerCoder of() {
@@ -59,6 +59,16 @@ public class TextualIntegerCoder extends AtomicCoder<Integer> {
     } catch (NumberFormatException exn) {
       throw new CoderException("error when decoding a textual integer", exn);
     }
+  }
+
+  @Override
+  public void verifyDeterministic() {
+    StringUtf8Coder.of().verifyDeterministic();
+  }
+
+  @Override
+  public String getEncodingId() {
+    return "";
   }
 
   @Override

@@ -21,11 +21,13 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import org.apache.beam.sdk.coders.AtomicCoder;
+import java.util.Collections;
+import java.util.List;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.DurationCoder;
 import org.apache.beam.sdk.coders.InstantCoder;
+import org.apache.beam.sdk.coders.StandardCoder;
 import org.apache.beam.sdk.util.CloudObject;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
@@ -167,7 +169,7 @@ public class IntervalWindow extends BoundedWindow
   /**
    * Encodes an {@link IntervalWindow} as a pair of its upper bound and duration.
    */
-  public static class IntervalWindowCoder extends AtomicCoder<IntervalWindow> {
+  public static class IntervalWindowCoder extends StandardCoder<IntervalWindow> {
 
     private static final IntervalWindowCoder INSTANCE = new IntervalWindowCoder();
 
@@ -177,6 +179,13 @@ public class IntervalWindow extends BoundedWindow
     @JsonCreator
     public static IntervalWindowCoder of() {
       return INSTANCE;
+    }
+
+    /**
+     * Returns an empty list. {@link IntervalWindowCoder} has no components.
+     */
+    public static <T> List<Object> getInstanceComponents(T value) {
+      return Collections.emptyList();
     }
 
     @Override
@@ -193,6 +202,14 @@ public class IntervalWindow extends BoundedWindow
       ReadableDuration duration = durationCoder.decode(inStream, context);
       return new IntervalWindow(end.minus(duration), end);
     }
+
+    @Override
+    public List<? extends Coder<?>> getCoderArguments() {
+      return null;
+    }
+
+    @Override
+    public void verifyDeterministic() {}
 
     @Override
     protected CloudObject initializeCloudObject() {
