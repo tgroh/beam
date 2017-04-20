@@ -386,6 +386,5 @@ public final class PaneInfo {
 
     @Override
     public void verifyDeterministic() {}
-
   }
 }

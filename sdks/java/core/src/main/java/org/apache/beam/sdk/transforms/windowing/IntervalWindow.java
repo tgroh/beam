@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.transforms.windowing;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -176,7 +175,6 @@ public class IntervalWindow extends BoundedWindow
     private static final Coder<Instant> instantCoder = InstantCoder.of();
     private static final Coder<ReadableDuration> durationCoder = DurationCoder.of();
 
-    @JsonCreator
     public static IntervalWindowCoder of() {
       return INSTANCE;
     }
@@ -205,11 +203,14 @@ public class IntervalWindow extends BoundedWindow
 
     @Override
     public List<? extends Coder<?>> getCoderArguments() {
-      return null;
+      return Collections.emptyList();
     }
 
     @Override
-    public void verifyDeterministic() {}
+    public void verifyDeterministic() throws NonDeterministicException {
+      instantCoder.verifyDeterministic();
+      durationCoder.verifyDeterministic();
+    }
 
     @Override
     protected CloudObject initializeCloudObject() {

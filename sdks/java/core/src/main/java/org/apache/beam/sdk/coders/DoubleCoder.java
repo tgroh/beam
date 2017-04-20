@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.coders;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
@@ -32,7 +31,6 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  */
 public class DoubleCoder extends CustomCoder<Double> {
 
-  @JsonCreator
   public static DoubleCoder of() {
     return INSTANCE;
   }

@@ -64,16 +64,18 @@ public abstract class CustomCoder<T> extends StandardCoder<T>
   }
 
   /**
-   * Returns an empty list. A {@link CustomCoder} may not have argument coders
+   * {@inheritDoc}.
+   *
+   * <p>Returns an empty list. A {@link CustomCoder} has no default argument {@link Coder coders}.
    */
   @Override
-  public final List<Coder<?>> getCoderArguments() {
-    return null;
+  public List<Coder<?>> getCoderArguments() {
+    return Collections.emptyList();
   }
 
   /**
-   * Returns an empty list. A {@link CustomCoder} may not have component coders that are used for
-   * inference.
+   * Returns an empty list. A {@link CustomCoder} by default will not have component coders that are
+   * used for inference.
    */
   public static <T> List<Object> getInstanceComponents(T exampleValue) {
     return Collections.emptyList();

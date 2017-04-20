@@ -74,7 +74,7 @@ public class VarLongCoder extends StandardCoder<Long> {
 
   @Override
   public List<? extends Coder<?>> getCoderArguments() {
-    return null;
+    return Collections.emptyList();
   }
 
   @Override

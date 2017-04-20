@@ -19,8 +19,6 @@ package org.apache.beam.sdk.coders.protobuf;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -39,7 +37,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import javax.annotation.Nullable;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
@@ -310,30 +307,6 @@ public class ProtoCoder<T extends Message> extends CustomCoder<T> {
   private ProtoCoder(Class<T> protoMessageClass, Set<Class<?>> extensionHostClasses) {
     this.protoMessageClass = protoMessageClass;
     this.extensionHostClasses = extensionHostClasses;
-  }
-
-  /**
-   * @deprecated For JSON deserialization only.
-   */
-  @JsonCreator
-  @Deprecated
-  public static <T extends Message> ProtoCoder<T> of(
-      @JsonProperty(PROTO_MESSAGE_CLASS) String protoMessageClassName,
-      @Nullable @JsonProperty(PROTO_EXTENSION_HOSTS) List<String> extensionHostClassNames) {
-
-    try {
-      @SuppressWarnings("unchecked")
-      Class<T> protoMessageClass = (Class<T>) Class.forName(protoMessageClassName);
-      List<Class<?>> extensionHostClasses = Lists.newArrayList();
-      if (extensionHostClassNames != null) {
-        for (String extensionHostClassName : extensionHostClassNames) {
-          extensionHostClasses.add(Class.forName(extensionHostClassName));
-        }
-      }
-      return of(protoMessageClass).withExtensionsFrom(extensionHostClasses);
-    } catch (ClassNotFoundException e) {
-      throw new IllegalArgumentException(e);
-    }
   }
 
   @Override

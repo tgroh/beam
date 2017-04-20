@@ -205,6 +205,5 @@ public class Mean {
        LONG_CODER.verifyDeterministic();
        DOUBLE_CODER.verifyDeterministic();
     }
-
   }
 }

@@ -39,7 +39,7 @@ public class InstantCoder extends CustomCoder<Instant> {
   private static final InstantCoder INSTANCE = new InstantCoder();
   private static final TypeDescriptor<Instant> TYPE_DESCRIPTOR = new TypeDescriptor<Instant>() {};
 
-  private final BigEndianLongCoder longCoder = BigEndianLongCoder.of();
+  private static final BigEndianLongCoder LONG_CODER = BigEndianLongCoder.of();
 
   private InstantCoder() {}
 
@@ -73,17 +73,19 @@ public class InstantCoder extends CustomCoder<Instant> {
     if (value == null) {
       throw new CoderException("cannot encode a null Instant");
     }
-    longCoder.encode(ORDER_PRESERVING_CONVERTER.convert(value), outStream, context);
+    LONG_CODER.encode(ORDER_PRESERVING_CONVERTER.convert(value), outStream, context);
   }
 
   @Override
   public Instant decode(InputStream inStream, Context context)
       throws CoderException, IOException {
-    return ORDER_PRESERVING_CONVERTER.reverse().convert(longCoder.decode(inStream, context));
+    return ORDER_PRESERVING_CONVERTER.reverse().convert(LONG_CODER.decode(inStream, context));
   }
 
   @Override
-  public void verifyDeterministic() {}
+  public void verifyDeterministic() {
+    LONG_CODER.verifyDeterministic();
+  }
 
   /**
    * {@inheritDoc}
@@ -107,14 +109,14 @@ public class InstantCoder extends CustomCoder<Instant> {
    */
   @Override
   public boolean isRegisterByteSizeObserverCheap(Instant value, Context context) {
-    return longCoder.isRegisterByteSizeObserverCheap(
+    return LONG_CODER.isRegisterByteSizeObserverCheap(
         ORDER_PRESERVING_CONVERTER.convert(value), context);
   }
 
   @Override
   public void registerByteSizeObserver(
       Instant value, ElementByteSizeObserver observer, Context context) throws Exception {
-    longCoder.registerByteSizeObserver(
+    LONG_CODER.registerByteSizeObserver(
         ORDER_PRESERVING_CONVERTER.convert(value), observer, context);
   }
 

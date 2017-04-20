@@ -632,7 +632,6 @@ public class IsmFormat {
     private static final IsmShardCoder INSTANCE = new IsmShardCoder();
 
     /** Returns an IsmShardCoder. */
-    @JsonCreator
     public static IsmShardCoder of() {
       return INSTANCE;
     }
@@ -702,7 +701,6 @@ public class IsmFormat {
   public static final class KeyPrefixCoder extends CustomCoder<KeyPrefix> {
     private static final KeyPrefixCoder INSTANCE = new KeyPrefixCoder();
 
-    @JsonCreator
     public static KeyPrefixCoder of() {
       return INSTANCE;
     }
@@ -780,7 +778,6 @@ public class IsmFormat {
   public static final class FooterCoder extends CustomCoder<Footer> {
     private static final FooterCoder INSTANCE = new FooterCoder();
 
-    @JsonCreator
     public static FooterCoder of() {
       return INSTANCE;
     }

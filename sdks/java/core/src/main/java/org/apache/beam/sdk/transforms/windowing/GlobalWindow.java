@@ -85,7 +85,7 @@ public class GlobalWindow extends BoundedWindow {
 
     @Override
     public final List<org.apache.beam.sdk.coders.Coder<?>> getCoderArguments() {
-      return null;
+      return Collections.emptyList();
     }
 
     /**

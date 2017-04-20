@@ -20,7 +20,6 @@ package org.apache.beam.runners.dataflow.util;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.base.MoreObjects;
 import com.google.common.io.ByteStreams;
 import com.google.common.primitives.UnsignedBytes;
@@ -59,7 +58,6 @@ public class RandomAccessData {
   public static class RandomAccessDataCoder extends CustomCoder<RandomAccessData> {
     private static final RandomAccessDataCoder INSTANCE = new RandomAccessDataCoder();
 
-    @JsonCreator
     public static RandomAccessDataCoder of() {
       return INSTANCE;
     }
