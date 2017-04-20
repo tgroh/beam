@@ -87,7 +87,7 @@ public abstract class CustomCoder<T> extends StandardCoder<T>
    * @return A thin {@link CloudObject} wrapping of the Java serialization of {@code this}.
    */
   @Override
-  public CloudObject initializeCloudObject() {
+  public final CloudObject initializeCloudObject() {
     // N.B. We use the CustomCoder class, not the derived class, since during
     // deserialization we will be using the CustomCoder's static factory method
     // to construct an instance of the derived class.
