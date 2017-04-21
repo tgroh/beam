@@ -53,7 +53,63 @@
         <executions>
           <execution>
             <id>bundle-and-repackage</id>
-            <phase>none</phase>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <artifactSet>
+                <includes>
+                  <include>com.google.api.grpc:grpc-google-common-protos</include>
+                  <include>com.google.cloud.bigtable:bigtable-protos</include>
+                  <include>com.google.cloud.bigtable:bigtable-client-core</include>
+                  <include>com.google.apis:google-api-services-bigquery</include>
+                  <include>com.google.api-client:google-api-client</include>
+                  <include>com.google.http-client:google-http-client</include>
+                  <include>com.google.auth:google-auth-library-credentials</include>
+                  <include>com.google.cloud.datastore:datastore-v1-protos</include>
+                  <include>com.google.protobuf:protobuf-java</include>
+                  <include>io.grpc:grpc-core</include>
+                </includes>
+              </artifactSet>
+              <relocations>
+                <relocation>
+                  <pattern>com.google.bigtable.v2</pattern>
+                  <shadedPattern>org.apache.beam.sdk.io.gcp.bigtable.v2</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.google.cloud.bigtable</pattern>
+                  <shadedPattern>org.apache.beam.sdk.io.gcp.bigtable</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.google.api.client</pattern>
+                  <shadedPattern>org.apache.beam.sdk.io.gcp.google.api.client</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.google.auth</pattern>
+                  <shadedPattern>org.apache.beam.sdk.io.gcp.google.auth</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.google.datastore.v1</pattern>
+                  <shadedPattern>org.apache.beam.sdk.io.gcp.datastore.v1</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.google.protobuf</pattern>
+                  <shadedPattern>org.apache.beam.sdk.io.gcp.google.protobuf</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.google.type</pattern>
+                  <shadedPattern>org.apache.beam.sdk.io.gcp.google.type</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.grpc</pattern>
+                  <shadedPattern>org.apache.beam.sdk.io.gcp.io.grpc</shadedPattern>
+                </relocation>
+              </relocations>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+            </configuration>
           </execution>
         </executions>
       </plugin>
