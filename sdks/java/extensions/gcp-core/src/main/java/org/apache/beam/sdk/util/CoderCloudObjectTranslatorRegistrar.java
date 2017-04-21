@@ -25,7 +25,7 @@ import org.apache.beam.sdk.coders.Coder;
  * A way to register {@link CloudObjectTranslator CloudObjectInitializers} for a type of
  * {@link Coder}.
  */
-public interface CoderCloudObjectRegistrar {
+public interface CoderCloudObjectTranslatorRegistrar {
   /**
    * Gets a mapping from Java Class to a {@link CloudObjectTranslator} specialized for that class.
    */
