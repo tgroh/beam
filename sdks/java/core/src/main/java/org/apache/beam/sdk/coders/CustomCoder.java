@@ -69,7 +69,7 @@ public abstract class CustomCoder<T> extends StandardCoder<T>
    * <p>Returns an empty list. A {@link CustomCoder} has no default argument {@link Coder coders}.
    */
   @Override
-  public List<Coder<?>> getCoderArguments() {
+  public List<? extends Coder<?>> getCoderArguments() {
     return Collections.emptyList();
   }
 
