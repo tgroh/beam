@@ -707,6 +707,12 @@ public abstract class WindowedValue<T> {
       return null;
     }
 
+    /**
+     * {@inheritDoc}.
+     *
+     * <p>Returns the Value Coder as the coder at index 0 and the Window Coder as the coder at index
+     * 1.
+     */
     @Override
     public List<? extends Coder<?>> getComponents() {
       return Arrays.<Coder<?>>asList(valueCoder, windowCoder);
