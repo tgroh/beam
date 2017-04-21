@@ -37,8 +37,10 @@ import org.apache.beam.sdk.coders.StandardCoder;
 public class CloudObjects {
   private CloudObjects() {}
 
-  static Map<Class<? extends Coder>, CloudObjectTranslator<? extends Coder>> coderInitializers =
-      populateCoderInitializers();
+  private static final Map<Class<? extends Coder>, CloudObjectTranslator<? extends Coder>>
+      coderTranslators = populateCoderInitializers();
+  private static final Map<String, CloudObjectTranslator<? extends Coder>> cloudObjectKeys =
+      populateCloudObjectKeys();
 
   private static Map<Class<? extends Coder>, CloudObjectTranslator<? extends Coder>>
       populateCoderInitializers() {
@@ -46,13 +48,26 @@ public class CloudObjects {
         ImmutableMap.builder();
     for (CoderCloudObjectTranslatorRegistrar registrar :
         ServiceLoader.load(CoderCloudObjectTranslatorRegistrar.class)) {
-      builder.putAll(registrar.getInitializers());
+      builder.putAll(registrar.getJavaClasses());
     }
     return builder.build();
   }
 
+  private static Map<String, CloudObjectTranslator<? extends Coder>> populateCloudObjectKeys() {
+    ImmutableMap.Builder<String, CloudObjectTranslator<? extends Coder>> builder =
+        ImmutableMap.builder();
+    for (CoderCloudObjectTranslatorRegistrar registrar :
+        ServiceLoader.load(CoderCloudObjectTranslatorRegistrar.class)) {
+      builder.putAll(registrar.getCloudObjectClasses());
+    }
+    return builder.build();
+  }
+
+  /**
+   * Converts a {@link Coder} into a {@link CloudObject} that represents that {@link Coder}.
+   */
   public static CloudObject asCloudObject(Coder<?> coder) {
-    if (coderInitializers.containsKey(coder.getClass())) {
+    if (coder instanceof StandardCoder && coderTranslators.containsKey(coder.getClass())) {
       // TODO: Make this cast less dangerous
       return asCloudObject((StandardCoder<?>) coder);
     } else if (coder instanceof CustomCoder) {
@@ -61,6 +76,13 @@ public class CloudObjects {
     throw new IllegalArgumentException(
         String.format(
             "Non-Custom %s with no registered %s", Coder.class, CloudObjectTranslator.class));
+  }
+
+  /** Converts a {@link CloudObject} representing a {@link Coder} to a {@link Coder}. */
+  public static Coder<?> fromCloudObject(CloudObject coder) {
+    CloudObjectTranslator<? extends Coder> translator = cloudObjectKeys.get(coder.getClassName());
+    checkNotNull(translator, "Unknown Cloud Object Coder Type %s", coder.getClassName());
+    return translator.fromCloudObject(coder);
   }
 
   private static CloudObject asCloudObject(CustomCoder<?> coder) {
@@ -104,7 +126,7 @@ public class CloudObjects {
 
   private static <CoderT extends Coder<?>> CloudObject initializeCloudObject(CoderT coder) {
     CloudObjectTranslator<CoderT> initializer =
-        (CloudObjectTranslator<CoderT>) coderInitializers.get(coder);
+        (CloudObjectTranslator<CoderT>) coderTranslators.get(coder);
     if (initializer != null) {
       return initializer.toCloudObject(coder);
     } else {

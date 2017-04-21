@@ -91,6 +91,10 @@ public class LengthPrefixCoder<T> extends StandardCoder<T> {
     return ImmutableList.of(valueCoder);
   }
 
+  public Coder<T> getValueCoder() {
+    return valueCoder;
+  }
+
   /**
    * {@code LengthPrefixCoder} is deterministic if the nested {@code Coder} is.
    *
