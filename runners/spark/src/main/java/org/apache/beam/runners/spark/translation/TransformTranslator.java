@@ -29,7 +29,6 @@ import com.google.common.collect.Maps;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Map.Entry;
 import org.apache.beam.runners.core.SystemReduceFn;
 import org.apache.beam.runners.spark.aggregators.AggregatorsAccumulator;
 import org.apache.beam.runners.spark.aggregators.NamedAggregators;
@@ -56,6 +55,7 @@ import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.transforms.windowing.WindowFn;
 import org.apache.beam.sdk.util.CombineFnUtil;
+import org.apache.beam.sdk.util.PCollectionViews.SimplePCollectionView;
 import org.apache.beam.sdk.util.Reshuffle;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.WindowingStrategy;
@@ -454,12 +454,13 @@ public final class TransformTranslator {
       @Override
       public void evaluate(View.AsSingleton<T> transform, EvaluationContext context) {
         Iterable<? extends WindowedValue<?>> iter =
-        context.getWindowedValues(context.getInput(transform));
+            context.getWindowedValues(context.getInput(transform));
         PCollectionView<T> output = context.getOutput(transform);
-        Coder<Iterable<WindowedValue<?>>> coderInternal = output.getCoderInternal();
+        SimplePCollectionView<?, T, ?> simpleView = (SimplePCollectionView<?, T, ?>) output;
+        Coder<Iterable<WindowedValue<?>>> coderInternal = simpleView.getCoderInternal();
 
         @SuppressWarnings("unchecked")
-        Iterable<WindowedValue<?>> iterCast =  (Iterable<WindowedValue<?>>) iter;
+        Iterable<WindowedValue<?>> iterCast = (Iterable<WindowedValue<?>>) iter;
 
         context.putPView(output, iterCast, coderInternal);
       }
@@ -478,7 +479,14 @@ public final class TransformTranslator {
         Iterable<? extends WindowedValue<?>> iter =
             context.getWindowedValues(context.getInput(transform));
         PCollectionView<Iterable<T>> output = context.getOutput(transform);
-        Coder<Iterable<WindowedValue<?>>> coderInternal = output.getCoderInternal();
+        checkArgument(
+            output instanceof SimplePCollectionView,
+            "Unknown %s type: %s",
+            PCollectionView.class.getSimpleName(),
+            output.getClass().getName());
+        SimplePCollectionView<?, Iterable<T>, ?> simpleView =
+            (SimplePCollectionView<?, Iterable<T>, ?>) output;
+        Coder<Iterable<WindowedValue<?>>> coderInternal = simpleView.getCoderInternal();
 
         @SuppressWarnings("unchecked")
         Iterable<WindowedValue<?>> iterCast =  (Iterable<WindowedValue<?>>) iter;
@@ -497,15 +505,22 @@ public final class TransformTranslator {
   createPCollView() {
     return new TransformEvaluator<View.CreatePCollectionView<ReadT, WriteT>>() {
       @Override
-      public void evaluate(View.CreatePCollectionView<ReadT, WriteT> transform,
-                           EvaluationContext context) {
+      public void evaluate(
+          View.CreatePCollectionView<ReadT, WriteT> transform, EvaluationContext context) {
         Iterable<? extends WindowedValue<?>> iter =
             context.getWindowedValues(context.getInput(transform));
         PCollectionView<WriteT> output = context.getOutput(transform);
-        Coder<Iterable<WindowedValue<?>>> coderInternal = output.getCoderInternal();
+        checkArgument(
+            output instanceof SimplePCollectionView,
+            "Unknown %s type: %s",
+            PCollectionView.class.getSimpleName(),
+            output.getClass().getName());
+        SimplePCollectionView<?, WriteT, ?> simpleView =
+            (SimplePCollectionView<?, WriteT, ?>) output;
+        Coder<Iterable<WindowedValue<?>>> coderInternal = simpleView.getCoderInternal();
 
         @SuppressWarnings("unchecked")
-        Iterable<WindowedValue<?>> iterCast =  (Iterable<WindowedValue<?>>) iter;
+        Iterable<WindowedValue<?>> iterCast = (Iterable<WindowedValue<?>>) iter;
 
         context.putPView(output, iterCast, coderInternal);
       }

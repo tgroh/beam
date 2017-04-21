@@ -50,6 +50,7 @@ import org.apache.beam.sdk.transforms.splittabledofn.RestrictionTracker;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
 import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.util.PCollectionViews;
+import org.apache.beam.sdk.util.PCollectionViews.SimplePCollectionView;
 import org.apache.beam.sdk.util.TimeDomain;
 import org.apache.beam.sdk.util.Timer;
 import org.apache.beam.sdk.util.TimerSpec;
@@ -335,8 +336,9 @@ public class PTransformMatchersTest implements Serializable {
   @Test
   public void createViewWithViewFn() {
     PCollection<Integer> input = p.apply(Create.of(1));
-    PCollectionView<Iterable<Integer>> view =
-        PCollectionViews.iterableView(input, input.getWindowingStrategy(), input.getCoder());
+    SimplePCollectionView<?, Iterable<Integer>, ?> view =
+        (SimplePCollectionView<?, Iterable<Integer>, ?>)
+            PCollectionViews.iterableView(input, input.getWindowingStrategy(), input.getCoder());
     ViewFn<Iterable<WindowedValue<?>>, Iterable<Integer>> viewFn = view.getViewFn();
     CreatePCollectionView<?, ?> createView = CreatePCollectionView.of(view);
 
@@ -373,8 +375,9 @@ public class PTransformMatchersTest implements Serializable {
   @Test
   public void createViewWithViewFnNotCreatePCollectionView() {
     PCollection<Integer> input = p.apply(Create.of(1));
-    PCollectionView<Iterable<Integer>> view =
-        PCollectionViews.iterableView(input, input.getWindowingStrategy(), input.getCoder());
+    SimplePCollectionView<?, Iterable<Integer>, ?> view =
+        (SimplePCollectionView<?, Iterable<Integer>, ?>)
+            PCollectionViews.iterableView(input, input.getWindowingStrategy(), input.getCoder());
 
     PTransformMatcher matcher =
         PTransformMatchers.createViewWithViewFn(view.getViewFn().getClass());

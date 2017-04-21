@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.transforms;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 import com.google.common.collect.ImmutableList;
@@ -61,6 +62,7 @@ import org.apache.beam.sdk.util.AppliedCombineFn;
 import org.apache.beam.sdk.util.NameUtils;
 import org.apache.beam.sdk.util.NameUtils.NameOverride;
 import org.apache.beam.sdk.util.PCollectionViews;
+import org.apache.beam.sdk.util.PCollectionViews.SimplePCollectionView;
 import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.KV;
@@ -1440,7 +1442,13 @@ public class Combine {
     public Map<TupleTag<?>, PValue> getAdditionalInputs() {
       ImmutableMap.Builder<TupleTag<?>, PValue> additionalInputs = ImmutableMap.builder();
       for (PCollectionView<?> sideInput : sideInputs) {
-        additionalInputs.put(sideInput.getTagInternal(), sideInput.getPCollection());
+        checkArgument(
+            sideInput instanceof SimplePCollectionView,
+            "Unknown %s type: %s",
+            PCollectionView.class.getSimpleName(),
+            sideInput.getClass().getName());
+        SimplePCollectionView<?, ?, ?> simpleView = (SimplePCollectionView<?, ?, ?>) sideInput;
+        additionalInputs.put(simpleView.getTagInternal(), simpleView.getPCollection());
       }
       return additionalInputs.build();
     }
@@ -1896,7 +1904,13 @@ public class Combine {
     public Map<TupleTag<?>, PValue> getAdditionalInputs() {
       ImmutableMap.Builder<TupleTag<?>, PValue> additionalInputs = ImmutableMap.builder();
       for (PCollectionView<?> sideInput : sideInputs) {
-        additionalInputs.put(sideInput.getTagInternal(), sideInput.getPCollection());
+        checkArgument(
+            sideInput instanceof SimplePCollectionView,
+            "Unknown %s type: %s",
+            PCollectionView.class.getSimpleName(),
+            sideInput.getClass().getName());
+        SimplePCollectionView<?, ?, ?> simpleView = (SimplePCollectionView<?, ?, ?>) sideInput;
+        additionalInputs.put(simpleView.getTagInternal(), simpleView.getPCollection());
       }
       return additionalInputs.build();
     }

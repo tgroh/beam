@@ -62,6 +62,7 @@ import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.transforms.windowing.WindowFn;
+import org.apache.beam.sdk.util.PCollectionViews.SimplePCollectionView;
 import org.apache.beam.sdk.util.Reshuffle;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.WindowingStrategy;
@@ -370,7 +371,13 @@ class FlinkBatchTransformTranslators {
       // the DoFn runner can map main-input windows to side input windows
       Map<PCollectionView<?>, WindowingStrategy<?, ?>> sideInputStrategies = new HashMap<>();
       for (PCollectionView<?> sideInput: transform.getSideInputs()) {
-        sideInputStrategies.put(sideInput, sideInput.getWindowingStrategyInternal());
+        checkArgument(
+            sideInput instanceof SimplePCollectionView,
+            "Unknown %s type: %s",
+            PCollectionView.class.getSimpleName(),
+            sideInput.getClass().getName());
+        SimplePCollectionView<?, ?, ?> simpleView = (SimplePCollectionView<?, ?, ?>) sideInput;
+        sideInputStrategies.put(sideInput, simpleView.getWindowingStrategyInternal());
       }
 
       WindowingStrategy<Object, BoundedWindow> boundedStrategy =
@@ -520,7 +527,13 @@ class FlinkBatchTransformTranslators {
       // the DoFn runner can map main-input windows to side input windows
       Map<PCollectionView<?>, WindowingStrategy<?, ?>> sideInputStrategies = new HashMap<>();
       for (PCollectionView<?> sideInput: sideInputs) {
-        sideInputStrategies.put(sideInput, sideInput.getWindowingStrategyInternal());
+        checkArgument(
+            sideInput instanceof SimplePCollectionView,
+            "Unknown %s type: %s",
+            PCollectionView.class.getSimpleName(),
+            sideInput.getClass().getName());
+        SimplePCollectionView<?, ?, ?> simpleView = (SimplePCollectionView<?, ?, ?>) sideInput;
+        sideInputStrategies.put(sideInput, simpleView.getWindowingStrategyInternal());
       }
 
       SingleInputUdfOperator<WindowedValue<InputT>, WindowedValue<RawUnionValue>, ?> outputDataSet;
@@ -678,8 +691,14 @@ class FlinkBatchTransformTranslators {
       FlinkBatchTranslationContext context) {
     // get corresponding Flink broadcast DataSets
     for (PCollectionView<?> input : sideInputs) {
+      checkArgument(
+          input instanceof SimplePCollectionView,
+          "Unknown %s type: %s",
+          PCollectionView.class.getSimpleName(),
+          input.getClass().getName());
+      SimplePCollectionView<?, ?, ?> simpleView = (SimplePCollectionView<?, ?, ?>) input;
       DataSet<?> broadcastSet = context.getSideInputDataSet(input);
-      outputDataSet.withBroadcastSet(broadcastSet, input.getTagInternal().getId());
+      outputDataSet.withBroadcastSet(broadcastSet, simpleView.getTagInternal().getId());
     }
   }
 
