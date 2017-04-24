@@ -50,7 +50,7 @@ public class CloudObjects {
     return builder.build();
   }
 
-  public static CloudObject standardCoderAsCloudObject(Coder<?> coder) {
+  public static CloudObject asCloudObject(Coder<?> coder) {
     if (CODER_TRANSLATORS.containsKey(coder.getClass())) {
       // TODO: Make this cast less dangerous
       return standardCoderAsCloudObject((StandardCoder<?>) coder);
