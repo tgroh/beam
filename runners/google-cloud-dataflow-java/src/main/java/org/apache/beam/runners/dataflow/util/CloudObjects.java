@@ -86,7 +86,7 @@ public class CloudObjects {
     if (!components.isEmpty()) {
       List<CloudObject> cloudComponents = new ArrayList<>(components.size());
       for (Coder<?> component : components) {
-        cloudComponents.add(standardCoderAsCloudObject(component));
+        cloudComponents.add(asCloudObject(component));
       }
       Structs.addList(result, PropertyNames.COMPONENT_ENCODINGS, cloudComponents);
     }
@@ -103,5 +103,21 @@ public class CloudObjects {
           result, PropertyNames.ALLOWED_ENCODINGS, Lists.newArrayList(allowedEncodings));
     }
     return result;
+  }
+
+  public static Coder<?> coderFromCloudObject(CloudObject cloudObject) {
+    if (cloudObject.getClassName().equals(CustomCoder.class.getName())) {
+      return customCoderFromCloudObject(cloudObject);
+    }
+    throw new IllegalArgumentException(
+        String.format("Unknown Cloud Object Class Name %s", cloudObject.getClassName()));
+  }
+
+  private static Coder<?> customCoderFromCloudObject(CloudObject cloudObject) {
+    String type = Structs.getString(cloudObject, "type");
+    String serializedCoder = Structs.getString(cloudObject, "serialized_coder");
+    return (CustomCoder<?>)
+        SerializableUtils.deserializeFromByteArray(
+            StringUtils.jsonStringToByteArray(serializedCoder), type);
   }
 }
