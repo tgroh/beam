@@ -22,7 +22,7 @@ import org.apache.beam.sdk.util.CloudObject;
 
 /**
  * An translator that takes an object and creates a {@link CloudObject} which can be converted back
- * to the original object, or takes a {@link CloudObject} and returns the original object.
+ * to the original object.
  */
 public interface CloudObjectTranslator<T> {
   CloudObject toCloudObject(T target);

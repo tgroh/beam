@@ -50,19 +50,19 @@ public class CloudObjects {
     return builder.build();
   }
 
-  public static CloudObject asCloudObject(Coder<?> coder) {
+  public static CloudObject standardCoderAsCloudObject(Coder<?> coder) {
     if (CODER_TRANSLATORS.containsKey(coder.getClass())) {
       // TODO: Make this cast less dangerous
-      return asCloudObject((StandardCoder<?>) coder);
+      return standardCoderAsCloudObject((StandardCoder<?>) coder);
     } else if (coder instanceof CustomCoder) {
-      return asCloudObject((CustomCoder<?>) coder);
+      return customCoderAsCloudObject((CustomCoder<?>) coder);
     }
     throw new IllegalArgumentException(
         String.format(
             "Non-Custom %s with no registered %s", Coder.class, CloudObjectTranslator.class));
   }
 
-  private static CloudObject asCloudObject(CustomCoder<?> coder) {
+  private static CloudObject customCoderAsCloudObject(CustomCoder<?> coder) {
     CloudObject result = CloudObject.forClass(CustomCoder.class);
     Structs.addString(result, "type", coder.getClass().getName());
     Structs.addString(
@@ -76,21 +76,17 @@ public class CloudObjects {
   /**
    * Convert the provided {@link StandardCoder} to a {@link CloudObject}.
    */
-  private static CloudObject asCloudObject(StandardCoder<?> coder) {
+  private static CloudObject standardCoderAsCloudObject(StandardCoder<?> coder) {
     CloudObject result;
     CloudObjectTranslator<StandardCoder<?>> initializer =
         (CloudObjectTranslator<StandardCoder<?>>) CODER_TRANSLATORS.get(coder);
-    if (initializer != null) {
-      result = initializer.toCloudObject(coder);
-    } else {
-      result = CloudObject.forClass(coder.getClass());
-    }
+    result = initializer.toCloudObject(coder);
 
     List<? extends Coder<?>> components = coder.getComponents();
     if (!components.isEmpty()) {
       List<CloudObject> cloudComponents = new ArrayList<>(components.size());
       for (Coder<?> component : components) {
-        cloudComponents.add(asCloudObject(component));
+        cloudComponents.add(standardCoderAsCloudObject(component));
       }
       Structs.addList(result, PropertyNames.COMPONENT_ENCODINGS, cloudComponents);
     }
