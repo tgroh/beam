@@ -18,7 +18,7 @@
 
 package org.apache.beam.runners.dataflow.util;
 
-import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertEquals;
 
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
@@ -29,7 +29,6 @@ import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.util.CloudObject;
-import org.hamcrest.Matchers;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -54,8 +53,8 @@ public class CloudObjectsTest {
     CloudObject cloudObject = CloudObjects.asCloudObject(coder);
     Coder<?> reconstructed = CloudObjects.coderFromCloudObject(cloudObject);
 
-    assertThat(reconstructed.getClass(), Matchers.<Class<?>>equalTo(coder.getClass()));
-    assertThat(reconstructed, Matchers.<Coder<?>>equalTo(coder));
+    assertEquals(coder.getClass(), reconstructed.getClass());
+    assertEquals(coder, reconstructed);
   }
 
   static class Record implements Serializable {}
