@@ -29,9 +29,9 @@ import org.apache.beam.sdk.values.TypeParameter;
 
 /**
  * A {@link CollectionCoder} encodes {@link Collection Collections} in the format
- * of {@link IterableLikeCoder}.
+ * of {@link IterableLikeCoderBase}.
  */
-public class CollectionCoder<T> extends IterableLikeCoder<T, Collection<T>> {
+public class CollectionCoder<T> extends IterableLikeCoderBase<T, Collection<T>> {
 
   public static <T> CollectionCoder<T> of(Coder<T> elemCoder) {
     return new CollectionCoder<>(elemCoder);

@@ -29,12 +29,12 @@ import org.apache.beam.sdk.values.TypeDescriptor;
 import org.apache.beam.sdk.values.TypeParameter;
 
 /**
- * A {@link SetCoder} encodes any {@link Set} using the format of {@link IterableLikeCoder}. The
+ * A {@link SetCoder} encodes any {@link Set} using the format of {@link IterableLikeCoderBase}. The
  * elements may not be in a deterministic order, depending on the {@code Set} implementation.
  *
  * @param <T> the type of the elements of the set
  */
-public class SetCoder<T> extends IterableLikeCoder<T, Set<T>> {
+public class SetCoder<T> extends IterableLikeCoderBase<T, Set<T>> {
 
   /**
    * Produces a {@link SetCoder} with the given {@code elementCoder}.
@@ -88,7 +88,7 @@ public class SetCoder<T> extends IterableLikeCoder<T, Set<T>> {
    * {@inheritDoc}
    *
    * @return A new {@link Set} built from the elements in the {@link List} decoded by
-   * {@link IterableLikeCoder}.
+   * {@link IterableLikeCoderBase}.
    */
   @Override
   protected final Set<T> decodeToIterable(List<T> decodedElements) {

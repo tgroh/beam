@@ -27,11 +27,11 @@ import org.apache.beam.sdk.values.TypeDescriptor;
 import org.apache.beam.sdk.values.TypeParameter;
 
 /**
- * A {@link Coder} for {@link List}, using the format of {@link IterableLikeCoder}.
+ * A {@link Coder} for {@link List}, using the format of {@link IterableLikeCoderBase}.
  *
  * @param <T> the type of the elements of the Lists being transcoded
  */
-public class ListCoder<T> extends IterableLikeCoder<T, List<T>> {
+public class ListCoder<T> extends IterableLikeCoderBase<T, List<T>> {
 
   public static <T> ListCoder<T> of(Coder<T> elemCoder) {
     return new ListCoder<>(elemCoder);
@@ -67,7 +67,7 @@ public class ListCoder<T> extends IterableLikeCoder<T, List<T>> {
 
   /**
    * List sizes are always known, so ListIterable may be deterministic while
-   * the general IterableLikeCoder is not.
+   * the general IterableLikeCoderBase is not.
    */
   @Override
   public void verifyDeterministic() throws NonDeterministicException {

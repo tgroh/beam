@@ -19,7 +19,7 @@ package org.apache.beam.sdk.transforms;
 
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.Coder;
-import org.apache.beam.sdk.coders.IterableLikeCoder;
+import org.apache.beam.sdk.coders.IterableLikeCoderBase;
 import org.apache.beam.sdk.transforms.windowing.WindowFn;
 import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.PCollection;
@@ -166,12 +166,12 @@ public class Flatten {
     @Override
     public PCollection<T> expand(PCollection<? extends Iterable<T>> in) {
       Coder<? extends Iterable<T>> inCoder = in.getCoder();
-      if (!(inCoder instanceof IterableLikeCoder)) {
+      if (!(inCoder instanceof IterableLikeCoderBase)) {
         throw new IllegalArgumentException(
-            "expecting the input Coder<Iterable> to be an IterableLikeCoder");
+            "expecting the input Coder<Iterable> to be an IterableLikeCoderBase");
       }
       @SuppressWarnings("unchecked")
-      Coder<T> elemCoder = ((IterableLikeCoder<T, ?>) inCoder).getElemCoder();
+      Coder<T> elemCoder = ((IterableLikeCoderBase<T, ?>) inCoder).getElemCoder();
 
       return in.apply("FlattenIterables", FlatMapElements.via(
           new SimpleFunction<Iterable<T>, Iterable<T>>() {
