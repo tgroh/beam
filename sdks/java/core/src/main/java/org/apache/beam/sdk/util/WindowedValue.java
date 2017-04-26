@@ -40,7 +40,7 @@ import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.CollectionCoder;
 import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.InstantCoder;
-import org.apache.beam.sdk.coders.StandardCoder;
+import org.apache.beam.sdk.coders.StructuredCoder;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.PaneInfo;
@@ -588,7 +588,7 @@ public abstract class WindowedValue<T> {
   }
 
   /** Coder for {@code WindowedValue}. */
-  public static class FullWindowedValueCoder<T> extends StandardCoder<WindowedValue<T>>
+  public static class FullWindowedValueCoder<T> extends StructuredCoder<WindowedValue<T>>
       implements WindowedValueCoder<T> {
     private final Coder<T> valueCoder;
     private final Coder<? extends BoundedWindow> windowCoder;
