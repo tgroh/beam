@@ -204,6 +204,11 @@ public class DoFnAdapters {
     }
 
     @Override
+    public PipelineOptions pipelineOptions() {
+      return getPipelineOptions();
+    }
+
+    @Override
     public RestrictionTracker<?> restrictionTracker() {
       throw new UnsupportedOperationException("This is a non-splittable DoFn");
     }
@@ -308,6 +313,11 @@ public class DoFnAdapters {
     @Override
     public OnTimerContext onTimerContext(DoFn<InputT, OutputT> doFn) {
       throw new UnsupportedOperationException("Timers are not supported for OldDoFn");
+    }
+
+    @Override
+    public PipelineOptions pipelineOptions() {
+      return getPipelineOptions();
     }
 
     @Override

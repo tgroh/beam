@@ -17,8 +17,10 @@
  */
 package org.apache.beam.sdk.transforms.reflect;
 
+import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderRegistry;
+import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.DoFn.FinishBundle;
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement;
@@ -41,10 +43,10 @@ public interface DoFnInvoker<InputT, OutputT> {
   void invokeSetup();
 
   /** Invoke the {@link DoFn.StartBundle} method on the bound {@link DoFn}. */
-  void invokeStartBundle(DoFn<InputT, OutputT>.Context c);
+  void invokeStartBundle(ArgumentProvider<InputT, OutputT> arguments);
 
   /** Invoke the {@link DoFn.FinishBundle} method on the bound {@link DoFn}. */
-  void invokeFinishBundle(DoFn<InputT, OutputT>.Context c);
+  void invokeFinishBundle(ArgumentProvider<InputT, OutputT> arguments);
 
   /** Invoke the {@link DoFn.Teardown} method on the bound {@link DoFn}. */
   void invokeTeardown();
@@ -109,6 +111,9 @@ public interface DoFnInvoker<InputT, OutputT> {
     /** Provide a {@link DoFn.OnTimerContext} to use with the given {@link DoFn}. */
     DoFn<InputT, OutputT>.OnTimerContext onTimerContext(DoFn<InputT, OutputT> doFn);
 
+    /** Returns the {@link PipelineOptions} used by the currently executing {@link Pipeline}. */
+    PipelineOptions pipelineOptions();
+
     /**
      * If this is a splittable {@link DoFn}, returns the {@link RestrictionTracker} associated with
      * the current {@link ProcessElement} call.
@@ -141,6 +146,11 @@ public interface DoFnInvoker<InputT, OutputT> {
 
     @Override
     public DoFn<InputT, OutputT>.OnTimerContext onTimerContext(DoFn<InputT, OutputT> doFn) {
+      return null;
+    }
+
+    @Override
+    public PipelineOptions pipelineOptions() {
       return null;
     }
 
