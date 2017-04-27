@@ -20,8 +20,9 @@ package org.apache.beam.runners.core;
 import org.apache.beam.runners.core.construction.Triggers;
 import org.apache.beam.runners.core.triggers.ExecutableTriggerStateMachine;
 import org.apache.beam.runners.core.triggers.TriggerStateMachines;
+import org.apache.beam.sdk.metrics.Counter;
+import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.Aggregator;
-import org.apache.beam.sdk.transforms.Sum;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.util.SystemDoFnInternal;
 import org.apache.beam.sdk.util.WindowingStrategy;
@@ -44,11 +45,13 @@ public class GroupAlsoByWindowViaWindowSetDoFn<
     return new GroupAlsoByWindowViaWindowSetDoFn<>(strategy, stateInternalsFactory, reduceFn);
   }
 
-  protected final Aggregator<Long, Long> droppedDueToClosedWindow =
-      createAggregator(
-          GroupAlsoByWindowsDoFn.DROPPED_DUE_TO_CLOSED_WINDOW_COUNTER, Sum.ofLongs());
-  protected final Aggregator<Long, Long> droppedDueToLateness =
-      createAggregator(GroupAlsoByWindowsDoFn.DROPPED_DUE_TO_LATENESS_COUNTER, Sum.ofLongs());
+  protected final Counter droppedDueToClosedWindow =
+      Metrics.counter(
+          GroupAlsoByWindowsDoFn.class,
+          GroupAlsoByWindowsDoFn.DROPPED_DUE_TO_CLOSED_WINDOW_COUNTER);
+  protected final Counter droppedDueToLateness =
+      Metrics.counter(
+          GroupAlsoByWindowsDoFn.class, GroupAlsoByWindowsDoFn.DROPPED_DUE_TO_LATENESS_COUNTER);
 
   private final WindowingStrategy<Object, W> windowingStrategy;
   private final StateInternalsFactory<K> stateInternalsFactory;

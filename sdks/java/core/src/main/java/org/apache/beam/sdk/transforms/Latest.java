@@ -44,21 +44,6 @@ import org.apache.beam.sdk.values.TimestampedValue;
  * PCollection<Long> latestValues = sessioned.apply(Latest.<Long>globally());
  * }</pre>
  *
- * <p>Example 2: track a latest computed value in an aggregator:
- * <pre>{@code
- * class MyDoFn extends DoFn<String, String> {
- *  private Aggregator<TimestampedValue<Double>, Double> latestValue =
- *    createAggregator("latestValue", new Latest.LatestFn<Double>());
- *
- *  {@literal @}ProcessElement
- *  public void processElement(ProcessContext c) {
- *    double val = // ..
- *    latestValue.addValue(TimestampedValue.of(val, c.timestamp()));
- *    // ..
- *  }
- * }
- * }</pre>
- *
  * <p>{@link #combineFn} can also be used manually, in combination with state and with the
  * {@link Combine} transform.
  *
@@ -97,8 +82,7 @@ public class Latest {
   }
 
   /**
-   * A {@link Combine.CombineFn} that computes the latest element from a set of inputs. This is
-   * particularly useful as an {@link Aggregator}.
+   * A {@link Combine.CombineFn} that computes the latest element from a set of inputs.
    *
    * @param <T> Type of input element.
    * @see Latest

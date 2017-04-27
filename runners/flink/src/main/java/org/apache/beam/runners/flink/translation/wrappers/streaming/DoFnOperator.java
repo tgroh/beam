@@ -300,7 +300,7 @@ public class DoFnOperator<InputT, FnOutputT, OutputT>
           (DoFnRunner) doFnRunner,
           stepContext,
           windowingStrategy,
-          ((GroupAlsoByWindowViaWindowSetNewDoFn) doFn).getDroppedDueToLatenessAggregator());
+          ((GroupAlsoByWindowViaWindowSetNewDoFn) doFn).getDroppedDueToLatenessCounter());
     } else if (keyCoder != null) {
       // It is a stateful DoFn
 

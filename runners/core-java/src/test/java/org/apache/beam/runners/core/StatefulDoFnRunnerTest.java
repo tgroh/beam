@@ -213,9 +213,7 @@ public class StatefulDoFnRunnerTest {
         null,
         null,
         Collections.<TupleTag<?>>emptyList(),
-        mockStepContext,
-        null,
-        WINDOWING_STRATEGY);
+        mockStepContext, WINDOWING_STRATEGY);
   }
 
   private static void advanceInputWatermark(

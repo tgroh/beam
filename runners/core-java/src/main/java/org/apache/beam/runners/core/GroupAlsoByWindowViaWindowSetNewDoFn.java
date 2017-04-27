@@ -21,9 +21,9 @@ import java.util.Collection;
 import org.apache.beam.runners.core.construction.Triggers;
 import org.apache.beam.runners.core.triggers.ExecutableTriggerStateMachine;
 import org.apache.beam.runners.core.triggers.TriggerStateMachines;
-import org.apache.beam.sdk.transforms.Aggregator;
+import org.apache.beam.sdk.metrics.Counter;
+import org.apache.beam.sdk.metrics.Metrics;
 import org.apache.beam.sdk.transforms.DoFn;
-import org.apache.beam.sdk.transforms.Sum;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.PaneInfo;
 import org.apache.beam.sdk.util.SideInputReader;
@@ -59,11 +59,13 @@ public class GroupAlsoByWindowViaWindowSetNewDoFn<
             reduceFn, outputManager, mainTag);
   }
 
-  protected final Aggregator<Long, Long> droppedDueToClosedWindow =
-      createAggregator(
-          GroupAlsoByWindowsDoFn.DROPPED_DUE_TO_CLOSED_WINDOW_COUNTER, Sum.ofLongs());
-  protected final Aggregator<Long, Long> droppedDueToLateness =
-      createAggregator(GroupAlsoByWindowsDoFn.DROPPED_DUE_TO_LATENESS_COUNTER, Sum.ofLongs());
+  protected final Counter droppedDueToClosedWindow =
+      Metrics.counter(
+          GroupAlsoByWindowsDoFn.class,
+          GroupAlsoByWindowsDoFn.DROPPED_DUE_TO_CLOSED_WINDOW_COUNTER);
+  protected final Counter droppedDueToLateness =
+      Metrics.counter(
+          GroupAlsoByWindowsDoFn.class, GroupAlsoByWindowsDoFn.DROPPED_DUE_TO_LATENESS_COUNTER);
   private final WindowingStrategy<Object, W> windowingStrategy;
   private SystemReduceFn<K, InputT, ?, OutputT, W> reduceFn;
   private transient StateInternalsFactory<K> stateInternalsFactory;
@@ -145,10 +147,10 @@ public class GroupAlsoByWindowViaWindowSetNewDoFn<
   }
 
   public OldDoFn<KeyedWorkItem<K, InputT>, KV<K, OutputT>> asDoFn() {
-    throw new RuntimeException("Not implement!");
+    throw new RuntimeException("Not implemented!");
   }
 
-  public Aggregator<Long, Long> getDroppedDueToLatenessAggregator() {
+  public Counter getDroppedDueToLatenessCounter() {
     return droppedDueToLateness;
   }
 }

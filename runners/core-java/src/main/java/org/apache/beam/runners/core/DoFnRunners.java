@@ -75,7 +75,6 @@ public class DoFnRunners {
         mainOutputTag,
         additionalOutputTags,
         stepContext,
-        aggregatorFactory,
         windowingStrategy);
   }
 
