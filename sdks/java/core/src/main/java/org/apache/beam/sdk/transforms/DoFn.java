@@ -92,9 +92,7 @@ import org.joda.time.Instant;
  */
 public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayData {
 
-  /** Information accessible to all methods in this {@code DoFn}. */
   public abstract class Context {
-
     /**
      * Returns the {@code PipelineOptions} specified with the
      * {@link org.apache.beam.sdk.runners.PipelineRunner}
@@ -102,7 +100,10 @@ public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayD
      * be the default running via {@link DoFnTester}.
      */
     public abstract PipelineOptions getPipelineOptions();
+  }
 
+  /** Information accessible to all methods in this {@code DoFn}. */
+  public abstract class ElementContext extends Context {
     /**
      * Adds the given element to the main output {@code PCollection}.
      *
@@ -256,7 +257,7 @@ public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayD
   /**
    * Information accessible when running a {@link DoFn.ProcessElement} method.
    */
-  public abstract class ProcessContext extends Context {
+  public abstract class ProcessContext extends ElementContext {
 
     /**
      * Returns the input element to be processed.
@@ -308,7 +309,7 @@ public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayD
   /**
    * Information accessible when running a {@link DoFn.OnTimer} method.
    */
-  public abstract class OnTimerContext extends Context {
+  public abstract class OnTimerContext extends ElementContext {
 
     /**
      * Returns the timestamp of the current timer.
@@ -324,6 +325,35 @@ public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayD
      * Returns the time domain of the current timer.
      */
     public abstract TimeDomain timeDomain();
+  }
+
+
+  /**
+   * Context available when running a {@link DoFn.FinishBundle} method.
+   */
+  public abstract class FinishBundleContext extends Context {
+    /**
+     * Adds the given element to the main output {@code PCollection} with the provided timestamp in
+     * the provided {@link BoundedWindow window}.
+     *
+     * <p>Once passed to {@code output} the element should not be modified in any way.
+     *
+     * <p><i>Note:</i> A splittable {@link DoFn} is not allowed to output from the {@link
+     * FinishBundle} method.
+     */
+    public abstract void output(OutputT output, Instant timestamp, BoundedWindow window);
+
+    /**
+     * Adds the given element to the output {@code PCollection} with the given timestamp at the
+     * provided timestamp in the provided {@link BoundedWindow window}.
+     *
+     * <p>Once passed to {@code output} the element should not be modified in any way.
+     *
+     * <p><i>Note:</i> A splittable {@link DoFn} is not allowed to output from the {@link
+     * FinishBundle} method.
+     */
+    public abstract <T> void output(
+        TupleTag<T> tag, T output, Instant timestamp, BoundedWindow window);
   }
 
   /**
