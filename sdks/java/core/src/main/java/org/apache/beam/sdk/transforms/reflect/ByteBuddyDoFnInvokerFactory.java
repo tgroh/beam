@@ -65,10 +65,13 @@ import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderRegistry;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement;
+import org.apache.beam.sdk.transforms.reflect.DoFnSignature.DoFnMethod;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.OnTimerMethod;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.Cases;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.ContextParameter;
+import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.FinishBundleContextParameter;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.OnTimerContextParameter;
+import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.PipelineOptionsParameter;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.ProcessContextParameter;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.RestrictionTrackerParameter;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.StateParameter;
@@ -86,6 +89,8 @@ public class ByteBuddyDoFnInvokerFactory implements DoFnInvokerFactory {
   public static final String CONTEXT_PARAMETER_METHOD = "context";
   public static final String PROCESS_CONTEXT_PARAMETER_METHOD = "processContext";
   public static final String ON_TIMER_CONTEXT_PARAMETER_METHOD = "onTimerContext";
+  public static final String FINISH_BUNDLE_CONTEXT_PARAMETER_METHOD = "finishBundleContext";
+  public static final String PIPELINE_OPTIONS_PARAMETER_METHOD = "pipelineOptions";
   public static final String WINDOW_PARAMETER_METHOD = "window";
   public static final String RESTRICTION_TRACKER_PARAMETER_METHOD = "restrictionTracker";
   public static final String STATE_PARAMETER_METHOD = "state";
@@ -370,7 +375,7 @@ public class ByteBuddyDoFnInvokerFactory implements DoFnInvokerFactory {
 
   /** Delegates to the given method if available, or does nothing. */
   private static Implementation delegateOrNoop(
-      TypeDescription doFnType, DoFnSignature.DoFnMethod method) {
+      TypeDescription doFnType, DoFnMethod method) {
     return (method == null)
         ? FixedValue.originType()
         : new DoFnMethodDelegation(doFnType, method.targetMethod());
@@ -378,7 +383,7 @@ public class ByteBuddyDoFnInvokerFactory implements DoFnInvokerFactory {
 
   /** Delegates to the given method if available, or throws UnsupportedOperationException. */
   private static Implementation delegateWithDowncastOrThrow(
-      TypeDescription doFnType, DoFnSignature.DoFnMethod method) {
+      TypeDescription doFnType, DoFnMethod method) {
     return (method == null)
         ? ExceptionMethod.throwing(UnsupportedOperationException.class)
         : new DowncastingParametersMethodDelegation(doFnType, method.targetMethod());
@@ -555,7 +560,6 @@ public class ByteBuddyDoFnInvokerFactory implements DoFnInvokerFactory {
 
     return parameter.match(
         new Cases<StackManipulation>() {
-
           @Override
           public StackManipulation dispatch(ContextParameter p) {
             return new StackManipulation.Compound(
@@ -580,6 +584,24 @@ public class ByteBuddyDoFnInvokerFactory implements DoFnInvokerFactory {
                 MethodInvocation.invoke(
                     getExtraContextFactoryMethodDescription(
                         ON_TIMER_CONTEXT_PARAMETER_METHOD, DoFn.class)));
+          }
+
+          @Override
+          public StackManipulation dispatch(FinishBundleContextParameter p) {
+            return new StackManipulation.Compound(
+                pushDelegate,
+                MethodInvocation.invoke(
+                    getExtraContextFactoryMethodDescription(
+                        FINISH_BUNDLE_CONTEXT_PARAMETER_METHOD, DoFn.class)));
+          }
+
+          @Override
+          public StackManipulation dispatch(PipelineOptionsParameter p) {
+            return new StackManipulation.Compound(
+                pushDelegate,
+                MethodInvocation.invoke(
+                    getExtraContextFactoryMethodDescription(
+                        PIPELINE_OPTIONS_PARAMETER_METHOD, DoFn.class)));
           }
 
           @Override

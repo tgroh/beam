@@ -190,17 +190,18 @@ public class ParDoTest implements Serializable {
       assertThat(state,
                  anyOf(equalTo(State.STARTED), equalTo(State.PROCESSING)));
       state = State.FINISHED;
-      c.output("finished", BoundedWindow.TIMESTAMP_MIN_VALUE, GlobalWindow.INSTANCE);
+      String value = "finished";
+      c.output(value, BoundedWindow.TIMESTAMP_MIN_VALUE, GlobalWindow.INSTANCE);
       for (TupleTag<String> additionalOutputTupleTag : additionalOutputTupleTags) {
         c.output(
             additionalOutputTupleTag,
-            additionalOutputTupleTag.getId() + ": finished",
+            additionalOutputTupleTag.getId() + ": " + value,
             BoundedWindow.TIMESTAMP_MIN_VALUE,
             GlobalWindow.INSTANCE);
       }
     }
 
-    private void outputToAll(ProcessContext c, String value) {
+    private void outputToAll(ElementContext c, String value) {
       c.output(value);
       for (TupleTag<String> additionalOutputTupleTag : additionalOutputTupleTags) {
         c.output(additionalOutputTupleTag,
@@ -250,7 +251,7 @@ public class ParDoTest implements Serializable {
     }
 
     @FinishBundle
-    public void finishBundle() {
+    public void finishBundle(FinishBundleContext c) {
       throw new RuntimeException("test error in finalize");
     }
   }

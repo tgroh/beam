@@ -149,7 +149,7 @@ public class DoFnTest implements Serializable {
   public void testCreateAggregatorInStartBundleThrows() {
     TestPipeline p = createTestPipeline(new DoFn<String, String>() {
       @StartBundle
-      public void startBundle(Context c) {
+      public void startBundle() {
         createAggregator("anyAggregate", Max.ofIntegers());
       }
 
@@ -184,7 +184,7 @@ public class DoFnTest implements Serializable {
   public void testCreateAggregatorInFinishBundleThrows() {
     TestPipeline p = createTestPipeline(new DoFn<String, String>() {
       @FinishBundle
-      public void finishBundle(Context c) {
+      public void finishBundle() {
         createAggregator("anyAggregate", Max.ofIntegers());
       }
 

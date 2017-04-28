@@ -92,6 +92,13 @@ import org.joda.time.Instant;
  */
 public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayData {
 
+  /**
+   * Information accessible to all methods in this {@link DoFn}.
+   *
+   * @deprecated users should include an argument of the appropriate type of {@link PipelineOptions}
+   *     they wish to obtain instead of declaring a parameter with type {@link Context}.
+   */
+  @Deprecated
   public abstract class Context {
     /**
      * Returns the {@code PipelineOptions} specified with the
@@ -100,6 +107,48 @@ public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayD
      * be the default running via {@link DoFnTester}.
      */
     public abstract PipelineOptions getPipelineOptions();
+
+    /**
+     * Creates an {@link Aggregator} in the {@link DoFn} context with the specified name and
+     * aggregation logic specified by {@link CombineFn}. This is to be overridden by a particular
+     * runner context with an implementation that delivers the values as appropriate.
+     *
+     * <p>The aggregators declared on the {@link DoFn} will be wired up to aggregators allocated via
+     * this method.
+     *
+     * @param name the name of the aggregator
+     * @param combiner the {@link CombineFn} to use in the aggregator
+     * @return an aggregator for the provided name and {@link CombineFn} in this context
+     */
+    @Experimental(Kind.AGGREGATOR)
+    protected abstract <AggInputT, AggOutputT>
+    Aggregator<AggInputT, AggOutputT> createAggregator(
+        String name, CombineFn<AggInputT, ?, AggOutputT> combiner);
+
+    /**
+     * Sets up {@link Aggregator}s created by the {@link DoFn} so they are usable within this
+     * context.
+     *
+     * <p>This method should be called by runners before the {@link StartBundle @StartBundle}
+     * method.
+     */
+    @Experimental(Kind.AGGREGATOR)
+    protected final void setupDelegateAggregators() {
+      for (DelegatingAggregator<?, ?> aggregator : aggregators.values()) {
+        setupDelegateAggregator(aggregator);
+      }
+
+      aggregatorsAreFinal = true;
+    }
+
+    private <AggInputT, AggOutputT> void setupDelegateAggregator(
+        DelegatingAggregator<AggInputT, AggOutputT> aggregator) {
+
+      Aggregator<AggInputT, AggOutputT> delegate = createAggregator(
+          aggregator.getName(), aggregator.getCombineFn());
+
+      aggregator.setDelegate(delegate);
+    }
   }
 
   /** Information accessible to all methods in this {@code DoFn}. */
@@ -210,48 +259,6 @@ public abstract class DoFn<InputT, OutputT> implements Serializable, HasDisplayD
      */
     public abstract <T> void outputWithTimestamp(
         TupleTag<T> tag, T output, Instant timestamp);
-
-    /**
-     * Creates an {@link Aggregator} in the {@link DoFn} context with the specified name and
-     * aggregation logic specified by {@link CombineFn}. This is to be overridden by a particular
-     * runner context with an implementation that delivers the values as appropriate.
-     *
-     * <p>The aggregators declared on the {@link DoFn} will be wired up to aggregators allocated via
-     * this method.
-     *
-     * @param name the name of the aggregator
-     * @param combiner the {@link CombineFn} to use in the aggregator
-     * @return an aggregator for the provided name and {@link CombineFn} in this context
-     */
-    @Experimental(Kind.AGGREGATOR)
-    protected abstract <AggInputT, AggOutputT>
-        Aggregator<AggInputT, AggOutputT> createAggregator(
-            String name, CombineFn<AggInputT, ?, AggOutputT> combiner);
-
-    /**
-     * Sets up {@link Aggregator}s created by the {@link DoFn} so they are usable within this
-     * context.
-     *
-     * <p>This method should be called by runners before the {@link StartBundle @StartBundle}
-     * method.
-     */
-    @Experimental(Kind.AGGREGATOR)
-    protected final void setupDelegateAggregators() {
-      for (DelegatingAggregator<?, ?> aggregator : aggregators.values()) {
-        setupDelegateAggregator(aggregator);
-      }
-
-      aggregatorsAreFinal = true;
-    }
-
-    private <AggInputT, AggOutputT> void setupDelegateAggregator(
-        DelegatingAggregator<AggInputT, AggOutputT> aggregator) {
-
-      Aggregator<AggInputT, AggOutputT> delegate = createAggregator(
-          aggregator.getName(), aggregator.getCombineFn());
-
-      aggregator.setDelegate(delegate);
-    }
   }
 
   /**

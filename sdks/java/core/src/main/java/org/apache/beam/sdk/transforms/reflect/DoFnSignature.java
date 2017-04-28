@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.DoFn.StateId;
 import org.apache.beam.sdk.transforms.DoFn.TimerId;
@@ -65,11 +66,11 @@ public abstract class DoFnSignature {
 
   /** Details about this {@link DoFn}'s {@link DoFn.StartBundle} method. */
   @Nullable
-  public abstract BundleMethod startBundle();
+  public abstract StartBundleMethod startBundle();
 
   /** Details about this {@link DoFn}'s {@link DoFn.FinishBundle} method. */
   @Nullable
-  public abstract BundleMethod finishBundle();
+  public abstract FinishBundleMethod finishBundle();
 
   /** Details about this {@link DoFn}'s {@link DoFn.Setup} method. */
   @Nullable
@@ -102,12 +103,6 @@ public abstract class DoFnSignature {
   @Nullable
   public abstract Map<String, OnTimerMethod> onTimerMethods();
 
-  /** @deprecated use {@link #usesState()}, it's cleaner */
-  @Deprecated
-  public boolean isStateful() {
-    return stateDeclarations().size() > 0;
-  }
-
   /** Whether the {@link DoFn} described by this signature uses state. */
   public boolean usesState() {
     return stateDeclarations().size() > 0;
@@ -127,8 +122,8 @@ public abstract class DoFnSignature {
     abstract Builder setFnClass(Class<? extends DoFn<?, ?>> fnClass);
     abstract Builder setIsBoundedPerElement(PCollection.IsBounded isBounded);
     abstract Builder setProcessElement(ProcessElementMethod processElement);
-    abstract Builder setStartBundle(BundleMethod startBundle);
-    abstract Builder setFinishBundle(BundleMethod finishBundle);
+    abstract Builder setStartBundle(StartBundleMethod startBundle);
+    abstract Builder setFinishBundle(FinishBundleMethod finishBundle);
     abstract Builder setSetup(LifecycleMethod setup);
     abstract Builder setTeardown(LifecycleMethod teardown);
     abstract Builder setGetInitialRestriction(GetInitialRestrictionMethod getInitialRestriction);
@@ -183,6 +178,10 @@ public abstract class DoFnSignature {
         return cases.dispatch((ProcessContextParameter) this);
       } else if (this instanceof OnTimerContextParameter) {
         return cases.dispatch((OnTimerContextParameter) this);
+      } else if (this instanceof FinishBundleContextParameter) {
+        return cases.dispatch((FinishBundleContextParameter) this);
+      } else if (this instanceof PipelineOptionsParameter) {
+        return cases.dispatch((PipelineOptionsParameter) this);
       } else if (this instanceof WindowParameter) {
         return cases.dispatch((WindowParameter) this);
       } else if (this instanceof RestrictionTrackerParameter) {
@@ -205,6 +204,8 @@ public abstract class DoFnSignature {
       ResultT dispatch(ContextParameter p);
       ResultT dispatch(ProcessContextParameter p);
       ResultT dispatch(OnTimerContextParameter p);
+      ResultT dispatch(FinishBundleContextParameter p);
+      ResultT dispatch(PipelineOptionsParameter p);
       ResultT dispatch(WindowParameter p);
       ResultT dispatch(RestrictionTrackerParameter p);
       ResultT dispatch(StateParameter p);
@@ -229,6 +230,16 @@ public abstract class DoFnSignature {
 
         @Override
         public ResultT dispatch(OnTimerContextParameter p) {
+          return dispatchDefault(p);
+        }
+
+        @Override
+        public ResultT dispatch(FinishBundleContextParameter p) {
+          return dispatchDefault(p);
+        }
+
+        @Override
+        public ResultT dispatch(PipelineOptionsParameter p) {
           return dispatchDefault(p);
         }
 
@@ -261,6 +272,9 @@ public abstract class DoFnSignature {
           new AutoValue_DoFnSignature_Parameter_ProcessContextParameter();
     private static final OnTimerContextParameter ON_TIMER_CONTEXT_PARAMETER =
         new AutoValue_DoFnSignature_Parameter_OnTimerContextParameter();
+    private static final FinishBundleContextParameter FINISH_BUNDLE_CONTEXT_PARAMETER =
+        new AutoValue_DoFnSignature_Parameter_FinishBundleContextParameter();
+
 
     /** Returns a {@link ContextParameter}. */
     public static ContextParameter context() {
@@ -275,6 +289,17 @@ public abstract class DoFnSignature {
     /** Returns a {@link OnTimerContextParameter}. */
     public static OnTimerContextParameter onTimerContext() {
       return ON_TIMER_CONTEXT_PARAMETER;
+    }
+
+    /** Returns a {@link FinishBundleContextParameter}. */
+    public static FinishBundleContextParameter finishBundleContext() {
+      return FINISH_BUNDLE_CONTEXT_PARAMETER;
+    }
+
+    /** Returns a {@link PipelineOptionsParameter}. */
+    public static PipelineOptionsParameter pipelineOptions(
+        TypeDescriptor<? extends PipelineOptions> optionsT) {
+      return new AutoValue_DoFnSignature_Parameter_PipelineOptionsParameter(optionsT);
     }
 
     /** Returns a {@link WindowParameter}. */
@@ -329,6 +354,26 @@ public abstract class DoFnSignature {
     public abstract static class OnTimerContextParameter extends Parameter {
       OnTimerContextParameter() {}
     }
+
+    /**
+     * Descriptor for a {@link Parameter} of type {@link DoFn.FinishBundleContext}.
+     *
+     * <p>All such descriptors are equal.
+     */
+    @AutoValue
+    public abstract static class FinishBundleContextParameter extends Parameter {
+      FinishBundleContextParameter() {}
+    }
+
+    /**
+     * Descriptor for a {@link Parameter} of type {@link BoundedWindow}.
+     */
+    @AutoValue
+    public abstract static class PipelineOptionsParameter extends Parameter {
+      PipelineOptionsParameter() {}
+      public abstract TypeDescriptor<? extends PipelineOptions> optionsT();
+    }
+
     /**
      * Descriptor for a {@link Parameter} of type {@link BoundedWindow}.
      *
@@ -476,16 +521,27 @@ public abstract class DoFnSignature {
     }
   }
 
-
-  /** Describes a {@link DoFn.StartBundle} or {@link DoFn.FinishBundle} method. */
+  /** Describes a {@link DoFn.StartBundle} method. */
   @AutoValue
-  public abstract static class BundleMethod implements DoFnMethod {
+  public abstract static class StartBundleMethod implements MethodWithExtraParameters {
     /** The annotated method itself. */
     @Override
     public abstract Method targetMethod();
 
-    static BundleMethod create(Method targetMethod) {
-      return new AutoValue_DoFnSignature_BundleMethod(targetMethod);
+    static StartBundleMethod create(Method targetMethod, List<Parameter> extraParameters) {
+      return new AutoValue_DoFnSignature_StartBundleMethod(extraParameters, null, targetMethod);
+    }
+  }
+
+  /** Describes a {@link DoFn.FinishBundle} method. */
+  @AutoValue
+  public abstract static class FinishBundleMethod implements MethodWithExtraParameters {
+    /** The annotated method itself. */
+    @Override
+    public abstract Method targetMethod();
+
+    static FinishBundleMethod create(Method targetMethod, List<Parameter> extraParameters) {
+      return new AutoValue_DoFnSignature_FinishBundleMethod(extraParameters, null, targetMethod);
     }
   }
 
@@ -508,13 +564,13 @@ public abstract class DoFnSignature {
 
   /** Describes a {@link DoFn.Setup} or {@link DoFn.Teardown} method. */
   @AutoValue
-  public abstract static class LifecycleMethod implements DoFnMethod {
+  public abstract static class LifecycleMethod implements MethodWithExtraParameters {
     /** The annotated method itself. */
     @Override
     public abstract Method targetMethod();
 
-    static LifecycleMethod create(Method targetMethod) {
-      return new AutoValue_DoFnSignature_LifecycleMethod(targetMethod);
+    static LifecycleMethod create(Method targetMethod, List<Parameter> extraParameters) {
+      return new AutoValue_DoFnSignature_LifecycleMethod(extraParameters, null, targetMethod);
     }
   }
 

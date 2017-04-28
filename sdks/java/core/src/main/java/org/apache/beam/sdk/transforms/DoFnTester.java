@@ -30,12 +30,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nullable;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.Combine.CombineFn;
+import org.apache.beam.sdk.transforms.DoFn.Context;
+import org.apache.beam.sdk.transforms.DoFn.FinishBundleContext;
 import org.apache.beam.sdk.transforms.DoFn.OnTimerContext;
+import org.apache.beam.sdk.transforms.DoFn.ProcessContext;
 import org.apache.beam.sdk.transforms.reflect.DoFnInvoker;
+import org.apache.beam.sdk.transforms.reflect.DoFnInvoker.ArgumentProvider;
 import org.apache.beam.sdk.transforms.reflect.DoFnInvokers;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignatures;
@@ -222,7 +227,7 @@ public class DoFnTester<InputT, OutputT> implements AutoCloseable {
     TestContext context = new TestContext();
     context.setupDelegateAggregators();
     try {
-      fnInvoker.invokeStartBundle(context);
+      fnInvoker.invokeStartBundle(argumentProvider(null, null, null, context));
     } catch (UserCodeException e) {
       unwrapUserCodeException(e);
     }
@@ -285,49 +290,73 @@ public class DoFnTester<InputT, OutputT> implements AutoCloseable {
       final DoFn<InputT, OutputT>.ProcessContext processContext =
           createProcessContext(
               ValueInSingleWindow.of(element, timestamp, window, PaneInfo.NO_FIRING));
-      fnInvoker.invokeProcessElement(
-          new DoFnInvoker.ArgumentProvider<InputT, OutputT>() {
-            @Override
-            public BoundedWindow window() {
-              return window;
-            }
-
-            @Override
-            public DoFn<InputT, OutputT>.Context context(DoFn<InputT, OutputT> doFn) {
-              throw new UnsupportedOperationException(
-                  "Not expected to access DoFn.Context from @ProcessElement");
-            }
-
-            @Override
-            public DoFn<InputT, OutputT>.ProcessContext processContext(DoFn<InputT, OutputT> doFn) {
-              return processContext;
-            }
-
-            @Override
-            public OnTimerContext onTimerContext(DoFn<InputT, OutputT> doFn) {
-              throw new UnsupportedOperationException(
-                  "DoFnTester doesn't support timers yet.");
-            }
-
-            @Override
-            public RestrictionTracker<?> restrictionTracker() {
-              throw new UnsupportedOperationException(
-                  "Not expected to access RestrictionTracker from a regular DoFn in DoFnTester");
-            }
-
-            @Override
-            public org.apache.beam.sdk.util.state.State state(String stateId) {
-              throw new UnsupportedOperationException("DoFnTester doesn't support state yet");
-            }
-
-            @Override
-            public Timer timer(String timerId) {
-              throw new UnsupportedOperationException("DoFnTester doesn't support timers yet");
-            }
-          });
+      fnInvoker.invokeProcessElement(argumentProvider(window, processContext, null, null));
     } catch (UserCodeException e) {
       unwrapUserCodeException(e);
     }
+  }
+
+  private ArgumentProvider<InputT, OutputT> argumentProvider(
+      @Nullable final BoundedWindow window,
+      @Nullable final ProcessContext processContext,
+      @Nullable final FinishBundleContext finishBundleContext,
+      @Nullable final Context context) {
+    return new ArgumentProvider<InputT, OutputT>() {
+      @Override
+      public BoundedWindow window() {
+        return window;
+      }
+
+      @Override
+      public DoFn<InputT, OutputT>.Context context(DoFn<InputT, OutputT> doFn) {
+        if (context != null) {
+          return context;
+        }
+        throw new UnsupportedOperationException(
+            "Not expected to access DoFn.Context from @ProcessElement");
+      }
+
+      @Override
+      public ProcessContext processContext(DoFn<InputT, OutputT> doFn) {
+        return processContext;
+      }
+
+      @Override
+      public OnTimerContext onTimerContext(DoFn<InputT, OutputT> doFn) {
+        throw new UnsupportedOperationException("DoFnTester doesn't support timers yet.");
+      }
+
+      @Override
+      public FinishBundleContext finishBundleContext(DoFn<InputT, OutputT> doFn) {
+        if (finishBundleContext != null) {
+          return finishBundleContext;
+        } else {
+          throw new UnsupportedOperationException(
+              "Accessing FinishBundleContext from unexpected location");
+        }
+      }
+
+      @Override
+      public PipelineOptions pipelineOptions() {
+        return options;
+      }
+
+      @Override
+      public RestrictionTracker<?> restrictionTracker() {
+        throw new UnsupportedOperationException(
+            "Not expected to access RestrictionTracker from a regular DoFn in DoFnTester");
+      }
+
+      @Override
+      public org.apache.beam.sdk.util.state.State state(String stateId) {
+        throw new UnsupportedOperationException("DoFnTester doesn't support state yet");
+      }
+
+      @Override
+      public Timer timer(String timerId) {
+        throw new UnsupportedOperationException("DoFnTester doesn't support timers yet");
+      }
+    };
   }
 
   /**
@@ -346,7 +375,8 @@ public class DoFnTester<InputT, OutputT> implements AutoCloseable {
         "Must be inside bundle to call finishBundle, but was: %s",
         state);
     try {
-      fnInvoker.invokeFinishBundle(new TestContext());
+      fnInvoker.invokeFinishBundle(
+          argumentProvider(null, null, new TestFinishBundleContext(new TestContext()), null));
     } catch (UserCodeException e) {
       unwrapUserCodeException(e);
     }
@@ -552,31 +582,6 @@ public class DoFnTester<InputT, OutputT> implements AutoCloseable {
     }
 
     @Override
-    public void output(OutputT output) {
-      throwUnsupportedOutputFromBundleMethods();
-    }
-
-    @Override
-    public void outputWithTimestamp(OutputT output, Instant timestamp) {
-      throwUnsupportedOutputFromBundleMethods();
-    }
-
-    @Override
-    public <T> void outputWithTimestamp(TupleTag<T> tag, T output, Instant timestamp) {
-      throwUnsupportedOutputFromBundleMethods();
-    }
-
-    @Override
-    public <T> void output(TupleTag<T> tag, T output) {
-      throwUnsupportedOutputFromBundleMethods();
-    }
-
-    private void throwUnsupportedOutputFromBundleMethods() {
-      throw new UnsupportedOperationException(
-          "DoFnTester doesn't support output from bundle methods");
-    }
-
-    @Override
     protected <AggInT, AggOutT> Aggregator<AggInT, AggOutT> createAggregator(
         final String name, final CombineFn<AggInT, ?, AggOutT> combiner) {
       return aggregator(name, combiner);
@@ -621,6 +626,40 @@ public class DoFnTester<InputT, OutputT> implements AutoCloseable {
         accumulators.put(name, combiner.createAccumulator());
       }
       return aggregator;
+    }
+  }
+
+  private class TestFinishBundleContext extends DoFn<InputT, OutputT>.FinishBundleContext {
+    private final TestContext context;
+
+    private TestFinishBundleContext(TestContext context) {
+      fn.super();
+      this.context = context;
+    }
+
+    @Override
+    public PipelineOptions getPipelineOptions() {
+      return context.getPipelineOptions();
+    }
+
+    @Override
+    protected <AggInputT, AggOutputT> Aggregator<AggInputT, AggOutputT> createAggregator(
+        String name, CombineFn<AggInputT, ?, AggOutputT> combiner) {
+      return context.createAggregator(name, combiner);
+    }
+
+    @Override
+    public void output(
+        OutputT output, Instant timestamp, BoundedWindow window) {
+      throw new UnsupportedOperationException(
+          "DoFnTester doesn't support output from bundle methods");
+    }
+
+    @Override
+    public <T> void output(
+        TupleTag<T> tag, T output, Instant timestamp, BoundedWindow window) {
+      throw new UnsupportedOperationException(
+          "DoFnTester doesn't support output from bundle methods");
     }
   }
 

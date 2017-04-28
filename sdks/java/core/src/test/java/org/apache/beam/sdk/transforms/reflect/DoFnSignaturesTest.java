@@ -29,12 +29,17 @@ import static org.junit.Assert.fail;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.coders.VarLongCoder;
+import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter;
+import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.ContextParameter;
+import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.FinishBundleContextParameter;
+import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.PipelineOptionsParameter;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.ProcessContextParameter;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.StateParameter;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.TimerParameter;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.WindowParameter;
+import org.apache.beam.sdk.transforms.reflect.DoFnSignatures.FnAnalysisContext;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignaturesTestUtils.FakeDoFn;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.util.TimeDomain;
@@ -74,18 +79,48 @@ public class DoFnSignaturesTest {
   }
 
   @Test
+  public void testBasicDoFnWithBundleMethods() {
+    DoFnSignature sig =
+        DoFnSignatures.getSignature(
+            new DoFn<String, String>() {
+              @StartBundle
+              public void startBundle(PipelineOptions nameOptions, Context c) {}
+
+              @ProcessElement
+              public void process(ProcessContext c) {}
+
+              @FinishBundle
+              public void finishBundle(FinishBundleContext c, PipelineOptions nameOptions) {}
+            }.getClass());
+
+    assertThat(sig.startBundle().extraParameters().size(), equalTo(2));
+    assertThat(
+        sig.startBundle().extraParameters().get(0), instanceOf(PipelineOptionsParameter.class));
+    assertThat(sig.startBundle().extraParameters().get(1), instanceOf(ContextParameter.class));
+
+    assertThat(sig.finishBundle().extraParameters().size(), equalTo(2));
+    assertThat(
+        sig.finishBundle().extraParameters().get(0),
+        instanceOf(FinishBundleContextParameter.class));
+    assertThat(
+        sig.finishBundle().extraParameters().get(1), instanceOf(PipelineOptionsParameter.class));
+  }
+
+  @Test
   public void testBadExtraContext() throws Exception {
     thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage("Must take a single argument of type DoFn<Integer, String>.Context");
+    thrown.expectMessage("parameter of type int");
+    thrown.expectMessage("int is not a valid DoFn parameter");
 
-    DoFnSignatures.analyzeBundleMethod(
+    DoFnSignatures.analyzeStartBundleMethod(
         errors(),
         TypeDescriptor.of(FakeDoFn.class),
         new DoFnSignaturesTestUtils.AnonymousMethod() {
-          void method(DoFn<Integer, String>.Context c, int n) {}
+          void method(PipelineOptions opts, int n) {}
         }.getMethod(),
         TypeDescriptor.of(Integer.class),
-        TypeDescriptor.of(String.class));
+        TypeDescriptor.of(String.class),
+        FnAnalysisContext.create());
   }
 
   @Test
@@ -112,8 +147,8 @@ public class DoFnSignaturesTest {
   public void testMultipleFinishBundleMethods() throws Exception {
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage("Found multiple methods annotated with @FinishBundle");
-    thrown.expectMessage("bar(Context)");
-    thrown.expectMessage("baz(Context)");
+    thrown.expectMessage("bar(FinishBundleContext)");
+    thrown.expectMessage("baz(FinishBundleContext)");
     thrown.expectMessage(getClass().getName() + "$");
     DoFnSignatures.getSignature(
         new DoFn<String, String>() {
@@ -121,10 +156,10 @@ public class DoFnSignaturesTest {
           public void foo(ProcessContext context) {}
 
           @FinishBundle
-          public void bar(Context context) {}
+          public void bar(FinishBundleContext context) {}
 
           @FinishBundle
-          public void baz(Context context) {}
+          public void baz(FinishBundleContext context) {}
         }.getClass());
   }
 

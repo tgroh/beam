@@ -42,9 +42,11 @@ import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.DoFn.StateId;
 import org.apache.beam.sdk.transforms.DoFn.TimerId;
+import org.apache.beam.sdk.transforms.reflect.DoFnSignature.DoFnMethod;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.RestrictionTrackerParameter;
 import org.apache.beam.sdk.transforms.reflect.DoFnSignature.Parameter.StateParameter;
@@ -73,10 +75,22 @@ public class DoFnSignatures {
 
   private static final Map<Class<?>, DoFnSignature> signatureCache = new LinkedHashMap<>();
 
+  private static final Collection<Class<? extends Parameter>> ALLOWED_SETUP_PARAMETERS =
+      ImmutableList.<Class<? extends Parameter>>of(Parameter.PipelineOptionsParameter.class);
+  private static final Collection<Class<? extends Parameter>> ALLOWED_TEARDOWN_PARAMETERS =
+      ImmutableList.<Class<? extends Parameter>>of(Parameter.PipelineOptionsParameter.class);
+  private static final Collection<Class<? extends Parameter>> ALLOWED_START_BUNDLE_PARAMETERS =
+      ImmutableList.<Class<? extends Parameter>>of(
+          Parameter.ContextParameter.class, Parameter.PipelineOptionsParameter.class);
+  private static final Collection<Class<? extends Parameter>> ALLOWED_FINISH_BUNDLE_PARAMETERS =
+      ImmutableList.<Class<? extends Parameter>>of(
+          Parameter.FinishBundleContextParameter.class, Parameter.PipelineOptionsParameter.class);
+
   private static final Collection<Class<? extends Parameter>>
       ALLOWED_NON_SPLITTABLE_PROCESS_ELEMENT_PARAMETERS =
       ImmutableList.of(
           Parameter.ProcessContextParameter.class,
+          Parameter.PipelineOptionsParameter.class,
           Parameter.WindowParameter.class,
           Parameter.TimerParameter.class,
           Parameter.StateParameter.class);
@@ -84,12 +98,15 @@ public class DoFnSignatures {
   private static final Collection<Class<? extends Parameter>>
       ALLOWED_SPLITTABLE_PROCESS_ELEMENT_PARAMETERS =
           ImmutableList.of(
-              Parameter.ProcessContextParameter.class, Parameter.RestrictionTrackerParameter.class);
+              Parameter.ProcessContextParameter.class,
+              Parameter.PipelineOptionsParameter.class,
+               Parameter.RestrictionTrackerParameter.class);
 
   private static final Collection<Class<? extends Parameter>>
       ALLOWED_ON_TIMER_PARAMETERS =
           ImmutableList.of(
               Parameter.OnTimerContextParameter.class,
+              Parameter.PipelineOptionsParameter.class,
               Parameter.WindowParameter.class,
               Parameter.TimerParameter.class,
               Parameter.StateParameter.class);
@@ -161,8 +178,8 @@ public class DoFnSignatures {
   /**
    * The context of analysis within a particular method.
    *
-   * <p>It contains much of the information that eventually becomes part of the {@link
-   * DoFnSignature.MethodWithExtraParameters}, but in an intermediate state.
+   * <p>It contains much of the information that eventually becomes part of the
+   * {@link DoFnMethod}, but in an intermediate state.
    */
   private static class MethodAnalysisContext {
 
@@ -346,14 +363,16 @@ public class DoFnSignatures {
     if (startBundleMethod != null) {
       ErrorReporter startBundleErrors = errors.forMethod(DoFn.StartBundle.class, startBundleMethod);
       signatureBuilder.setStartBundle(
-          analyzeBundleMethod(startBundleErrors, fnT, startBundleMethod, inputT, outputT));
+          analyzeStartBundleMethod(
+              startBundleErrors, fnT, startBundleMethod, inputT, outputT, fnContext));
     }
 
     if (finishBundleMethod != null) {
       ErrorReporter finishBundleErrors =
           errors.forMethod(DoFn.FinishBundle.class, finishBundleMethod);
       signatureBuilder.setFinishBundle(
-          analyzeBundleMethod(finishBundleErrors, fnT, finishBundleMethod, inputT, outputT));
+          analyzeFinishBundleMethod(
+              finishBundleErrors, fnT, finishBundleMethod, inputT, outputT, fnContext));
     }
 
     if (setupMethod != null) {
@@ -595,6 +614,18 @@ public class DoFnSignatures {
   }
 
   /**
+   * Generates a {@link TypeDescriptor} for {@code DoFn<InputT, OutputT>.Context} given {@code
+   * InputT} and {@code OutputT}.
+   */
+  private static <InputT, OutputT>
+  TypeDescriptor<DoFn<InputT, OutputT>.Context> doFnContextTypeOf(
+      TypeDescriptor<InputT> inputT, TypeDescriptor<OutputT> outputT) {
+    return new TypeDescriptor<DoFn<InputT, OutputT>.Context>() {}.where(
+        new TypeParameter<InputT>() {}, inputT)
+        .where(new TypeParameter<OutputT>() {}, outputT);
+  }
+
+  /**
    * Generates a {@link TypeDescriptor} for {@code DoFn<InputT, OutputT>.ProcessContext} given
    * {@code InputT} and {@code OutputT}.
    */
@@ -610,9 +641,10 @@ public class DoFnSignatures {
    * Generates a {@link TypeDescriptor} for {@code DoFn<InputT, OutputT>.Context} given {@code
    * InputT} and {@code OutputT}.
    */
-  private static <InputT, OutputT> TypeDescriptor<DoFn<InputT, OutputT>.Context> doFnContextTypeOf(
-      TypeDescriptor<InputT> inputT, TypeDescriptor<OutputT> outputT) {
-    return new TypeDescriptor<DoFn<InputT, OutputT>.Context>() {}.where(
+  private static <InputT, OutputT>
+      TypeDescriptor<DoFn<InputT, OutputT>.FinishBundleContext> doFnFinishBundleContextTypeOf(
+          TypeDescriptor<InputT> inputT, TypeDescriptor<OutputT> outputT) {
+    return new TypeDescriptor<DoFn<InputT, OutputT>.FinishBundleContext>() {}.where(
             new TypeParameter<InputT>() {}, inputT)
         .where(new TypeParameter<OutputT>() {}, outputT);
   }
@@ -751,31 +783,41 @@ public class DoFnSignatures {
       TypeDescriptor<?> inputT,
       TypeDescriptor<?> outputT) {
 
-    TypeDescriptor<?> expectedProcessContextT = doFnProcessContextTypeOf(inputT, outputT);
     TypeDescriptor<?> expectedContextT = doFnContextTypeOf(inputT, outputT);
+    TypeDescriptor<?> expectedProcessContextT = doFnProcessContextTypeOf(inputT, outputT);
     TypeDescriptor<?> expectedOnTimerContextT = doFnOnTimerContextTypeOf(inputT, outputT);
+    TypeDescriptor<?> expectedFinishBundleContextT = doFnFinishBundleContextTypeOf(inputT, outputT);
 
     TypeDescriptor<?> paramT = param.getType();
     Class<?> rawType = paramT.getRawType();
 
     ErrorReporter paramErrors = methodErrors.forParameter(param);
 
-    if (rawType.equals(DoFn.ProcessContext.class)) {
+   if (rawType.equals(DoFn.Context.class)) {
+    paramErrors.checkArgument(
+        paramT.equals(expectedContextT),
+        "Context argument must have type %s",
+        formatType(expectedContextT));
+      return Parameter.context();
+    } else if (rawType.equals(DoFn.ProcessContext.class)) {
       paramErrors.checkArgument(paramT.equals(expectedProcessContextT),
         "ProcessContext argument must have type %s",
         formatType(expectedProcessContextT));
       return Parameter.processContext();
-    } else if (rawType.equals(DoFn.Context.class)) {
-      paramErrors.checkArgument(paramT.equals(expectedContextT),
-          "Context argument must have type %s",
-          formatType(expectedContextT));
-      return Parameter.context();
     } else if (rawType.equals(DoFn.OnTimerContext.class)) {
       paramErrors.checkArgument(
           paramT.equals(expectedOnTimerContextT),
           "OnTimerContext argument must have type %s",
           formatType(expectedOnTimerContextT));
       return Parameter.onTimerContext();
+    } else if (rawType.equals(DoFn.FinishBundleContext.class)) {
+      paramErrors.checkArgument(
+          paramT.equals(expectedFinishBundleContextT),
+          "FinishBundleContext argument must have type %s",
+          formatType(expectedFinishBundleContextT));
+      return Parameter.finishBundleContext();
+    } else if (PipelineOptions.class.equals(rawType)) {
+      return Parameter.pipelineOptions((TypeDescriptor<? extends PipelineOptions>) paramT);
     } else if (BoundedWindow.class.isAssignableFrom(rawType)) {
       methodErrors.checkArgument(
           !methodContext.hasWindowParameter(),
@@ -863,13 +905,8 @@ public class DoFnSignatures {
 
       return Parameter.stateParameter(stateDecl);
     } else {
-      List<String> allowedParamTypes =
-          Arrays.asList(
-              formatType(new TypeDescriptor<BoundedWindow>() {}),
-              formatType(new TypeDescriptor<RestrictionTracker<?>>() {}));
       paramErrors.throwIllegalArgument(
-          "%s is not a valid context parameter. Should be one of %s",
-          formatType(paramT), allowedParamTypes);
+          "%s is not a valid %s parameter.", formatType(paramT), DoFn.class.getSimpleName());
       // Unreachable
       return null;
     }
@@ -920,28 +957,74 @@ public class DoFnSignatures {
     return null;
   }
 
-  @VisibleForTesting
-  static DoFnSignature.BundleMethod analyzeBundleMethod(
+  static DoFnSignature.StartBundleMethod analyzeStartBundleMethod(
       ErrorReporter errors,
       TypeDescriptor<? extends DoFn<?, ?>> fnT,
       Method m,
       TypeDescriptor<?> inputT,
-      TypeDescriptor<?> outputT) {
+      TypeDescriptor<?> outputT,
+      FnAnalysisContext fnContext) {
+    MethodAnalysisContext methodContext = MethodAnalysisContext.create();
     errors.checkArgument(void.class.equals(m.getReturnType()), "Must return void");
-    TypeDescriptor<?> expectedContextT = doFnContextTypeOf(inputT, outputT);
     Type[] params = m.getGenericParameterTypes();
-    errors.checkArgument(
-        params.length == 1 && fnT.resolveType(params[0]).equals(expectedContextT),
-        "Must take a single argument of type %s",
-        formatType(expectedContextT));
-    return DoFnSignature.BundleMethod.create(m);
+    for (int i = 0; i < params.length; i++) {
+      Parameter extraParam =
+          analyzeExtraParameter(
+              errors.forMethod(DoFn.StartBundle.class, m),
+              fnContext,
+              methodContext,
+              fnT,
+              ParameterDescription.of(
+                  m,
+                  i,
+                  fnT.resolveType(params[i]),
+                  Arrays.asList(m.getParameterAnnotations()[i])),
+              inputT,
+              outputT);
+
+      methodContext.addParameter(extraParam);
+      checkParameterOneOf(errors, extraParam, ALLOWED_START_BUNDLE_PARAMETERS);
+    }
+    return DoFnSignature.StartBundleMethod.create(m, methodContext.getExtraParameters());
+  }
+
+  @VisibleForTesting
+  static DoFnSignature.FinishBundleMethod analyzeFinishBundleMethod(
+      ErrorReporter errors,
+      TypeDescriptor<? extends DoFn<?, ?>> fnT,
+      Method m,
+      TypeDescriptor<?> inputT,
+      TypeDescriptor<?> outputT,
+      FnAnalysisContext fnContext) {
+    MethodAnalysisContext methodContext = MethodAnalysisContext.create();
+    errors.checkArgument(void.class.equals(m.getReturnType()), "Must return void");
+    Type[] params = m.getGenericParameterTypes();
+    for (int i = 0; i < params.length; i++) {
+      Parameter extraParam =
+          analyzeExtraParameter(
+              errors.forMethod(DoFn.StartBundle.class, m),
+              fnContext,
+              methodContext,
+              fnT,
+              ParameterDescription.of(
+                  m,
+                  i,
+                  fnT.resolveType(params[i]),
+                  Arrays.asList(m.getParameterAnnotations()[i])),
+              inputT,
+              outputT);
+
+      methodContext.addParameter(extraParam);
+      checkParameterOneOf(errors, extraParam, ALLOWED_FINISH_BUNDLE_PARAMETERS);
+    }
+    return DoFnSignature.FinishBundleMethod.create(m, methodContext.getExtraParameters());
   }
 
   private static DoFnSignature.LifecycleMethod analyzeLifecycleMethod(
       ErrorReporter errors, Method m) {
     errors.checkArgument(void.class.equals(m.getReturnType()), "Must return void");
     errors.checkArgument(m.getGenericParameterTypes().length == 0, "Must take zero arguments");
-    return DoFnSignature.LifecycleMethod.create(m);
+    return DoFnSignature.LifecycleMethod.create(m, Collections.<Parameter>emptyList());
   }
 
   @VisibleForTesting
