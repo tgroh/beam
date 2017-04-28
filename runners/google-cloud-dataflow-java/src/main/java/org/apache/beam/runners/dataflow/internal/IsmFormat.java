@@ -34,11 +34,11 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.dataflow.util.RandomAccessData;
+import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.Coder.NonDeterministicException;
 import org.apache.beam.sdk.coders.CoderException;
-import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.ListCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.coders.VarLongCoder;
@@ -584,15 +584,17 @@ public class IsmFormat {
    *   <li>indexOffset (variable length long encoding)</li>
    * </ul>
    */
-  public static class IsmShardCoder extends CustomCoder<IsmShard> {
+  public static class IsmShardCoder extends AtomicCoder<IsmShard> {
     private static final IsmShardCoder INSTANCE = new IsmShardCoder();
 
     /** Returns an IsmShardCoder. */
+    @JsonCreator
     public static IsmShardCoder of() {
       return INSTANCE;
     }
 
-    private IsmShardCoder() {}
+    private IsmShardCoder() {
+    }
 
     @Override
     public void encode(IsmShard value, OutputStream outStream, Coder.Context context)
@@ -612,12 +614,6 @@ public class IsmFormat {
           VarIntCoder.of().decode(inStream, context.nested()),
           VarLongCoder.of().decode(inStream, context.nested()),
           VarLongCoder.of().decode(inStream, context));
-    }
-
-    @Override
-    public void verifyDeterministic() {
-      VarIntCoder.of().verifyDeterministic();
-      VarLongCoder.of().verifyDeterministic();
     }
 
     @Override
@@ -649,9 +645,10 @@ public class IsmFormat {
   }
 
   /** A {@link Coder} for {@link KeyPrefix}. */
-  public static final class KeyPrefixCoder extends CustomCoder<KeyPrefix> {
+  public static final class KeyPrefixCoder extends AtomicCoder<KeyPrefix> {
     private static final KeyPrefixCoder INSTANCE = new KeyPrefixCoder();
 
+    @JsonCreator
     public static KeyPrefixCoder of() {
       return INSTANCE;
     }
@@ -668,9 +665,6 @@ public class IsmFormat {
         throws CoderException, IOException {
       return KeyPrefix.of(VarInt.decodeInt(inStream), VarInt.decodeInt(inStream));
     }
-
-    @Override
-    public void verifyDeterministic() {}
 
     @Override
     public boolean consistentWithEquals() {
@@ -721,9 +715,10 @@ public class IsmFormat {
   }
 
   /** A {@link Coder} for {@link Footer}. */
-  public static final class FooterCoder extends CustomCoder<Footer> {
+  public static final class FooterCoder extends AtomicCoder<Footer> {
     private static final FooterCoder INSTANCE = new FooterCoder();
 
+    @JsonCreator
     public static FooterCoder of() {
       return INSTANCE;
     }
@@ -750,9 +745,6 @@ public class IsmFormat {
       }
       return footer;
     }
-
-    @Override
-    public void verifyDeterministic() {}
 
     @Override
     public boolean consistentWithEquals() {

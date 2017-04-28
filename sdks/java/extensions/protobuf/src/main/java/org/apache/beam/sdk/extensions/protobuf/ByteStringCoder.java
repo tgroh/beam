@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.extensions.protobuf;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.io.ByteStreams;
 import com.google.protobuf.ByteString;
 import java.io.IOException;
@@ -35,8 +36,9 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  * <p>When this code is used in a nested {@link Coder.Context}, the serialized {@link ByteString}
  * objects are first delimited by their size.
  */
-public class ByteStringCoder extends CustomCoder<ByteString> {
+public class ByteStringCoder extends AtomicCoder<ByteString> {
 
+  @JsonCreator
   public static ByteStringCoder of() {
     return INSTANCE;
   }
@@ -85,9 +87,6 @@ public class ByteStringCoder extends CustomCoder<ByteString> {
     }
     return VarInt.getLength(size) + size;
   }
-
-  @Override
-  public void verifyDeterministic() {}
 
   /**
    * {@inheritDoc}

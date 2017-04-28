@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.coders;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
@@ -29,8 +30,9 @@ import org.apache.beam.sdk.values.TypeDescriptor;
 /**
  * A {@link BigEndianIntegerCoder} encodes {@link Integer Integers} in 4 bytes, big-endian.
  */
-public class BigEndianIntegerCoder extends CustomCoder<Integer> {
+public class BigEndianIntegerCoder extends AtomicCoder<Integer> {
 
+  @JsonCreator
   public static BigEndianIntegerCoder of() {
     return INSTANCE;
   }
@@ -62,9 +64,6 @@ public class BigEndianIntegerCoder extends CustomCoder<Integer> {
       throw new CoderException(exn);
     }
   }
-
-  @Override
-  public void verifyDeterministic() {}
 
   /**
    * {@inheritDoc}

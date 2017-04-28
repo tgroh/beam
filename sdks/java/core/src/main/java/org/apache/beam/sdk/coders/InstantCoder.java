@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.coders;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.base.Converter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,7 +30,9 @@ import org.joda.time.Instant;
  * A {@link Coder} for joda {@link Instant} that encodes it as a big endian {@link Long}
  * shifted such that lexicographic ordering of the bytes corresponds to chronological order.
  */
-public class InstantCoder extends CustomCoder<Instant> {
+public class InstantCoder extends AtomicCoder<Instant> {
+
+  @JsonCreator
   public static InstantCoder of() {
     return INSTANCE;
   }
@@ -39,7 +42,7 @@ public class InstantCoder extends CustomCoder<Instant> {
   private static final InstantCoder INSTANCE = new InstantCoder();
   private static final TypeDescriptor<Instant> TYPE_DESCRIPTOR = new TypeDescriptor<Instant>() {};
 
-  private static final BigEndianLongCoder LONG_CODER = BigEndianLongCoder.of();
+  private final BigEndianLongCoder longCoder = BigEndianLongCoder.of();
 
   private InstantCoder() {}
 
@@ -73,18 +76,13 @@ public class InstantCoder extends CustomCoder<Instant> {
     if (value == null) {
       throw new CoderException("cannot encode a null Instant");
     }
-    LONG_CODER.encode(ORDER_PRESERVING_CONVERTER.convert(value), outStream, context);
+    longCoder.encode(ORDER_PRESERVING_CONVERTER.convert(value), outStream, context);
   }
 
   @Override
   public Instant decode(InputStream inStream, Context context)
       throws CoderException, IOException {
-    return ORDER_PRESERVING_CONVERTER.reverse().convert(LONG_CODER.decode(inStream, context));
-  }
-
-  @Override
-  public void verifyDeterministic() {
-    LONG_CODER.verifyDeterministic();
+    return ORDER_PRESERVING_CONVERTER.reverse().convert(longCoder.decode(inStream, context));
   }
 
   /**
@@ -104,14 +102,14 @@ public class InstantCoder extends CustomCoder<Instant> {
    */
   @Override
   public boolean isRegisterByteSizeObserverCheap(Instant value, Context context) {
-    return LONG_CODER.isRegisterByteSizeObserverCheap(
+    return longCoder.isRegisterByteSizeObserverCheap(
         ORDER_PRESERVING_CONVERTER.convert(value), context);
   }
 
   @Override
   public void registerByteSizeObserver(
       Instant value, ElementByteSizeObserver observer, Context context) throws Exception {
-    LONG_CODER.registerByteSizeObserver(
+    longCoder.registerByteSizeObserver(
         ORDER_PRESERVING_CONVERTER.convert(value), observer, context);
   }
 

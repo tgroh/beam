@@ -17,11 +17,11 @@
  */
 package org.apache.beam.sdk.transforms.windowing;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Collections;
-import java.util.List;
+import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.DurationCoder;
@@ -168,22 +168,16 @@ public class IntervalWindow extends BoundedWindow
   /**
    * Encodes an {@link IntervalWindow} as a pair of its upper bound and duration.
    */
-  public static class IntervalWindowCoder extends StructuredCoder<IntervalWindow> {
+  public static class IntervalWindowCoder extends AtomicCoder<IntervalWindow> {
 
     private static final IntervalWindowCoder INSTANCE = new IntervalWindowCoder();
 
     private static final Coder<Instant> instantCoder = InstantCoder.of();
     private static final Coder<ReadableDuration> durationCoder = DurationCoder.of();
 
+    @JsonCreator
     public static IntervalWindowCoder of() {
       return INSTANCE;
-    }
-
-    /**
-     * Returns an empty list. {@link IntervalWindowCoder} has no components.
-     */
-    public static <T> List<Object> getInstanceComponents(T value) {
-      return Collections.emptyList();
     }
 
     @Override
@@ -210,11 +204,6 @@ public class IntervalWindow extends BoundedWindow
     @Override
     public boolean consistentWithEquals() {
       return instantCoder.consistentWithEquals() && durationCoder.consistentWithEquals();
-    }
-
-    @Override
-    public List<? extends Coder<?>> getCoderArguments() {
-      return Collections.emptyList();
     }
 
     @Override

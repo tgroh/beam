@@ -17,6 +17,7 @@
  */
 package org.apache.beam.sdk.coders;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -26,8 +27,9 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  * A {@link Coder} that encodes {@code Integer Integers} as the ASCII bytes of
  * their textual, decimal, representation.
  */
-public class TextualIntegerCoder extends CustomCoder<Integer> {
+public class TextualIntegerCoder extends AtomicCoder<Integer> {
 
+  @JsonCreator
   public static TextualIntegerCoder of() {
     return new TextualIntegerCoder();
   }

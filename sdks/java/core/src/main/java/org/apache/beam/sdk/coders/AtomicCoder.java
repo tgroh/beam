@@ -28,7 +28,7 @@ import java.util.List;
  *
  * @param <T> the type of the values being transcoded
  */
-public abstract class AtomicCoder<T> extends StandardCoder<T> {
+public abstract class AtomicCoder<T> extends StructuredCoder<T> {
   protected AtomicCoder() { }
 
   @Override
@@ -36,7 +36,7 @@ public abstract class AtomicCoder<T> extends StandardCoder<T> {
 
   @Override
   public final List<Coder<?>> getCoderArguments() {
-    return null;
+    return Collections.emptyList();
   }
 
   /**

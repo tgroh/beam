@@ -69,22 +69,17 @@ public class CloudObjects {
         (CloudObjectTranslator<Coder>) CODER_TRANSLATORS.get(coder.getClass());
     if (translator != null) {
       return translator.toCloudObject(coder);
-    } else if (coder instanceof CustomCoder) {
-      return customCoderAsCloudObject((CustomCoder<?>) coder);
     }
-    throw new IllegalArgumentException(
-        String.format(
-            "Non-Custom %s with no registered %s", Coder.class, CloudObjectTranslator.class));
+    return serializeJavaCoderToCloudObject(coder);
   }
 
-  private static CloudObject customCoderAsCloudObject(CustomCoder<?> coder) {
+  private static CloudObject serializeJavaCoderToCloudObject(Coder<?> coder) {
     CloudObject result = CloudObject.forClass(CustomCoder.class);
     Structs.addString(result, "type", coder.getClass().getName());
     Structs.addString(
         result,
         "serialized_coder",
         StringUtils.byteArrayToJsonString(SerializableUtils.serializeToByteArray(coder)));
-
     return result;
   }
 

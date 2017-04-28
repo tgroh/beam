@@ -44,8 +44,7 @@ import org.apache.beam.sdk.common.runner.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.sdk.common.runner.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow.IntervalWindowCoder;
-import org.apache.beam.sdk.util.CloudObject;
-import org.apache.beam.sdk.util.Serializer;
+import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.WindowedValue.FullWindowedValueCoder;
 
@@ -55,7 +54,7 @@ public class Coders {
 
   // This URN says that the coder is just a UDF blob this SDK understands
   // TODO: standardize such things
-  public static final String CUSTOM_CODER_URN = "urn:beam:coders:javasdk:0.1";
+  public static final String JAVA_SERIALIZED_CODER_URN = "urn:beam:coders:javasdk:0.1";
 
   // The URNs for coders which are shared across languages
   @VisibleForTesting
@@ -76,7 +75,7 @@ public class Coders {
     if (KNOWN_CODER_URNS.containsKey(coder.getClass())) {
       return toKnownCoder(coder, components);
     }
-    return toCustomCoder(coder);
+    return toJavaSerializedCoder(coder);
   }
 
   private static RunnerApi.Coder toKnownCoder(Coder<?> coder, SdkComponents components)
@@ -101,20 +100,21 @@ public class Coders {
         .build();
   }
 
-  private static RunnerApi.Coder toCustomCoder(Coder<?> coder) throws IOException {
+  private static RunnerApi.Coder toJavaSerializedCoder(Coder<?> coder) throws IOException {
     RunnerApi.Coder.Builder coderBuilder = RunnerApi.Coder.newBuilder();
     return coderBuilder
         .setSpec(
             SdkFunctionSpec.newBuilder()
                 .setSpec(
                     FunctionSpec.newBuilder()
-                        .setUrn(CUSTOM_CODER_URN)
+                        .setUrn(JAVA_SERIALIZED_CODER_URN)
                         .setParameter(
                             Any.pack(
                                 BytesValue.newBuilder()
                                     .setValue(
                                         ByteString.copyFrom(
-                                            OBJECT_MAPPER.writeValueAsBytes(coder.asCloudObject())))
+                                            OBJECT_MAPPER.writeValueAsBytes(
+                                                SerializableUtils.serializeToByteArray(coder))))
                                     .build()))))
         .build();
   }
@@ -122,8 +122,8 @@ public class Coders {
   public static Coder<?> fromProto(RunnerApi.Coder protoCoder, Components components)
       throws IOException {
     String coderSpecUrn = protoCoder.getSpec().getSpec().getUrn();
-    if (coderSpecUrn.equals(CUSTOM_CODER_URN)) {
-      return fromCustomCoder(protoCoder, components);
+    if (coderSpecUrn.equals(JAVA_SERIALIZED_CODER_URN)) {
+      return fromJavaSerializedCoder(protoCoder, components);
     }
     return fromKnownCoder(protoCoder, components);
   }
@@ -162,11 +162,11 @@ public class Coders {
     }
   }
 
-  private static Coder<?> fromCustomCoder(
+  private static Coder<?> fromJavaSerializedCoder(
       RunnerApi.Coder protoCoder, @SuppressWarnings("unused") Components components)
       throws IOException {
-    CloudObject coderCloudObject =
-        OBJECT_MAPPER.readValue(
+    return (Coder<?>)
+        SerializableUtils.deserializeFromByteArray(
             protoCoder
                 .getSpec()
                 .getSpec()
@@ -174,7 +174,6 @@ public class Coders {
                 .unpack(BytesValue.class)
                 .getValue()
                 .toByteArray(),
-            CloudObject.class);
-    return Serializer.deserialize(coderCloudObject, Coder.class);
+            JAVA_SERIALIZED_CODER_URN);
   }
 }

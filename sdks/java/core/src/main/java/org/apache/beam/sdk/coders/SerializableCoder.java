@@ -42,7 +42,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  *
  * @param <T> the type of elements handled by this coder
  */
-public class SerializableCoder<T extends Serializable> extends CustomCoder<T> {
+public class SerializableCoder<T extends Serializable> extends AtomicCoder<T> {
 
   /**
    * Returns a {@link SerializableCoder} instance for the provided element type.

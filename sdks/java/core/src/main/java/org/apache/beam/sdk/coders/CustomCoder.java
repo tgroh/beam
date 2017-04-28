@@ -21,27 +21,30 @@ import static org.apache.beam.sdk.util.Structs.addString;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.List;
 import org.apache.beam.sdk.util.CloudObject;
 import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.util.StringUtils;
+import org.apache.beam.sdk.util.common.ElementByteSizeObserver;
+import org.apache.beam.sdk.values.TypeDescriptor;
 
 /**
  * An abstract base class for writing a {@link Coder} class that encodes itself via Java
  * serialization.
  *
- * <p>To complete an implementation, subclasses must implement {@link Coder#encode}
- * and {@link Coder#decode} methods.
+ * <p>To complete an implementation, subclasses must implement {@link Coder#encode} and {@link
+ * Coder#decode} methods.
  *
  * <p>Not to be confused with {@link SerializableCoder} that encodes objects that implement the
  * {@link Serializable} interface.
  *
  * @param <T> the type of elements handled by this coder
  */
-public abstract class CustomCoder<T> extends StructuredCoder<T>
-    implements Serializable {
+public abstract class CustomCoder<T> implements Coder<T>, Serializable {
 
   @JsonCreator
   @Deprecated
@@ -65,24 +68,6 @@ public abstract class CustomCoder<T> extends StructuredCoder<T>
   }
 
   /**
-   * {@inheritDoc}.
-   *
-   * <p>Returns an empty list. A {@link CustomCoder} has no default argument {@link Coder coders}.
-   */
-  @Override
-  public List<? extends Coder<?>> getCoderArguments() {
-    return Collections.emptyList();
-  }
-
-  /**
-   * Returns an empty list. A {@link CustomCoder} by default will not have component coders that are
-   * used for inference.
-   */
-  public static <T> List<Object> getInstanceComponents(T exampleValue) {
-    return Collections.emptyList();
-  }
-
-  /**
    * {@inheritDoc}
    *
    * @return A thin {@link CloudObject} wrapping of the Java serialization of {@code this}.
@@ -101,6 +86,27 @@ public abstract class CustomCoder<T> extends StructuredCoder<T>
     return result;
   }
 
+  @Override
+  public void encode(
+      T value, OutputStream outStream, Context context) throws CoderException, IOException {
+
+  }
+
+  @Override
+  public T decode(InputStream inStream, Context context) throws CoderException, IOException {
+    return null;
+  }
+
+  @Override
+  public List<? extends Coder<?>> getCoderArguments() {
+    return null;
+  }
+
+  @Override
+  public CloudObject asCloudObject() {
+    return null;
+  }
+
   /**
    * {@inheritDoc}
    *
@@ -112,6 +118,33 @@ public abstract class CustomCoder<T> extends StructuredCoder<T>
     throw new NonDeterministicException(this,
         "CustomCoder implementations must override verifyDeterministic,"
         + " or they are presumed nondeterministic.");
+  }
+
+  @Override
+  public boolean consistentWithEquals() {
+    return false;
+  }
+
+  @Override
+  public Object structuralValue(T value) {
+    return null;
+  }
+
+  @Override
+  public boolean isRegisterByteSizeObserverCheap(
+      T value, Context context) {
+    return false;
+  }
+
+  @Override
+  public void registerByteSizeObserver(
+      T value, ElementByteSizeObserver observer, Context context) throws Exception {
+
+  }
+
+  @Override
+  public TypeDescriptor<T> getEncodedTypeDescriptor() {
+    return null;
   }
 
   // This coder inherits isRegisterByteSizeObserverCheap,
