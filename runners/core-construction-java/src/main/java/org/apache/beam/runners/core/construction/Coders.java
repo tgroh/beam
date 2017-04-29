@@ -70,6 +70,15 @@ public class Coders {
           .put(FullWindowedValueCoder.class, "urn:beam:coders:windowed_value:0.1")
           .build();
 
+  public static RunnerApi.MessageWithComponents toProto(Coder<?> coder) throws IOException {
+    SdkComponents components = SdkComponents.create();
+    RunnerApi.Coder coderProto = toProto(coder, components);
+    return RunnerApi.MessageWithComponents.newBuilder()
+        .setCoder(coderProto)
+        .setComponents(components.toComponents())
+        .build();
+  }
+
   public static RunnerApi.Coder toProto(
       Coder<?> coder, @SuppressWarnings("unused") SdkComponents components) throws IOException {
     if (KNOWN_CODER_URNS.containsKey(coder.getClass())) {
@@ -113,8 +122,7 @@ public class Coders {
                                 BytesValue.newBuilder()
                                     .setValue(
                                         ByteString.copyFrom(
-                                            OBJECT_MAPPER.writeValueAsBytes(
-                                                SerializableUtils.serializeToByteArray(coder))))
+                                            SerializableUtils.serializeToByteArray(coder)))
                                     .build()))))
         .build();
   }
