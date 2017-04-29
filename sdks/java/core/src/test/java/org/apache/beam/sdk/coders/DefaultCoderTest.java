@@ -78,6 +78,7 @@ public class DefaultCoderTest {
   }
 
   private static class OldCustomSerializableCoder extends SerializableCoder<OldCustomRecord> {
+
     // Extending SerializableCoder isn't trivial, but it can be done.
     @Deprecated // old form using a Class
     @SuppressWarnings("unchecked")

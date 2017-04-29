@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.io.gcp.bigquery;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.google.api.services.bigquery.model.TableRow;
@@ -34,7 +33,6 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  */
 public class TableRowJsonCoder extends AtomicCoder<TableRow> {
 
-  @JsonCreator
   public static TableRowJsonCoder of() {
     return INSTANCE;
   }

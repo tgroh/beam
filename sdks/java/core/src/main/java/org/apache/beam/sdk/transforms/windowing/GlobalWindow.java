@@ -19,9 +19,6 @@ package org.apache.beam.sdk.transforms.windowing;
 
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Collections;
-import java.util.List;
-import org.apache.beam.sdk.coders.StructuredCoder;
 import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.util.CloudObject;
 import org.joda.time.Duration;

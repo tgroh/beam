@@ -70,6 +70,7 @@ public class CloudObjects {
     if (translator != null) {
       return translator.toCloudObject(coder);
     }
+    // TODO: Else: get CustomCoder serializer, serialize with it.
     return serializeJavaCoderToCloudObject(coder);
   }
 

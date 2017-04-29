@@ -18,7 +18,6 @@
 
 package org.apache.beam.sdk.io.gcp.bigquery;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,7 +33,6 @@ import org.apache.beam.sdk.coders.StringUtf8Coder;
 class TableRowInfoCoder extends AtomicCoder<TableRowInfo> {
   private static final TableRowInfoCoder INSTANCE = new TableRowInfoCoder();
 
-  @JsonCreator
   public static TableRowInfoCoder of() {
     return INSTANCE;
   }

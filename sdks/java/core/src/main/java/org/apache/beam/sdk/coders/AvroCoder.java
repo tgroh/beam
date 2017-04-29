@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
@@ -287,6 +288,22 @@ public class AvroCoder<T> extends CustomCoder<T> {
    */
   public Schema getSchema() {
     return schemaSupplier.get();
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (!(other instanceof AvroCoder)) {
+      return false;
+    }
+    AvroCoder<?> that = (AvroCoder<?>) other;
+    return Objects.equals(this.schemaSupplier.get(), that.schemaSupplier.get())
+        && Objects.equals(this.type, that.type)
+        && Objects.equals(this.typeDescriptor, that.typeDescriptor);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(schemaSupplier.get(), type, typeDescriptor);
   }
 
   @Override

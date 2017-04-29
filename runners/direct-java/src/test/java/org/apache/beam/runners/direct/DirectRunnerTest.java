@@ -40,7 +40,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.beam.runners.direct.DirectRunner.DirectPipelineResult;
-import org.apache.beam.sdk.AggregatorRetrievalException;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.PipelineResult.State;
@@ -73,6 +72,7 @@ import org.apache.beam.sdk.transforms.Sum;
 import org.apache.beam.sdk.transforms.display.DisplayData;
 import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.util.IllegalMutationException;
+import org.apache.beam.sdk.util.state.StateSpec;
 import org.apache.beam.sdk.util.state.StateSpecs;
 import org.apache.beam.sdk.util.state.ValueState;
 import org.apache.beam.sdk.values.KV;
@@ -85,7 +85,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.internal.matchers.ThrowableMessageMatcher;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
+import org.junit.runner.RunWith;t 
 import org.junit.runners.JUnit4;
 
 /**
@@ -527,16 +527,6 @@ public class DirectRunnerTest implements Serializable {
     thrown.expectCause(isA(CoderException.class));
     thrown.expectMessage("Cannot decode a long");
     p.run();
-  }
-
-  @Test
-  public void testAggregatorNotPresentInGraph() throws AggregatorRetrievalException {
-    Pipeline p = getPipeline();
-    IdentityDoFn identityDoFn = new IdentityDoFn();
-    p.apply(Create.of(KV.of("key", "element1"), KV.of("key", "element2"), KV.of("key", "element3")))
-        .apply(ParDo.of(identityDoFn));
-    PipelineResult pipelineResult = p.run();
-    pipelineResult.getAggregatorValues(identityDoFn.getCounter()).getValues();
   }
 
   private static class IdentityDoFn extends DoFn<KV<String, String>, String> {

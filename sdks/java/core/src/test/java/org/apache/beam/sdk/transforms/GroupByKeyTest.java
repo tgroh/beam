@@ -26,7 +26,6 @@ import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInA
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import java.io.DataInputStream;
@@ -457,7 +456,6 @@ public class GroupByKeyTest {
    */
   static class DeterministicKeyCoder extends AtomicCoder<BadEqualityKey> {
 
-    @JsonCreator
     public static DeterministicKeyCoder of() {
       return INSTANCE;
     }

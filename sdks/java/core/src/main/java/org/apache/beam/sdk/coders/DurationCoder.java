@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.coders;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -32,7 +31,6 @@ import org.joda.time.ReadableDuration;
  */
 public class DurationCoder extends AtomicCoder<ReadableDuration> {
 
-  @JsonCreator
   public static DurationCoder of() {
     return INSTANCE;
   }

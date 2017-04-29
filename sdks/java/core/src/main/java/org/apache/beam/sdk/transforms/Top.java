@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
@@ -33,6 +34,7 @@ import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.CoderRegistry;
 import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.ListCoder;
+import org.apache.beam.sdk.coders.StructuredCoder;
 import org.apache.beam.sdk.transforms.Combine.AccumulatingCombineFn;
 import org.apache.beam.sdk.transforms.Combine.AccumulatingCombineFn.Accumulator;
 import org.apache.beam.sdk.transforms.Combine.PerKey;
@@ -525,12 +527,14 @@ public class Top {
    * A {@link Coder} for {@link BoundedHeap}, using Java serialization via {@link CustomCoder}.
    */
   private static class BoundedHeapCoder<T, ComparatorT extends Comparator<T> & Serializable>
-      extends CustomCoder<BoundedHeap<T, ComparatorT>> {
+      extends StructuredCoder<BoundedHeap<T, ComparatorT>> {
+    private final Coder<T> elementCoder;
     private final Coder<List<T>> listCoder;
     private final ComparatorT compareFn;
     private final int maximumSize;
 
     public BoundedHeapCoder(int maximumSize, ComparatorT compareFn, Coder<T> elementCoder) {
+      this.elementCoder = elementCoder;
       listCoder = ListCoder.of(elementCoder);
       this.compareFn = compareFn;
       this.maximumSize = maximumSize;
@@ -547,6 +551,11 @@ public class Top {
     public BoundedHeap<T, ComparatorT> decode(InputStream inStream, Coder.Context context)
         throws CoderException, IOException {
       return new BoundedHeap<>(maximumSize, compareFn, listCoder.decode(inStream, context));
+    }
+
+    @Override
+    public List<? extends Coder<?>> getCoderArguments() {
+      return Collections.<Coder<?>>singletonList(elementCoder);
     }
 
     @Override

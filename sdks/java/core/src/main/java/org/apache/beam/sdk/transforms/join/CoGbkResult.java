@@ -30,8 +30,8 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
-import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.IterableCoder;
+import org.apache.beam.sdk.coders.StructuredCoder;
 import org.apache.beam.sdk.util.common.Reiterator;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
@@ -204,7 +204,7 @@ public class CoGbkResult {
   /**
    * A {@link Coder} for {@link CoGbkResult}s.
    */
-  public static class CoGbkResultCoder extends CustomCoder<CoGbkResult> {
+  public static class CoGbkResultCoder extends StructuredCoder<CoGbkResult> {
 
     private final CoGbkResultSchema schema;
     private final UnionCoder unionCoder;

@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.List;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.values.TypeDescriptor;
 
@@ -42,7 +44,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  * @param <T> The type of objects coded by this Coder.
  * @param <IntermediateT> The type of objects a {@code T} will be converted to for coding.
  */
-public final class DelegateCoder<T, IntermediateT> extends CustomCoder<T> {
+public final class DelegateCoder<T, IntermediateT> extends StructuredCoder<T> {
   /**
    * A {@link DelegateCoder.CodingFunction CodingFunction&lt;InputT, OutputT&gt;} is a serializable
    * function from {@code InputT} to {@code OutputT} that may throw any {@link Exception}.
@@ -74,6 +76,11 @@ public final class DelegateCoder<T, IntermediateT> extends CustomCoder<T> {
   @Override
   public T decode(InputStream inStream, Context context) throws CoderException, IOException {
     return applyAndWrapExceptions(fromFn, coder.decode(inStream, context));
+  }
+
+  @Override
+  public List<? extends Coder<?>> getCoderArguments() {
+    return Collections.emptyList();
   }
 
   /**

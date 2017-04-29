@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.coders;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.io.ByteStreams;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,11 +39,9 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  */
 public class ByteArrayCoder extends AtomicCoder<byte[]> {
 
-  @JsonCreator
   public static ByteArrayCoder of() {
     return INSTANCE;
   }
-
 
   /////////////////////////////////////////////////////////////////////////////
 

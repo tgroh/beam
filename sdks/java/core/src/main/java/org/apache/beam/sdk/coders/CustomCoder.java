@@ -17,20 +17,15 @@
  */
 package org.apache.beam.sdk.coders;
 
-import static org.apache.beam.sdk.util.Structs.addString;
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
 import org.apache.beam.sdk.util.CloudObject;
 import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.util.StringUtils;
-import org.apache.beam.sdk.util.common.ElementByteSizeObserver;
-import org.apache.beam.sdk.values.TypeDescriptor;
+import org.apache.beam.sdk.util.Structs;
 
 /**
  * An abstract base class for writing a {@link Coder} class that encodes itself via Java
@@ -44,7 +39,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  *
  * @param <T> the type of elements handled by this coder
  */
-public abstract class CustomCoder<T> implements Coder<T>, Serializable {
+public abstract class CustomCoder<T> extends AbstractCoder<T> implements Serializable {
 
   @JsonCreator
   @Deprecated
@@ -67,44 +62,20 @@ public abstract class CustomCoder<T> implements Coder<T>, Serializable {
         type);
   }
 
-  /**
-   * {@inheritDoc}
-   *
-   * @return A thin {@link CloudObject} wrapping of the Java serialization of {@code this}.
-   */
-  @Override
-  public final CloudObject initializeCloudObject() {
-    // N.B. We use the CustomCoder class, not the derived class, since during
-    // deserialization we will be using the CustomCoder's static factory method
-    // to construct an instance of the derived class.
-    CloudObject result = CloudObject.forClass(CustomCoder.class);
-    addString(result, "type", getClass().getName());
-    addString(result, "serialized_coder",
-        StringUtils.byteArrayToJsonString(
-            SerializableUtils.serializeToByteArray(this)));
-
-    return result;
-  }
-
-  @Override
-  public void encode(
-      T value, OutputStream outStream, Context context) throws CoderException, IOException {
-
-  }
-
-  @Override
-  public T decode(InputStream inStream, Context context) throws CoderException, IOException {
-    return null;
-  }
-
   @Override
   public List<? extends Coder<?>> getCoderArguments() {
-    return null;
+    return Collections.emptyList();
   }
 
-  @Override
+  @Deprecated
   public CloudObject asCloudObject() {
-    return null;
+    CloudObject cloudObject = CloudObject.forClass(CustomCoder.class);
+    Structs.addString(
+        cloudObject,
+        "serialized_coder",
+        StringUtils.byteArrayToJsonString(SerializableUtils.serializeToByteArray(this)));
+    Structs.addString(cloudObject, "type", getClass().getName());
+    return cloudObject;
   }
 
   /**
@@ -120,34 +91,7 @@ public abstract class CustomCoder<T> implements Coder<T>, Serializable {
         + " or they are presumed nondeterministic.");
   }
 
-  @Override
-  public boolean consistentWithEquals() {
-    return false;
-  }
-
-  @Override
-  public Object structuralValue(T value) {
-    return null;
-  }
-
-  @Override
-  public boolean isRegisterByteSizeObserverCheap(
-      T value, Context context) {
-    return false;
-  }
-
-  @Override
-  public void registerByteSizeObserver(
-      T value, ElementByteSizeObserver observer, Context context) throws Exception {
-
-  }
-
-  @Override
-  public TypeDescriptor<T> getEncodedTypeDescriptor() {
-    return null;
-  }
-
   // This coder inherits isRegisterByteSizeObserverCheap,
   // getEncodedElementByteSize and registerByteSizeObserver
-  // from StructuredCoder. Override if we can do better.
+  // from AbstractCoder. Override if we can do better.
 }

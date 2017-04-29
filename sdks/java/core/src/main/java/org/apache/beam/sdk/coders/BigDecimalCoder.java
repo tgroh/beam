@@ -19,7 +19,6 @@ package org.apache.beam.sdk.coders;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -34,8 +33,6 @@ import java.math.MathContext;
  * yields the expected {@link BigDecimal}.
  */
 public class BigDecimalCoder extends AtomicCoder<BigDecimal> {
-
-  @JsonCreator
   public static BigDecimalCoder of() {
     return INSTANCE;
   }

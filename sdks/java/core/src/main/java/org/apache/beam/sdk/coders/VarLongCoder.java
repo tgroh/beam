@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.coders;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,7 +32,6 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  */
 public class VarLongCoder extends AtomicCoder<Long> {
 
-  @JsonCreator
   public static VarLongCoder of() {
     return INSTANCE;
   }

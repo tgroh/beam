@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.coders;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.base.Converter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,7 +31,6 @@ import org.joda.time.Instant;
  */
 public class InstantCoder extends AtomicCoder<Instant> {
 
-  @JsonCreator
   public static InstantCoder of() {
     return INSTANCE;
   }

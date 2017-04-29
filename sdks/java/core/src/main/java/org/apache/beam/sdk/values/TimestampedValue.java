@@ -26,8 +26,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.apache.beam.sdk.coders.Coder;
-import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.InstantCoder;
+import org.apache.beam.sdk.coders.StructuredCoder;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.joda.time.Instant;
 
@@ -85,7 +85,7 @@ public class TimestampedValue<V> {
   /////////////////////////////////////////////////////////////////////////////
 
   /** A {@link Coder} for {@link TimestampedValue}. */
-  public static class TimestampedValueCoder<T> extends CustomCoder<TimestampedValue<T>> {
+  public static class TimestampedValueCoder<T> extends StructuredCoder<TimestampedValue<T>> {
 
     private final Coder<T> valueCoder;
 

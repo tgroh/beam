@@ -195,6 +195,7 @@ public class CloningBundleFactoryTest {
   }
 
   static class RecordNoDecodeCoder extends AtomicCoder<Record> {
+
     @Override
     public void encode(
         Record value,

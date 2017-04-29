@@ -39,7 +39,9 @@ import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.Coder.NonDeterministicException;
 import org.apache.beam.sdk.coders.CoderException;
+import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.ListCoder;
+import org.apache.beam.sdk.coders.StructuredCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.coders.VarLongCoder;
 import org.apache.beam.sdk.util.VarInt;
@@ -356,8 +358,18 @@ public class IsmFormat {
 
     @Override
     public void verifyDeterministic() throws Coder.NonDeterministicException {
-      verifyDeterministic("Key component coders expected to be deterministic.", keyComponentCoders);
-      verifyDeterministic("Value coder expected to be deterministic.", valueCoder);
+      List<String> nondeterministicReasons = new ArrayList<>();
+      for (Coder<?> keyComponentCoder : keyComponentCoders) {
+        try {
+          keyComponentCoder.verifyDeterministic();
+        } catch (NonDeterministicException e) {
+
+        }
+      }
+      if (!nondeterministicReasons.isEmpty()) {
+        throw new NonDeterministicException(this, nondeterministicReasons);
+      }
+      valueCoder.verifyDeterministic();
     }
 
     @Override
@@ -450,7 +462,7 @@ public class IsmFormat {
    * A coder for metadata key component. Can be used to wrap key component coder allowing for
    * the metadata key component to be used as a place holder instead of an actual key.
    */
-  public static class MetadataKeyCoder<K> extends CustomCoder<K> {
+  public static class MetadataKeyCoder<K> extends StructuredCoder<K> {
     public static <K> MetadataKeyCoder<K> of(Coder<K> keyCoder) {
       checkNotNull(keyCoder);
       return new MetadataKeyCoder<>(keyCoder);
@@ -588,7 +600,6 @@ public class IsmFormat {
     private static final IsmShardCoder INSTANCE = new IsmShardCoder();
 
     /** Returns an IsmShardCoder. */
-    @JsonCreator
     public static IsmShardCoder of() {
       return INSTANCE;
     }
@@ -648,7 +659,6 @@ public class IsmFormat {
   public static final class KeyPrefixCoder extends AtomicCoder<KeyPrefix> {
     private static final KeyPrefixCoder INSTANCE = new KeyPrefixCoder();
 
-    @JsonCreator
     public static KeyPrefixCoder of() {
       return INSTANCE;
     }
@@ -718,7 +728,6 @@ public class IsmFormat {
   public static final class FooterCoder extends AtomicCoder<Footer> {
     private static final FooterCoder INSTANCE = new FooterCoder();
 
-    @JsonCreator
     public static FooterCoder of() {
       return INSTANCE;
     }

@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.coders;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,7 +29,6 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  */
 public class ByteCoder extends AtomicCoder<Byte> {
 
-  @JsonCreator
   public static ByteCoder of() {
     return INSTANCE;
   }

@@ -19,17 +19,12 @@ package org.apache.beam.sdk.coders;
 
 import static org.apache.beam.sdk.util.Structs.addList;
 
-import com.google.common.io.ByteStreams;
-import com.google.common.io.CountingOutputStream;
-import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.apache.beam.sdk.util.CloudObject;
 import org.apache.beam.sdk.util.PropertyNames;
-import org.apache.beam.sdk.util.common.ElementByteSizeObserver;
-import org.apache.beam.sdk.values.TypeDescriptor;
 
 /**
  * An abstract base class to implement a {@link Coder} that defines equality, hashing, and printing
@@ -45,12 +40,13 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  *       expensive.</li>
  * </ul>
  */
-public abstract class StructuredCoder<T> implements Coder<T> {
+public abstract class StructuredCoder<T> extends AbstractCoder<T> {
   protected StructuredCoder() {}
 
   /**
    * Returns the list of {@link Coder Coders} that are components of this {@link Coder}.
    */
+  @Deprecated
   public List<? extends Coder<?>> getComponents() {
     List<? extends Coder<?>> coderArguments = getCoderArguments();
     if (coderArguments == null) {
@@ -141,45 +137,6 @@ public abstract class StructuredCoder<T> implements Coder<T> {
     return CloudObject.forClass(getClass());
   }
 
-  /**
-   * {@inheritDoc}
-   *
-   * @return {@code false} unless it is overridden. {@link StructuredCoder#registerByteSizeObserver}
-   *         invokes {@link #getEncodedElementByteSize} which requires re-encoding an element
-   *         unless it is overridden. This is considered expensive.
-   */
-  @Override
-  public boolean isRegisterByteSizeObserverCheap(T value, Context context) {
-    return false;
-  }
-
-  /**
-   * Returns the size in bytes of the encoded value using this coder.
-   */
-  protected long getEncodedElementByteSize(T value, Context context)
-      throws Exception {
-    try (CountingOutputStream os = new CountingOutputStream(ByteStreams.nullOutputStream())) {
-      encode(value, os, context);
-      return os.getCount();
-    } catch (Exception exn) {
-      throw new IllegalArgumentException(
-          "Unable to encode element '" + value + "' with coder '" + this + "'.", exn);
-    }
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * <p>For {@link StructuredCoder} subclasses, this notifies {@code observer} about the byte size
-   * of the encoded value using this coder as returned by {@link #getEncodedElementByteSize}.
-   */
-  @Override
-  public void registerByteSizeObserver(
-      T value, ElementByteSizeObserver observer, Context context)
-      throws Exception {
-    observer.update(getEncodedElementByteSize(value, context));
-  }
-
   protected void verifyDeterministic(String message, Iterable<Coder<?>> coders)
       throws NonDeterministicException {
     for (Coder<?> coder : coders) {
@@ -194,38 +151,5 @@ public abstract class StructuredCoder<T> implements Coder<T> {
   protected void verifyDeterministic(String message, Coder<?>... coders)
       throws NonDeterministicException {
     verifyDeterministic(message, Arrays.asList(coders));
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * @return {@code false} for {@link StructuredCoder} unless overridden.
-   */
-  @Override
-  public boolean consistentWithEquals() {
-    return false;
-  }
-
-  @Override
-  public Object structuralValue(T value) {
-    if (value != null && consistentWithEquals()) {
-      return value;
-    } else {
-      try {
-        ByteArrayOutputStream os = new ByteArrayOutputStream();
-        encode(value, os, Context.OUTER);
-        return new StructuralByteArray(os.toByteArray());
-      } catch (Exception exn) {
-        throw new IllegalArgumentException(
-            "Unable to encode element '" + value + "' with coder '" + this + "'.", exn);
-      }
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  @Override
-  public TypeDescriptor<T> getEncodedTypeDescriptor() {
-    return (TypeDescriptor<T>)
-        TypeDescriptor.of(getClass()).resolveType(new TypeDescriptor<T>() {}.getType());
   }
 }

@@ -37,7 +37,6 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -58,7 +57,6 @@ import org.apache.beam.sdk.Pipeline.PipelineExecutionException;
 import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
-import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.ListCoder;
 import org.apache.beam.sdk.coders.SetCoder;
@@ -983,7 +981,6 @@ public class ParDoTest implements Serializable {
     private TestDummyCoder() { }
     private static final TestDummyCoder INSTANCE = new TestDummyCoder();
 
-    @JsonCreator
     public static TestDummyCoder of() {
       return INSTANCE;
     }
@@ -1085,7 +1082,7 @@ public class ParDoTest implements Serializable {
     }
   }
 
-  private static class MyIntegerCoder extends CustomCoder<MyInteger> {
+  private static class MyIntegerCoder extends AtomicCoder<MyInteger> {
     private static final MyIntegerCoder INSTANCE = new MyIntegerCoder();
 
     private final VarIntCoder delegate = VarIntCoder.of();

@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.coders;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -29,7 +28,6 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  */
 public class TextualIntegerCoder extends AtomicCoder<Integer> {
 
-  @JsonCreator
   public static TextualIntegerCoder of() {
     return new TextualIntegerCoder();
   }
@@ -62,7 +60,7 @@ public class TextualIntegerCoder extends AtomicCoder<Integer> {
   }
 
   @Override
-  public void verifyDeterministic() {
+  public void verifyDeterministic() throws NonDeterministicException {
     StringUtf8Coder.of().verifyDeterministic();
   }
 

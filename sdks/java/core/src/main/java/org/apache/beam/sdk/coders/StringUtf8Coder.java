@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.coders;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.google.common.base.Utf8;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.CountingOutputStream;
@@ -41,7 +40,6 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  */
 public class StringUtf8Coder extends AtomicCoder<String> {
 
-  @JsonCreator
   public static StringUtf8Coder of() {
     return INSTANCE;
   }
