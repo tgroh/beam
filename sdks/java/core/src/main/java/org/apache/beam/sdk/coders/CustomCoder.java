@@ -17,14 +17,11 @@
  */
 package org.apache.beam.sdk.coders;
 
-import static org.apache.beam.sdk.util.Structs.addString;
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
-import org.apache.beam.sdk.util.CloudObject;
 import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.util.StringUtils;
 
@@ -80,25 +77,6 @@ public abstract class CustomCoder<T> extends StandardCoder<T>
    */
   public static <T> List<Object> getInstanceComponents(T exampleValue) {
     return Collections.emptyList();
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * @return A thin {@link CloudObject} wrapping of the Java serialization of {@code this}.
-   */
-  @Override
-  public final CloudObject initializeCloudObject() {
-    // N.B. We use the CustomCoder class, not the derived class, since during
-    // deserialization we will be using the CustomCoder's static factory method
-    // to construct an instance of the derived class.
-    CloudObject result = CloudObject.forClass(CustomCoder.class);
-    addString(result, "type", getClass().getName());
-    addString(result, "serialized_coder",
-        StringUtils.byteArrayToJsonString(
-            SerializableUtils.serializeToByteArray(this)));
-
-    return result;
   }
 
   /**

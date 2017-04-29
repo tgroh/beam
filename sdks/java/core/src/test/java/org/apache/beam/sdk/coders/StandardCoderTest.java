@@ -152,7 +152,7 @@ public class StandardCoderTest {
   }
 
   /**
-   * Tests that {@link StandardCoder#structuralValue()} is correct whenever a subclass has a correct
+   * Tests that {@link Coder#structuralValue()} is correct whenever a subclass has a correct
    * {@link Coder#consistentWithEquals()}.
    */
   @Test

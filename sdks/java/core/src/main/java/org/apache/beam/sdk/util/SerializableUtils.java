@@ -17,7 +17,6 @@
  */
 package org.apache.beam.sdk.util;
 
-import static com.google.common.base.Preconditions.checkState;
 import static org.apache.beam.sdk.util.CoderUtils.decodeFromByteArray;
 import static org.apache.beam.sdk.util.CoderUtils.encodeToByteArray;
 
@@ -90,39 +89,6 @@ public class SerializableUtils {
     T copy = (T) deserializeFromByteArray(serializeToByteArray(value),
         value.toString());
     return copy;
-  }
-
-  /**
-   * Serializes a Coder and verifies that it can be correctly deserialized.
-   *
-   * <p>Throws a RuntimeException if serialized Coder cannot be deserialized, or
-   * if the deserialized instance is not equal to the original.
-   *
-   * @return the serialized Coder, as a {@link CloudObject}
-   */
-  public static CloudObject ensureSerializable(Coder<?> coder) {
-    // Make sure that Coders are java serializable as well since
-    // they are regularly captured within DoFn's.
-    Coder<?> copy = (Coder<?>) ensureSerializable((Serializable) coder);
-
-    CloudObject cloudObject = copy.asCloudObject();
-
-    Coder<?> decoded;
-    try {
-      decoded = Serializer.deserialize(cloudObject, Coder.class);
-    } catch (RuntimeException e) {
-      throw new RuntimeException(
-          String.format("Unable to deserialize Coder: %s. "
-              + "Check that a suitable constructor is defined.  "
-              + "See Coder for details.", coder), e
-      );
-    }
-    checkState(coder.equals(decoded),
-        "Coder not equal to original after serialization, indicating that the Coder may not "
-        + "implement serialization correctly.  Before: %s, after: %s, cloud encoding: %s",
-        coder, decoded, cloudObject);
-
-    return cloudObject;
   }
 
   /**
