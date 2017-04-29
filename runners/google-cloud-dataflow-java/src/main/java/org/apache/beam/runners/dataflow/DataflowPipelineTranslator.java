@@ -62,6 +62,7 @@ import org.apache.beam.runners.dataflow.PrimitiveParDoSingleFactory.ParDoSingle;
 import org.apache.beam.runners.dataflow.TransformTranslator.StepTranslationContext;
 import org.apache.beam.runners.dataflow.TransformTranslator.TranslationContext;
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
+import org.apache.beam.runners.dataflow.util.CloudObjects;
 import org.apache.beam.runners.dataflow.util.DoFnInfo;
 import org.apache.beam.runners.dataflow.util.OutputReference;
 import org.apache.beam.sdk.Pipeline;
@@ -87,7 +88,6 @@ import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.util.AppliedCombineFn;
 import org.apache.beam.sdk.util.CloudObject;
 import org.apache.beam.sdk.util.PropertyNames;
-import org.apache.beam.sdk.util.SerializableUtils;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.WindowingStrategy;
 import org.apache.beam.sdk.values.KV;
@@ -557,7 +557,16 @@ public class DataflowPipelineTranslator {
 
     @Override
     public void addEncodingInput(Coder<?> coder) {
-      CloudObject encoding = SerializableUtils.ensureSerializable(coder);
+      CloudObject encoding = CloudObjects.asCloudObject(coder);
+      // Verify that the coder can be decoded from the Cloud Object
+      Coder<?> decoded = CloudObjects.coderFromCloudObject(encoding);
+      checkState(
+          coder.equals(decoded),
+          "Coder not equal to original after serialization, indicating that the Coder may not "
+              + "implement serialization correctly.  Before: %s, after: %s, cloud encoding: %s",
+          coder,
+          decoded,
+          encoding);
       addObject(getProperties(), PropertyNames.ENCODING, encoding);
     }
 
@@ -667,9 +676,17 @@ public class DataflowPipelineTranslator {
         addBoolean(outputInfo, PropertyNames.USE_INDEXED_FORMAT, true);
       }
       if (valueCoder != null) {
+        CloudObject encoding = CloudObjects.asCloudObject(valueCoder);
         // Verify that encoding can be decoded, in order to catch serialization
         // failures as early as possible.
-        CloudObject encoding = SerializableUtils.ensureSerializable(valueCoder);
+        Coder<?> decoded = CloudObjects.coderFromCloudObject(encoding);
+        checkState(
+            valueCoder.equals(decoded),
+            "Coder not equal to original after serialization, indicating that the Coder may not "
+                + "implement serialization correctly.  Before: %s, after: %s, cloud encoding: %s",
+            valueCoder,
+            decoded,
+            encoding);
         addObject(outputInfo, PropertyNames.ENCODING, encoding);
         translator.outputCoders.put(value, valueCoder);
       }
