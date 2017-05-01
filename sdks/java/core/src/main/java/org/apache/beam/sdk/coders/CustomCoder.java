@@ -33,7 +33,7 @@ import java.util.List;
  *
  * @param <T> the type of elements handled by this coder
  */
-public abstract class CustomCoder<T> extends StructuredCoder<T>
+public abstract class CustomCoder<T> extends Coder<T>
     implements Serializable {
   /**
    * {@inheritDoc}.

@@ -19,16 +19,15 @@ package org.apache.beam.sdk.coders;
 
 import com.google.common.io.ByteStreams;
 import com.google.common.io.CountingOutputStream;
-import java.io.ByteArrayOutputStream;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import org.apache.beam.sdk.util.common.ElementByteSizeObserver;
-import org.apache.beam.sdk.values.TypeDescriptor;
 
 /**
  * An abstract base class to implement a {@link Coder} that defines equality, hashing, and printing
  * via the class name and recursively using {@link #getComponents}.
+ *
+ * <p>A {@link StructuredCoder} should be defined purely in terms of its component coders, and
+ * contain no additional configuration.
  *
  * <p>To extend {@link StructuredCoder}, override the following methods as appropriate:
  *
@@ -40,7 +39,7 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  *       expensive.</li>
  * </ul>
  */
-public abstract class StructuredCoder<T> implements Coder<T> {
+public abstract class StructuredCoder<T> extends Coder<T> {
   protected StructuredCoder() {}
 
   /**
@@ -122,67 +121,5 @@ public abstract class StructuredCoder<T> implements Coder<T> {
       throw new IllegalArgumentException(
           "Unable to encode element '" + value + "' with coder '" + this + "'.", exn);
     }
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * <p>For {@link StructuredCoder} subclasses, this notifies {@code observer} about the byte size
-   * of the encoded value using this coder as returned by {@link #getEncodedElementByteSize}.
-   */
-  @Override
-  public void registerByteSizeObserver(
-      T value, ElementByteSizeObserver observer, Context context)
-      throws Exception {
-    observer.update(getEncodedElementByteSize(value, context));
-  }
-
-  protected void verifyDeterministic(String message, Iterable<Coder<?>> coders)
-      throws NonDeterministicException {
-    for (Coder<?> coder : coders) {
-      try {
-        coder.verifyDeterministic();
-      } catch (NonDeterministicException e) {
-        throw new NonDeterministicException(this, message, e);
-      }
-    }
-  }
-
-  protected void verifyDeterministic(String message, Coder<?>... coders)
-      throws NonDeterministicException {
-    verifyDeterministic(message, Arrays.asList(coders));
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * @return {@code false} for {@link StructuredCoder} unless overridden.
-   */
-  @Override
-  public boolean consistentWithEquals() {
-    return false;
-  }
-
-  @Override
-  public Object structuralValue(T value) {
-    if (value != null && consistentWithEquals()) {
-      return value;
-    } else {
-      try {
-        ByteArrayOutputStream os = new ByteArrayOutputStream();
-        encode(value, os, Context.OUTER);
-        return new StructuralByteArray(os.toByteArray());
-      } catch (Exception exn) {
-        throw new IllegalArgumentException(
-            "Unable to encode element '" + value + "' with coder '" + this + "'.", exn);
-      }
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  @Override
-  public TypeDescriptor<T> getEncodedTypeDescriptor() {
-    return (TypeDescriptor<T>)
-        TypeDescriptor.of(getClass()).resolveType(new TypeDescriptor<T>() {}.getType());
   }
 }

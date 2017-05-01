@@ -57,7 +57,7 @@ public class DoFnSignaturesSplittableDoFnTest {
   private abstract static class SomeRestrictionTracker
       implements RestrictionTracker<SomeRestriction> {}
 
-  private abstract static class SomeRestrictionCoder implements Coder<SomeRestriction> {}
+  private abstract static class SomeRestrictionCoder extends Coder<SomeRestriction> {}
 
   @Test
   public void testHasRestrictionTracker() throws Exception {

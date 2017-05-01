@@ -22,6 +22,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 import com.google.common.base.Joiner;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
+import com.google.common.io.ByteStreams;
+import com.google.common.io.CountingOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -57,9 +60,9 @@ import org.apache.beam.sdk.values.TypeDescriptor;
  *
  * @param <T> the type of the values being transcoded
  */
-public interface Coder<T> extends Serializable {
+public abstract class Coder<T> implements Serializable {
   /** The context in which encoding or decoding is being done. */
-  class Context {
+  public static class Context {
     /**
      * The outer context: the value being encoded or decoded takes
      * up the remainder of the record/stream contents.
@@ -118,7 +121,7 @@ public interface Coder<T> extends Serializable {
    * for some reason
    * @throws CoderException if the value could not be encoded for some reason
    */
-  void encode(T value, OutputStream outStream, Context context)
+  public abstract void encode(T value, OutputStream outStream, Context context)
       throws CoderException, IOException;
 
   /**
@@ -129,7 +132,7 @@ public interface Coder<T> extends Serializable {
    * for some reason
    * @throws CoderException if the value could not be decoded for some reason
    */
-  T decode(InputStream inStream, Context context)
+  public abstract T decode(InputStream inStream, Context context)
       throws CoderException, IOException;
 
   /**
@@ -138,7 +141,7 @@ public interface Coder<T> extends Serializable {
    * returns {@code null} if this cannot be done or this is not a
    * parameterized type.
    */
-  List<? extends Coder<?>> getCoderArguments();
+  public abstract List<? extends Coder<?>> getCoderArguments();
 
   /**
    * Throw {@link NonDeterministicException} if the coding is not deterministic.
@@ -156,7 +159,31 @@ public interface Coder<T> extends Serializable {
    *
    * @throws Coder.NonDeterministicException if this coder is not deterministic.
    */
-  void verifyDeterministic() throws Coder.NonDeterministicException;
+  public abstract void verifyDeterministic() throws Coder.NonDeterministicException;
+
+  /**
+   * Verifies all of the provided coders are deterministic. If any are not, throws a {@link
+   * NonDeterministicException} for the {@code target} {@link Coder}.
+   */
+  public static void verifyDeterministic(Coder<?> target, String message, Iterable<Coder<?>> coders)
+      throws NonDeterministicException {
+    for (Coder<?> coder : coders) {
+      try {
+        coder.verifyDeterministic();
+      } catch (NonDeterministicException e) {
+        throw new NonDeterministicException(target, message, e);
+      }
+    }
+  }
+
+  /**
+   * Verifies all of the provided coders are deterministic. If any are not, throws a {@link
+   * NonDeterministicException} for the {@code target} {@link Coder}.
+   */
+  public static void verifyDeterministic(Coder<?> target, String message, Coder<?>... coders)
+      throws NonDeterministicException {
+    verifyDeterministic(target, message, Arrays.asList(coders));
+  }
 
   /**
    * Returns {@code true} if this {@link Coder} is injective with respect to {@link Objects#equals}.
@@ -167,28 +194,50 @@ public interface Coder<T> extends Serializable {
    * <p>This condition is most notably false for arrays. More generally, this condition is false
    * whenever {@code equals()} compares object identity, rather than performing a
    * semantic/structural comparison.
+   *
+   * <p>By default, returns false.
    */
-  boolean consistentWithEquals();
+  public boolean consistentWithEquals() {
+    return false;
+  }
 
   /**
-   * Returns an object with an {@code Object.equals()} method that represents structural equality
-   * on the argument.
+   * Returns an object with an {@code Object.equals()} method that represents structural equality on
+   * the argument.
    *
    * <p>For any two values {@code x} and {@code y} of type {@code T}, if their encoded bytes are the
    * same, then it must be the case that {@code structuralValue(x).equals(@code structuralValue(y)}.
    *
    * <p>Most notably:
+   *
    * <ul>
    *   <li>The structural value for an array coder should perform a structural comparison of the
-   *   contents of the arrays, rather than the default behavior of comparing according to object
-   *   identity.
-   *   <li>The structural value for a coder accepting {@code null} should be a proper object with
-   *   an {@code equals()} method, even if the input value is {@code null}.
+   *       contents of the arrays, rather than the default behavior of comparing according to object
+   *       identity.
+   *   <li>The structural value for a coder accepting {@code null} should be a proper object with an
+   *       {@code equals()} method, even if the input value is {@code null}.
    * </ul>
    *
    * <p>See also {@link #consistentWithEquals()}.
+   *
+   * <p>By default, if this coder is {@link #consistentWithEquals()}, and the value is not null,
+   * returns the provided object. Otherwise, encodes the value into a {@code byte[]}, and returns
+   * an object that performs array equality on the encoded bytes.
    */
-  Object structuralValue(T value);
+  public Object structuralValue(T value) {
+    if (value != null && consistentWithEquals()) {
+      return value;
+    } else {
+      try {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        encode(value, os, Context.OUTER);
+        return new StructuralByteArray(os.toByteArray());
+      } catch (Exception exn) {
+        throw new IllegalArgumentException(
+            "Unable to encode element '" + value + "' with coder '" + this + "'.", exn);
+      }
+    }
+  }
 
   /**
    * Returns whether {@link #registerByteSizeObserver} cheap enough to
@@ -199,8 +248,29 @@ public interface Coder<T> extends Serializable {
    * <p>Not intended to be called by user code, but instead by
    * {@link org.apache.beam.sdk.runners.PipelineRunner}
    * implementations.
+   *
+   * <p>By default, returns false. The default {@link #registerByteSizeObserver} implementation
+   *         invokes {@link #getEncodedElementByteSize} which requires re-encoding an element
+   *         unless it is overridden. This is considered expensive.
    */
-  boolean isRegisterByteSizeObserverCheap(T value, Context context);
+  public boolean isRegisterByteSizeObserverCheap(T value, Context context) {
+    return false;
+  }
+
+  /**
+   * Returns the size in bytes of the encoded value using this coder.
+   */
+  protected long getEncodedElementByteSize(T value, Context context)
+      throws Exception {
+    try (CountingOutputStream os = new CountingOutputStream(ByteStreams.nullOutputStream())) {
+      encode(value, os, context);
+      return os.getCount();
+    } catch (Exception exn) {
+      throw new IllegalArgumentException(
+          "Unable to encode element '" + value + "' with coder '" + this + "'.", exn);
+    }
+  }
+
 
   /**
    * Notifies the {@code ElementByteSizeObserver} about the byte size
@@ -209,22 +279,30 @@ public interface Coder<T> extends Serializable {
    * <p>Not intended to be called by user code, but instead by
    * {@link org.apache.beam.sdk.runners.PipelineRunner}
    * implementations.
+   *
+   * <p>By default, this notifies {@code observer} about the byte size
+   * of the encoded value using this coder as returned by {@link #getEncodedElementByteSize}.
    */
-  void registerByteSizeObserver(
+  public void registerByteSizeObserver(
       T value, ElementByteSizeObserver observer, Context context)
-      throws Exception;
+      throws Exception {
+    observer.update(getEncodedElementByteSize(value, context));
+  };
 
   /**
    * Returns the {@link TypeDescriptor} for the type encoded.
    */
   @Experimental(Kind.CODER_TYPE_ENCODING)
-  TypeDescriptor<T> getEncodedTypeDescriptor();
+  public TypeDescriptor<T> getEncodedTypeDescriptor(){
+    return (TypeDescriptor<T>)
+        TypeDescriptor.of(getClass()).resolveType(new TypeDescriptor<T>() {}.getType());
+  }
 
   /**
    * Exception thrown by {@link Coder#verifyDeterministic()} if the encoding is
    * not deterministic, including details of why the encoding is not deterministic.
    */
-  class NonDeterministicException extends Exception {
+  public static class NonDeterministicException extends Exception {
     private Coder<?> coder;
     private List<String> reasons;
 

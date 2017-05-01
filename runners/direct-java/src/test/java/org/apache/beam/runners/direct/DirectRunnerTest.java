@@ -43,6 +43,7 @@ import org.apache.beam.runners.direct.DirectRunner.DirectPipelineResult;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.PipelineResult.State;
+import org.apache.beam.sdk.coders.AtomicCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.CustomCoder;
@@ -523,8 +524,7 @@ public class DirectRunnerTest implements Serializable {
     p.run();
   }
 
-  private static class LongNoDecodeCoder extends CustomCoder<Long> {
-
+  private static class LongNoDecodeCoder extends AtomicCoder<Long> {
     @Override
     public void encode(
         Long value, OutputStream outStream, Context context) throws IOException {
