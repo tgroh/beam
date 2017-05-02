@@ -212,7 +212,7 @@ public class GroupIntoBatches<K, InputT>
     }
 
     private void flushBatch(
-        Context c,
+        WindowedContext c,
         ValueState<K> key,
         BagState<InputT> batch,
         CombiningState<Long, Long, Long> numElementsInBatch) {

@@ -33,6 +33,7 @@ import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarLongCoder;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.display.DisplayData;
+import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.values.KV;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +48,7 @@ class WriteBundlesToFiles<DestinationT>
 
   // Map from tablespec to a writer for that table.
   private transient Map<DestinationT, TableRowWriter> writers;
+  private final String stepUuid;
   private final String tempFilePrefix;
 
   /**
@@ -109,19 +111,23 @@ class WriteBundlesToFiles<DestinationT>
   }
 
   @StartBundle
-  public void startBundle(Context c) {
+  public void startBundle() {
     // This must be done each bundle, as by default the {@link DoFn} might be reused between
     // bundles.
     this.writers = Maps.newHashMap();
+    this.tableDestinationWindows = Maps.newHashMap();
   }
 
   @ProcessElement
   public void processElement(ProcessContext c) throws Exception {
+    String tempFilePrefix = resolveTempLocation(
+        c.getPipelineOptions().getTempLocation(), "BigQueryWriteTemp", stepUuid);
     TableRowWriter writer = writers.get(c.element().getKey());
     if (writer == null) {
       writer = new TableRowWriter(tempFilePrefix);
       writer.open(UUID.randomUUID().toString());
       writers.put(c.element().getKey(), writer);
+      tableDestinationWindows.put(c.element().getKey(), window);
       LOG.debug("Done opening writer {}", writer);
     }
     try {
@@ -140,12 +146,16 @@ class WriteBundlesToFiles<DestinationT>
   }
 
   @FinishBundle
-  public void finishBundle(Context c) throws Exception {
-    for (Map.Entry<DestinationT, TableRowWriter> entry : writers.entrySet()) {
+  public void finishBundle(FinishBundleContext c) throws Exception {
+    for (Map.Entry<TableDestination, TableRowWriter> entry : writers.entrySet()) {
       TableRowWriter.Result result = entry.getValue().close();
-      c.output(new Result<>(result.resourceId.toString(), result.byteSize, entry.getKey()));
+      c.output(
+          new Result(result.resourceId.toString(), result.byteSize, entry.getKey()),
+          tableDestinationWindows.get(entry.getKey()).maxTimestamp(),
+          tableDestinationWindows.get(entry.getKey()));
     }
     writers.clear();
+    tableDestinationWindows.clear();
   }
 
   @Override
