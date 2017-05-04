@@ -125,6 +125,7 @@ class WriteBundlesToFiles<DestinationT>
       writer = new TableRowWriter(tempFilePrefix);
       writer.open(UUID.randomUUID().toString());
       writers.put(c.element().getKey(), writer);
+      destWindows.put()
       LOG.debug("Done opening writer {}", writer);
     }
     try {
