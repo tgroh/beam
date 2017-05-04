@@ -48,7 +48,7 @@ class WriteBundlesToFiles<DestinationT>
 
   // Map from tablespec to a writer for that table.
   private transient Map<DestinationT, TableRowWriter> writers;
-  private final String stepUuid;
+  private transient Map<DestinationT, BoundedWindow> destWindows;
   private final String tempFilePrefix;
 
   /**
@@ -115,19 +115,16 @@ class WriteBundlesToFiles<DestinationT>
     // This must be done each bundle, as by default the {@link DoFn} might be reused between
     // bundles.
     this.writers = Maps.newHashMap();
-    this.tableDestinationWindows = Maps.newHashMap();
+    this.destWindows = Maps.newHashMap();
   }
 
   @ProcessElement
   public void processElement(ProcessContext c) throws Exception {
-    String tempFilePrefix = resolveTempLocation(
-        c.getPipelineOptions().getTempLocation(), "BigQueryWriteTemp", stepUuid);
     TableRowWriter writer = writers.get(c.element().getKey());
     if (writer == null) {
       writer = new TableRowWriter(tempFilePrefix);
       writer.open(UUID.randomUUID().toString());
       writers.put(c.element().getKey(), writer);
-      tableDestinationWindows.put(c.element().getKey(), window);
       LOG.debug("Done opening writer {}", writer);
     }
     try {
@@ -147,15 +144,15 @@ class WriteBundlesToFiles<DestinationT>
 
   @FinishBundle
   public void finishBundle(FinishBundleContext c) throws Exception {
-    for (Map.Entry<TableDestination, TableRowWriter> entry : writers.entrySet()) {
+    for (Map.Entry<DestinationT, TableRowWriter> entry : writers.entrySet()) {
       TableRowWriter.Result result = entry.getValue().close();
       c.output(
-          new Result(result.resourceId.toString(), result.byteSize, entry.getKey()),
-          tableDestinationWindows.get(entry.getKey()).maxTimestamp(),
-          tableDestinationWindows.get(entry.getKey()));
+          new Result<>(result.resourceId.toString(), result.byteSize, entry.getKey()),
+          destWindows.get(entry.getKey()).maxTimestamp(),
+          destWindows.get(entry.getKey()));
     }
     writers.clear();
-    tableDestinationWindows.clear();
+    destWindows.clear();
   }
 
   @Override
