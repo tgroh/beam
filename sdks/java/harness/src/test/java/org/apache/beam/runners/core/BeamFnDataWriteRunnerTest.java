@@ -30,13 +30,15 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Any;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.BytesValue;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.beam.fn.harness.data.BeamFnDataClient;
 import org.apache.beam.fn.harness.fn.CloseableThrowingConsumer;
 import org.apache.beam.fn.v1.BeamFnApi;
-import org.apache.beam.runners.core.construction.Coders;
+import org.apache.beam.runners.dataflow.util.CloudObjects;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
@@ -63,11 +65,10 @@ public class BeamFnDataWriteRunnerTest {
   private static final BeamFnApi.Coder CODER_SPEC;
   static {
     try {
-      CODER_SPEC =
-          BeamFnApi.Coder.newBuilder()
-              .setFunctionSpec(
-                  BeamFnApi.FunctionSpec.newBuilder().setData(Any.pack(Coders.toProto(CODER))))
-              .build();
+      CODER_SPEC = BeamFnApi.Coder.newBuilder().setFunctionSpec(BeamFnApi.FunctionSpec.newBuilder()
+      .setData(Any.pack(BytesValue.newBuilder().setValue(ByteString.copyFrom(
+          OBJECT_MAPPER.writeValueAsBytes(CloudObjects.asCloudObject(CODER)))).build())))
+      .build();
     } catch (IOException e) {
       throw new ExceptionInInitializerError(e);
     }
