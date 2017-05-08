@@ -36,6 +36,7 @@ import org.apache.beam.runners.core.TimerInternals;
 import org.apache.beam.runners.core.UnsupportedSideInputReader;
 import org.apache.beam.runners.core.construction.Triggers;
 import org.apache.beam.runners.core.triggers.ExecutableTriggerStateMachine;
+import org.apache.beam.runners.core.triggers.TriggerStateMachine;
 import org.apache.beam.runners.core.triggers.TriggerStateMachines;
 import org.apache.beam.runners.direct.DirectExecutionContext.DirectStepContext;
 import org.apache.beam.runners.direct.DirectGroupByKey.DirectGroupAlsoByWindow;
@@ -53,12 +54,17 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.WindowingStrategy;
 import org.joda.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The {@link DirectRunner} {@link TransformEvaluatorFactory} for the
  * {@link GroupByKeyOnly} {@link PTransform}.
  */
 class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
+  private static final Logger LOG =
+      LoggerFactory.getLogger(GroupAlsoByWindowEvaluatorFactory.class);
+
   private final EvaluationContext evaluationContext;
 
   GroupAlsoByWindowEvaluatorFactory(EvaluationContext evaluationContext) {
@@ -161,13 +167,18 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
       CopyOnAccessInMemoryStateInternals stateInternals =
           (CopyOnAccessInMemoryStateInternals) stepContext.stateInternals();
       DirectTimerInternals timerInternals = stepContext.timerInternals();
+      TriggerStateMachine triggerStateMachine =
+          TriggerStateMachines.stateMachineForTrigger(
+              Triggers.toProto(windowingStrategy.getTrigger()));
+      LOG.info(
+          "Got state machine {} for trigger {}",
+          triggerStateMachine,
+          windowingStrategy.getTrigger());
       ReduceFnRunner<K, V, Iterable<V>, BoundedWindow> reduceFnRunner =
           new ReduceFnRunner<>(
               key,
               windowingStrategy,
-              ExecutableTriggerStateMachine.create(
-                  TriggerStateMachines.stateMachineForTrigger(
-                      Triggers.toProto(windowingStrategy.getTrigger()))),
+              ExecutableTriggerStateMachine.create(triggerStateMachine),
               stateInternals,
               timerInternals,
               new OutputWindowedValueToBundle<>(bundle),

@@ -26,6 +26,8 @@ import org.apache.beam.sdk.metrics.MetricsContainer;
 import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link Callable} responsible for constructing a {@link TransformEvaluator} from a
@@ -36,6 +38,8 @@ import org.apache.beam.sdk.util.WindowedValue;
  * that it is being executed on.
  */
 class TransformExecutor<T> implements Runnable {
+  private static final Logger LOG = LoggerFactory.getLogger(TransformExecutor.class);
+
   public static <T> TransformExecutor<T> create(
       EvaluationContext context,
       TransformEvaluatorFactory factory,
@@ -95,10 +99,12 @@ class TransformExecutor<T> implements Runnable {
         ModelEnforcement<T> enforcement = enforcementFactory.forBundle(inputBundle, transform);
         enforcements.add(enforcement);
       }
-      TransformEvaluator<T> evaluator =
-          evaluatorFactory.forApplication(transform, inputBundle);
+      TransformEvaluator<T> evaluator = evaluatorFactory.forApplication(transform, inputBundle);
       if (evaluator == null) {
-        onComplete.handleEmpty(transform);
+        LOG.info(
+            "No work to do for input bundle in PCollection {}",
+            inputBundle.getPCollection().getName());
+        onComplete.handleEmpty(inputBundle, transform);
         // Nothing to do
         return;
       }

@@ -424,7 +424,7 @@ public class TransformExecutorTest {
     }
 
     @Override
-    public void handleEmpty(AppliedPTransform<?, ?, ?> transform) {
+    public void handleEmpty(CommittedBundle<?> bundle, AppliedPTransform<?, ?, ?> transform) {
       handledEmpty = true;
       onMethod.countDown();
     }

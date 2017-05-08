@@ -34,7 +34,7 @@ interface CompletionCallback {
    *
    * <p>This occurs when a Source has no splits that can currently produce outputs.
    */
-  void handleEmpty(AppliedPTransform<?, ?, ?> transform);
+  void handleEmpty(CommittedBundle<?> inputBundle, AppliedPTransform<?, ?, ?> transform);
 
   /**
    * Handle a result that terminated abnormally due to the provided {@link Exception}.

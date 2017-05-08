@@ -33,8 +33,10 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -58,7 +60,6 @@ import org.apache.beam.sdk.util.UserCodeException;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
-import org.apache.beam.sdk.values.PValue;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.slf4j.Logger;
@@ -106,8 +107,8 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
    */
   private final AtomicLong outstandingWork = new AtomicLong();
 
-  private final ConcurrentMap<TransformExecutor, TransformExecutor> outstanding =
-      new ConcurrentHashMap<>();
+  private final Set<CommittedBundle<?>> outstanding =
+      Collections.synchronizedSet(new HashSet<CommittedBundle<?>>());
   private AtomicReference<State> pipelineState = new AtomicReference<>(State.RUNNING);
 
   public static ExecutorServiceParallelExecutor create(
@@ -213,21 +214,14 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
   }
 
   @SuppressWarnings("unchecked")
-  private void scheduleConsumption(
+  private <T> void scheduleConsumption(
       AppliedPTransform<?, ?, ?> consumer,
-      CommittedBundle<?> bundle,
+      CommittedBundle<T> bundle,
       CompletionCallback onComplete) {
-    evaluateBundle(consumer, bundle, onComplete);
-  }
-
-  private <T> void evaluateBundle(
-      final AppliedPTransform<?, ?, ?> transform,
-      final CommittedBundle<T> bundle,
-      final CompletionCallback onComplete) {
     TransformExecutorService transformExecutor;
 
-    if (isKeyed(bundle.getPCollection())) {
-      final StepAndKey stepAndKey = StepAndKey.of(transform, bundle.getKey());
+    if (evaluationContext.isKeyed(bundle.getPCollection())) {
+      final StepAndKey stepAndKey = StepAndKey.of(consumer, bundle.getKey());
       // This executor will remain reachable until it has executed all scheduled transforms.
       // The TransformExecutors keep a strong reference to the Executor, the ExecutorService keeps
       // a reference to the scheduled TransformExecutor callable. Follow-up TransformExecutors
@@ -240,7 +234,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
 
     Collection<ModelEnforcementFactory> enforcements =
         MoreObjects.firstNonNull(
-            transformEnforcements.get(transform.getTransform().getClass()),
+            transformEnforcements.get(consumer.getTransform().getClass()),
             Collections.<ModelEnforcementFactory>emptyList());
 
     TransformExecutor<T> callable =
@@ -249,19 +243,19 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
             registry,
             enforcements,
             bundle,
-            transform,
+            consumer,
             onComplete,
             transformExecutor);
-//    LOG.info("Adding {} for {} as outstanding work", callable, transform.getFullName());
+    LOG.info(
+        "Adding {} for key {} consumed by {} as outstanding work",
+        callable,
+        bundle.getKey(),
+        consumer.getFullName());
     outstandingWork.incrementAndGet();
-    outstanding.put(callable, callable);
+    outstanding.add(bundle);
     if (!pipelineState.get().isTerminal()) {
       transformExecutor.schedule(callable);
     }
-  }
-
-  private boolean isKeyed(PValue pvalue) {
-    return evaluationContext.isKeyed(pvalue);
   }
 
   private void scheduleConsumers(ExecutorUpdate update) {
@@ -366,21 +360,21 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
                   unprocessedInputs,
                   Collections.<AppliedPTransform<?, ?, ?>>singleton(
                       committedResult.getTransform())));
-          LOG.info("Work for {} had residual", committedResult.getTransform().getFullName());
         }
       }
       if (!committedResult.getProducedOutputTypes().isEmpty()) {
         state.set(ExecutorState.ACTIVE);
       }
       outstandingWork.decrementAndGet();
-      LOG.info("Completed some work for {}", committedResult.getTransform().getFullName());
+      outstanding.remove(inputBundle);
       return committedResult;
     }
 
     @Override
-    public void handleEmpty(AppliedPTransform<?, ?, ?> transform) {
+    public void handleEmpty(CommittedBundle<?> inputBundle, AppliedPTransform<?, ?, ?> transform) {
       LOG.info("Completed no work for {}", transform.getFullName());
       outstandingWork.decrementAndGet();
+      outstanding.remove(inputBundle);
     }
 
     @Override
@@ -388,6 +382,7 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
       allUpdates.offer(ExecutorUpdate.fromException(e));
       LOG.info("Threw an exception while processing {}", inputBundle.getPCollection());
       outstandingWork.decrementAndGet();
+      outstanding.remove(inputBundle);
     }
   }
 
