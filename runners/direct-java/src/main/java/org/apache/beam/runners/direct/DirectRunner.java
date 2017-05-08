@@ -49,12 +49,15 @@ import org.apache.beam.sdk.transforms.View.CreatePCollectionView;
 import org.apache.beam.sdk.util.UserCodeException;
 import org.apache.beam.sdk.values.PCollection;
 import org.joda.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * An In-Memory implementation of the Dataflow Programming Model. Supports Unbounded
  * {@link PCollection PCollections}.
  */
 public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
+  private static final Logger LOG = LoggerFactory.getLogger(DirectRunner.class);
 
   enum Enforcement {
     ENCODABILITY {
@@ -153,6 +156,7 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
 
   @Override
   public DirectPipelineResult run(Pipeline pipeline) {
+    LOG.info("Running Pipeline {} with the {}", pipeline, getClass().getSimpleName());
     pipeline.replaceAll(defaultTransformOverrides());
     MetricsEnvironment.setMetricsSupported(true);
     DirectGraphVisitor graphVisitor = new DirectGraphVisitor();

@@ -59,10 +59,13 @@ import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.state.TimeDomain;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
+import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.joda.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Manages watermarks of {@link PCollection PCollections} and input and output watermarks of
@@ -130,6 +133,7 @@ class WatermarkManager {
   // The number of updates to apply in #tryApplyPendingUpdates
   private static final int MAX_INCREMENTAL_UPDATES = 10;
 
+  private static final Logger LOG = LoggerFactory.getLogger(WatermarkManager.class);
 
   /**
    * The watermark of some {@link Pipeline} element, usually a {@link PTransform} or a
@@ -285,7 +289,10 @@ class WatermarkManager {
     }
 
     private synchronized void removePending(CommittedBundle<?> completed) {
-      pendingElements.remove(completed);
+      boolean didRemove = pendingElements.remove(completed);
+      if (!didRemove) {
+        LOG.warn("Didn't remove completed bundle {}. Pending: {}", completed, pendingElements);
+      }
     }
 
     private synchronized Instant getEarliestTimerTimestamp() {
@@ -373,9 +380,11 @@ class WatermarkManager {
     private final AppliedPTransformInputWatermark inputWatermark;
     private final PerKeyHolds holds;
     private AtomicReference<Instant> currentWatermark;
+    private final String stepName;
 
     public AppliedPTransformOutputWatermark(
-        AppliedPTransformInputWatermark inputWatermark) {
+        AppliedPTransformInputWatermark inputWatermark, String stepName) {
+      this.stepName = stepName;
       this.inputWatermark = inputWatermark;
       holds = new PerKeyHolds();
       currentWatermark = new AtomicReference<>(BoundedWindow.TIMESTAMP_MIN_VALUE);
@@ -418,6 +427,13 @@ class WatermarkManager {
           holds.getMinHold());
       newWatermark = INSTANT_ORDERING.max(oldWatermark, newWatermark);
       currentWatermark.set(newWatermark);
+      if (oldWatermark != newWatermark) {
+        if (newWatermark.equals(BoundedWindow.TIMESTAMP_MAX_VALUE)) {
+          LOG.info("Advancing Watermark for Step {} to positive infinity", stepName);
+        } else if (newWatermark.equals(GlobalWindow.INSTANCE.maxTimestamp())) {
+          LOG.info("Advancing Watermark for Step {} to end of global window", stepName);
+        }
+      }
       return WatermarkUpdate.fromTimestamps(oldWatermark, newWatermark);
     }
 
@@ -797,7 +813,7 @@ class WatermarkManager {
       AppliedPTransformInputWatermark inputWatermark =
           new AppliedPTransformInputWatermark(inputCollectionWatermarks);
       AppliedPTransformOutputWatermark outputWatermark =
-          new AppliedPTransformOutputWatermark(inputWatermark);
+          new AppliedPTransformOutputWatermark(inputWatermark, transform.getFullName());
 
       SynchronizedProcessingTimeInputWatermark inputProcessingWatermark =
           new SynchronizedProcessingTimeInputWatermark(getInputProcessingWatermarks(transform));

@@ -57,7 +57,7 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
    * TransformEvaluators} will attempt to dynamically split all sources larger than the minimum
    * dynamic split size.
    */
-  private static final long REQUIRED_DYNAMIC_SPLIT_ORIGINAL_SIZE = 0;
+  private static final long REQUIRED_DYNAMIC_SPLIT_ORIGINAL_SIZE = Long.MAX_VALUE;
   private final EvaluationContext evaluationContext;
 
   // TODO: (BEAM-723) Create a shared ExecutorService for maintenance tasks in the DirectRunner.
@@ -151,6 +151,7 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
         try {
           BoundedSource<OutputT> residual = residualFuture.get();
           if (residual != null) {
+            System.out.println("Got residual work");
             resultBuilder.addUnprocessedElements(
                 element.withValue(BoundedSourceShard.of(residual)));
           }

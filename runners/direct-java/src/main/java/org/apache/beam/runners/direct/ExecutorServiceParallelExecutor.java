@@ -105,6 +105,9 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
    * {@link CompletionCallback} decrement this value.
    */
   private final AtomicLong outstandingWork = new AtomicLong();
+
+  private final ConcurrentMap<TransformExecutor, TransformExecutor> outstanding =
+      new ConcurrentHashMap<>();
   private AtomicReference<State> pipelineState = new AtomicReference<>(State.RUNNING);
 
   public static ExecutorServiceParallelExecutor create(
@@ -249,7 +252,9 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
             transform,
             onComplete,
             transformExecutor);
+//    LOG.info("Adding {} for {} as outstanding work", callable, transform.getFullName());
     outstandingWork.incrementAndGet();
+    outstanding.put(callable, callable);
     if (!pipelineState.get().isTerminal()) {
       transformExecutor.schedule(callable);
     }
@@ -361,23 +366,27 @@ final class ExecutorServiceParallelExecutor implements PipelineExecutor {
                   unprocessedInputs,
                   Collections.<AppliedPTransform<?, ?, ?>>singleton(
                       committedResult.getTransform())));
+          LOG.info("Work for {} had residual", committedResult.getTransform().getFullName());
         }
       }
       if (!committedResult.getProducedOutputTypes().isEmpty()) {
         state.set(ExecutorState.ACTIVE);
       }
       outstandingWork.decrementAndGet();
+      LOG.info("Completed some work for {}", committedResult.getTransform().getFullName());
       return committedResult;
     }
 
     @Override
     public void handleEmpty(AppliedPTransform<?, ?, ?> transform) {
+      LOG.info("Completed no work for {}", transform.getFullName());
       outstandingWork.decrementAndGet();
     }
 
     @Override
     public final void handleException(CommittedBundle<?> inputBundle, Exception e) {
       allUpdates.offer(ExecutorUpdate.fromException(e));
+      LOG.info("Threw an exception while processing {}", inputBundle.getPCollection());
       outstandingWork.decrementAndGet();
     }
   }
