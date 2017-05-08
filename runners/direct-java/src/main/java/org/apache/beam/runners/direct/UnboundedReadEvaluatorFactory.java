@@ -97,7 +97,7 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
    */
   private static class UnboundedReadEvaluator<OutputT, CheckpointMarkT extends CheckpointMark>
       implements TransformEvaluator<UnboundedSourceShard<OutputT, CheckpointMarkT>> {
-    private static final int ARBITRARY_MAX_ELEMENTS = 10;
+    private static final int ARBITRARY_MAX_ELEMENTS = 1000;
 
     private final AppliedPTransform<?, PCollection<OutputT>, ?> transform;
     private final EvaluationContext evaluationContext;
