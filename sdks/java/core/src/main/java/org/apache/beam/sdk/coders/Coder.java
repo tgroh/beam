@@ -35,6 +35,7 @@ import javax.annotation.Nullable;
 import org.apache.beam.sdk.PipelineRunner;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Experimental.Kind;
+import org.apache.beam.sdk.annotations.Internal;
 import org.apache.beam.sdk.util.common.ElementByteSizeObserver;
 import org.apache.beam.sdk.values.TypeDescriptor;
 
@@ -190,6 +191,8 @@ public abstract class Coder<T> implements Serializable {
    * Verifies all of the provided coders are deterministic. If any are not, throws a {@link
    * NonDeterministicException} for the {@code target} {@link Coder}.
    */
+  @Internal
+  @Deprecated
   public static void verifyDeterministic(Coder<?> target, String message, Iterable<Coder<?>> coders)
       throws NonDeterministicException {
     for (Coder<?> coder : coders) {
@@ -205,6 +208,8 @@ public abstract class Coder<T> implements Serializable {
    * Verifies all of the provided coders are deterministic. If any are not, throws a {@link
    * NonDeterministicException} for the {@code target} {@link Coder}.
    */
+  @Internal
+  @Deprecated
   public static void verifyDeterministic(Coder<?> target, String message, Coder<?>... coders)
       throws NonDeterministicException {
     verifyDeterministic(target, message, Arrays.asList(coders));
