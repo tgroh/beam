@@ -17,6 +17,8 @@
  */
 package org.apache.beam.examples.complete.game;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.avro.reflect.Nullable;
@@ -37,6 +39,7 @@ import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.Sum;
+import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TypeDescriptors;
@@ -138,6 +141,10 @@ public class UserScore {
         Long timestamp = Long.parseLong(components[3].trim());
         GameActionInfo gInfo = new GameActionInfo(user, team, score, timestamp);
         c.output(gInfo);
+        checkArgument(
+            c.timestamp().isBefore(BoundedWindow.TIMESTAMP_MAX_VALUE),
+            "Unexpectedly late element %s",
+            c);
       } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
         numParseErrors.inc();
         LOG.info("Parse error on " + c.element() + ", " + e.getMessage());

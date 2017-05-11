@@ -48,14 +48,14 @@ class InjectorUtils {
       if (credential.createScopedRequired()) {
           credential = credential.createScoped(PubsubScopes.all());
       }
-      if (credential.getClientAuthentication() != null) {
-        System.out.println("\n***Warning! You are not using service account credentials to "
-          + "authenticate.\nYou need to use service account credentials for this example,"
-          + "\nsince user-level credentials do not have enough pubsub quota,\nand so you will run "
-          + "out of PubSub quota very quickly.\nSee "
-          + "https://developers.google.com/identity/protocols/application-default-credentials.");
-        System.exit(1);
-      }
+//      if (credential.getClientAuthentication() != null) {
+//        System.out.println("\n***Warning! You are not using service account credentials to "
+//          + "authenticate.\nYou need to use service account credentials for this example,"
+//          + "\nsince user-level credentials do not have enough pubsub quota,\nand so you will run "
+//          + "out of PubSub quota very quickly.\nSee "
+//          + "https://developers.google.com/identity/protocols/application-default-credentials.");
+//        System.exit(1);
+//      }
       HttpRequestInitializer initializer =
           new RetryHttpInitializerWrapper(credential);
       return new Pubsub.Builder(httpTransport, jsonFactory, initializer)

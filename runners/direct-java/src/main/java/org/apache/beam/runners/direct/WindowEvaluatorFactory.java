@@ -17,6 +17,8 @@
  */
 package org.apache.beam.runners.direct;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import com.google.common.collect.Iterables;
 import java.util.Collection;
 import javax.annotation.Nullable;
@@ -98,6 +100,25 @@ class WindowEvaluatorFactory implements TransformEvaluatorFactory {
       WindowFn<InputT, W>.AssignContext assignContext =
           new DirectAssignContext<>(windowFn, element);
       Collection<? extends BoundedWindow> windows = windowFn.assignWindows(assignContext);
+      for (BoundedWindow window : windows) {
+        PCollection<InputT> outputPC =
+            (PCollection<InputT>) Iterables.getOnlyElement(transform.getOutputs().values());
+        checkArgument(
+            window
+                    .maxTimestamp()
+                    .plus(outputPC.getWindowingStrategy().getAllowedLateness())
+                    .isBefore(BoundedWindow.TIMESTAMP_MAX_VALUE)
+                || outputPC
+                    .getWindowingStrategy()
+                    .getAllowedLateness()
+                    .equals(BoundedWindow.TIMESTAMP_MAX_VALUE),
+            "Assigned %s to a window %s with fn %s. "
+                + "Expiry is past end of time. Windowing strategy %s",
+            element,
+            window,
+            windowFn,
+            outputPC.getWindowingStrategy());
+      }
       return windows;
     }
 
