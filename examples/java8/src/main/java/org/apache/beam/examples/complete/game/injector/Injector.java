@@ -89,8 +89,8 @@ class Injector {
   private static final String TIMESTAMP_ATTRIBUTE = "timestamp_ms";
 
   // QPS ranges from 800 to 1000.
-  private static final int MIN_QPS = 800;
-  private static final int QPS_RANGE = 200;
+  private static final int MIN_QPS = 75;
+  private static final int QPS_RANGE = 25;
   // How long to sleep, in ms, between creation of the threads that make API requests to PubSub.
   private static final int THREAD_SLEEP_MS = 500;
 
@@ -124,7 +124,7 @@ class Injector {
   private static final int BASE_MEMBERS_PER_TEAM = 5;
   private static final int MEMBERS_PER_TEAM = 15;
   private static final int MAX_SCORE = 20;
-  private static final int LATE_DATA_RATE = 5 * 60 * 2;       // Every 10 minutes
+  private static final int LATE_DATA_RATE = 5 * 60 * 2;       // Every 2 minutes
   private static final int BASE_DELAY_IN_MILLIS = 5 * 60 * 1000;  // 5-10 minute delay
   private static final int FUZZY_DELAY_IN_MILLIS = 5 * 60 * 1000;
 
