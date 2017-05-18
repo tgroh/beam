@@ -50,9 +50,6 @@ import org.apache.beam.sdk.util.WindowedValue.FullWindowedValueCoder;
 
 /** Converts to and from Beam Runner API representations of {@link Coder Coders}. */
 public class Coders {
-  // This URN says that the coder is just a UDF blob this SDK understands
-  // TODO: standardize such things
-  public static final String JAVA_SERIALIZED_CODER_URN = "urn:beam:coders:javasdk:0.1";
 
   // The URNs for coders which are shared across languages
   @VisibleForTesting
@@ -136,9 +133,10 @@ public class Coders {
     return coderBuilder
         .setSpec(
             SdkFunctionSpec.newBuilder()
+                .setEnvironmentId(RunnerApiUrns.JAVA_SDK_URN)
                 .setSpec(
                     FunctionSpec.newBuilder()
-                        .setUrn(JAVA_SERIALIZED_CODER_URN)
+                        .setUrn(RunnerApiUrns.JAVA_SERIALIZED_CODER_URN)
                         .setParameter(
                             Any.pack(
                                 BytesValue.newBuilder()
@@ -152,7 +150,7 @@ public class Coders {
   public static Coder<?> fromProto(RunnerApi.Coder protoCoder, Components components)
       throws IOException {
     String coderSpecUrn = protoCoder.getSpec().getSpec().getUrn();
-    if (coderSpecUrn.equals(JAVA_SERIALIZED_CODER_URN)) {
+    if (coderSpecUrn.equals(RunnerApiUrns.JAVA_SERIALIZED_CODER_URN)) {
       return fromCustomCoder(protoCoder, components);
     }
     return fromKnownCoder(protoCoder, components);
