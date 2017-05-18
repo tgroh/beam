@@ -20,6 +20,7 @@ package org.apache.beam.runners.core.construction;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import com.google.auto.service.AutoService;
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Optional;
 import com.google.protobuf.Any;
@@ -94,10 +95,6 @@ public class ParDos {
    */
   public static class ParDoPayloadTranslator
       implements PTransforms.TransformPayloadTranslator<ParDo.MultiOutput<?, ?>> {
-    public static TransformPayloadTranslator create() {
-      return new ParDoPayloadTranslator();
-    }
-
     private ParDoPayloadTranslator() {}
 
     @Override
@@ -108,6 +105,20 @@ public class ParDos {
           .setUrn(PAR_DO_PAYLOAD_URN)
           .setParameter(Any.pack(payload))
           .build();
+    }
+
+    /**
+     * The {@link TransformPayloadTranslatorRegistrar} for {@link ParDoPayloadTranslator}.
+     */
+    @AutoService(TransformPayloadTranslatorRegistrar.class)
+    public static class Registrar implements TransformPayloadTranslatorRegistrar {
+
+      @Override
+      public Map<Class<? extends PTransform>, TransformPayloadTranslator>
+          getTransformPayloadTranslators() {
+        return Collections.<Class<? extends PTransform>, TransformPayloadTranslator>singletonMap(
+            ParDo.MultiOutput.class, new ParDoPayloadTranslator());
+      }
     }
   }
 
