@@ -20,10 +20,10 @@ package org.apache.beam.runners.direct;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import com.google.common.collect.Iterables;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.beam.runners.core.construction.PTransformReplacements;
 import org.apache.beam.runners.direct.DirectExecutionContext.DirectStepContext;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.DoFn;
@@ -140,11 +140,12 @@ final class ParDoEvaluatorFactory<InputT, OutputT> implements TransformEvaluator
       DoFnLifecycleManager fnManager)
       throws Exception {
     try {
+      PCollection<InputT> mainInput = PTransformReplacements.getSingletonMainInput(application);
       return ParDoEvaluator.create(
           evaluationContext,
           stepContext,
           application,
-          ((PCollection<InputT>) Iterables.getOnlyElement(application.getInputs().values()))
+          ((PCollection<InputT>) mainInput)
               .getWindowingStrategy(),
           fn,
           key,

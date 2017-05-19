@@ -20,6 +20,7 @@ package org.apache.beam.runners.direct;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.beam.runners.core.construction.PTransformReplacements;
 import org.apache.beam.runners.direct.CommittedResult.OutputType;
 import org.apache.beam.runners.direct.StepTransformResult.Builder;
 import org.apache.beam.runners.direct.ViewOverrideFactory.WriteView;
@@ -62,8 +63,7 @@ class ViewEvaluatorFactory implements TransformEvaluatorFactory {
   private <InT, OuT> TransformEvaluator<Iterable<InT>> createEvaluator(
       final AppliedPTransform<PCollection<Iterable<InT>>, PCollectionView<OuT>, WriteView<InT, OuT>>
           application) {
-    PCollection<Iterable<InT>> input =
-        (PCollection<Iterable<InT>>) Iterables.getOnlyElement(application.getInputs().values());
+    PCollection<Iterable<InT>> input = PTransformReplacements.getSingletonMainInput(application);
     final PCollectionViewWriter<InT, OuT> writer = context.createPCollectionViewWriter(input,
         (PCollectionView<OuT>) Iterables.getOnlyElement(application.getOutputs().values()));
     return new TransformEvaluator<Iterable<InT>>() {

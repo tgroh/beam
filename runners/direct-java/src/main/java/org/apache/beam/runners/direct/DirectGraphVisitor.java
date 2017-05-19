@@ -24,6 +24,7 @@ import com.google.common.collect.ListMultimap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.Pipeline.PipelineVisitor;
@@ -34,6 +35,7 @@ import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TupleTag;
 
 /**
  * Tracks the {@link AppliedPTransform AppliedPTransforms} that consume each {@link PValue} in the
@@ -82,8 +84,12 @@ class DirectGraphVisitor extends PipelineVisitor.Defaults {
     if (node.getInputs().isEmpty()) {
       rootTransforms.add(appliedTransform);
     } else {
-      for (PValue value : node.getInputs().values()) {
-        primitiveConsumers.put(value, appliedTransform);
+      for (Entry<TupleTag<?>, PValue> value : node.getInputs().entrySet()) {
+        // The limited set of primitive transforms has known additional inputs, none of which
+        // should be the main input.
+        if (!appliedTransform.getTransform().getAdditionalInputs().containsKey(value.getKey())) {
+          primitiveConsumers.put(value.getValue(), appliedTransform);
+        }
       }
     }
   }

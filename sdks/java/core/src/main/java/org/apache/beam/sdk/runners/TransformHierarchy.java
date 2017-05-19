@@ -270,10 +270,22 @@ public class TransformHierarchy {
         @Nullable PTransform<?, ?> transform,
         String fullName,
         @Nullable PInput input) {
+      if (enclosingNode == null) {
+        checkArgument(transform == null);
+        checkArgument(input == null);
+      } else {
+        checkArgument(transform != null);
+        checkArgument(input != null);
+      }
       this.enclosingNode = enclosingNode;
       this.transform = transform;
       this.fullName = fullName;
-      this.inputs = input == null ? Collections.<TupleTag<?>, PValue>emptyMap() : input.expand();
+      ImmutableMap.Builder<TupleTag<?>, PValue> allInputs = ImmutableMap.builder();
+      if (input != null) {
+        allInputs.putAll(input.expand());
+        allInputs.putAll(transform.getAdditionalInputs());
+      }
+      this.inputs = allInputs.build();
     }
 
     /**
