@@ -312,7 +312,7 @@ public class ProcessBundleHandler {
             (DoFn) doFnInfo.getDoFn(),
             NullSideInputReader.empty(), /* TODO */
             outputManager,
-            (TupleTag) doFnInfo.getOutputMap().get(doFnInfo.getMainOutput()),
+            doFnInfo.getMainOutput(),
             new ArrayList<>(doFnInfo.getOutputMap().values()),
             new FakeStepContext(),
             (WindowingStrategy) doFnInfo.getWindowingStrategy());

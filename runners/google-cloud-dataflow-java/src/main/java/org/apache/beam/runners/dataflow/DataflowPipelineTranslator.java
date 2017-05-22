@@ -978,7 +978,12 @@ public class DataflowPipelineTranslator {
         byteArrayToJsonString(
             serializeToByteArray(
                 DoFnInfo.forFn(
-                    fn, windowingStrategy, sideInputs, inputCoder, mainOutput, outputMap))));
+                    fn,
+                    windowingStrategy,
+                    sideInputs,
+                    inputCoder,
+                    outputMap.get(mainOutput),
+                    outputMap))));
 
     // Setting USES_KEYED_STATE will cause an ungrouped shuffle, which works
     // in streaming but does not work in batch
