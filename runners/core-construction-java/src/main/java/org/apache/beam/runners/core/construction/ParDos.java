@@ -75,10 +75,6 @@ import org.apache.beam.sdk.values.WindowingStrategy;
  */
 public class ParDos {
   /**
-   * The URN for a {@link ParDoPayload}.
-   */
-  public static final String PAR_DO_PAYLOAD_URN = "urn:beam:pardo:v1";
-  /**
    * The URN for an unknown Java {@link DoFn}.
    */
   public static final String CUSTOM_JAVA_DO_FN_URN = "urn:beam:dofn:javasdk:0.1";
@@ -108,7 +104,7 @@ public class ParDos {
         AppliedPTransform<?, ?, MultiOutput<?, ?>> transform, SdkComponents components) {
       ParDoPayload payload = toProto(transform.getTransform(), components);
       return RunnerApi.FunctionSpec.newBuilder()
-          .setUrn(PAR_DO_PAYLOAD_URN)
+          .setUrn(PTransforms.Urns.PAR_DO_URN)
           .setParameter(Any.pack(payload))
           .build();
     }
