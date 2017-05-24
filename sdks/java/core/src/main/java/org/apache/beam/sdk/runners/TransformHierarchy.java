@@ -482,11 +482,13 @@ public class TransformHierarchy {
       if (getEnclosingNode() != null && !visitedNodes.contains(getEnclosingNode())) {
         getEnclosingNode().visit(visitor, visitedValues, visitedNodes, passedComposites);
       }
-      if (visitedNodes.contains(this) || childNodeOf(passedComposites)) {
-        // If this has been visited, or it has been passed over, do not revisit it
+      if (!visitedNodes.add(this)) {
+        LOG.debug("Not revisiting previously visited node {}", this);
+        return;
+      } else if (childNodeOf(passedComposites)) {
+        LOG.debug("Not revisiting Node {} which is a child of a previously passed composite", this);
         return;
       }
-      visitedNodes.add(this);
 
       if (!finishedSpecifying) {
         finishSpecifying();
