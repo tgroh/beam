@@ -35,7 +35,7 @@ import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.PValue;
-import org.apache.beam.sdk.values.TaggedPValue;
+import org.apache.beam.sdk.values.TaggedPCollection;
 import org.hamcrest.Matchers;
 import org.junit.Rule;
 import org.junit.Test;
@@ -98,7 +98,7 @@ public class DeduplicatedFlattenFactoryTest {
         Matchers.<PValue, ReplacementOutput>hasEntry(
             replacement,
             ReplacementOutput.of(
-                TaggedPValue.ofExpandedValue(original),
-                TaggedPValue.ofExpandedValue(replacement))));
+                TaggedPCollection.ofExpandedValue(original),
+                TaggedPCollection.ofExpandedValue(replacement))));
   }
 }

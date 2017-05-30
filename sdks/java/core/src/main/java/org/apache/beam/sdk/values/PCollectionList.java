@@ -114,9 +114,9 @@ public class PCollectionList<T> implements PInput, POutput {
           "PCollections come from different Pipelines");
     }
     return new PCollectionList<>(pipeline,
-        ImmutableList.<TaggedPValue>builder()
+        ImmutableList.<TaggedPCollection>builder()
             .addAll(pcollections)
-            .add(TaggedPValue.of(new TupleTag<T>(), pc))
+            .add(TaggedPCollection.of(new TupleTag<T>(), pc))
             .build());
   }
 
@@ -129,13 +129,13 @@ public class PCollectionList<T> implements PInput, POutput {
    * part of the same {@link Pipeline}.
    */
   public PCollectionList<T> and(Iterable<PCollection<T>> pcs) {
-    ImmutableList.Builder<TaggedPValue> builder = ImmutableList.builder();
+    ImmutableList.Builder<TaggedPCollection> builder = ImmutableList.builder();
     builder.addAll(pcollections);
     for (PCollection<T> pc : pcs) {
       if (pc.getPipeline() != pipeline) {
         throw new IllegalArgumentException("PCollections come from different Pipelines");
       }
-      builder.add(TaggedPValue.of(new TupleTag<T>(), pc));
+      builder.add(TaggedPCollection.of(new TupleTag<T>(), pc));
     }
     return new PCollectionList<>(pipeline, builder.build());
   }
@@ -155,7 +155,7 @@ public class PCollectionList<T> implements PInput, POutput {
    */
   public PCollection<T> get(int index) {
     @SuppressWarnings("unchecked") // Type-safe by construction
-    PCollection<T> value = (PCollection<T>) pcollections.get(index).getValue();
+    PCollection<T> value = (PCollection<T>) pcollections.get(index).getPCollection();
     return value;
   }
 
@@ -165,9 +165,9 @@ public class PCollectionList<T> implements PInput, POutput {
    */
   public List<PCollection<T>> getAll() {
     ImmutableList.Builder<PCollection<T>> res = ImmutableList.builder();
-    for (TaggedPValue value : pcollections) {
+    for (TaggedPCollection value : pcollections) {
       @SuppressWarnings("unchecked") // Type-safe by construction
-      PCollection<T> typedValue = (PCollection<T>) value.getValue();
+      PCollection<T> typedValue = (PCollection<T>) value.getPCollection();
       res.add(typedValue);
     }
     return res.build();
@@ -203,13 +203,13 @@ public class PCollectionList<T> implements PInput, POutput {
    * The {@link PCollection PCollections} contained by this {@link PCollectionList}, and an
    * arbitrary tags associated with each.
    */
-  final List<TaggedPValue> pcollections;
+  final List<TaggedPCollection> pcollections;
 
   PCollectionList(Pipeline pipeline) {
-    this(pipeline, ImmutableList.<TaggedPValue>of());
+    this(pipeline, ImmutableList.<TaggedPCollection>of());
   }
 
-  PCollectionList(Pipeline pipeline, List<TaggedPValue> values) {
+  PCollectionList(Pipeline pipeline, List<TaggedPCollection> values) {
     this.pipeline = pipeline;
     this.pcollections = ImmutableList.copyOf(values);
   }
@@ -222,8 +222,8 @@ public class PCollectionList<T> implements PInput, POutput {
   @Override
   public Map<TupleTag<?>, PValue> expand() {
     ImmutableMap.Builder<TupleTag<?>, PValue> expanded = ImmutableMap.builder();
-    for (TaggedPValue tagged : pcollections) {
-      expanded.put(tagged.getTag(), tagged.getValue());
+    for (TaggedPCollection tagged : pcollections) {
+      expanded.put(tagged.getTag(), tagged.getPCollection());
     }
     return expanded.build();
   }
@@ -233,9 +233,9 @@ public class PCollectionList<T> implements PInput, POutput {
       String transformName, PInput input, PTransform<?, ?> transform) {
     // All component PCollections will have already been finished.
     int i = 0;
-    for (TaggedPValue tpv : pcollections) {
+    for (TaggedPCollection tpv : pcollections) {
       @SuppressWarnings("unchecked")
-      PCollection<T> pc = (PCollection<T>) tpv.getValue();
+      PCollection<T> pc = (PCollection<T>) tpv.getPCollection();
       if (pc.getName().equals(PValueBase.defaultName(transformName))) {
         pc.setName(String.format("%s.%s%s", transformName, "out", i));
       }

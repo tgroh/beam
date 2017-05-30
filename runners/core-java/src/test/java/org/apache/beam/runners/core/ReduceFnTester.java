@@ -568,7 +568,7 @@ public class ReduceFnTester<InputT, OutputT, W extends BoundedWindow> {
         Instant timestamp,
         Collection<? extends BoundedWindow> windows,
         PaneInfo pane) {
-      throw new UnsupportedOperationException("GroupAlsoByWindow should not use tagged outputs");
+      throw new UnsupportedOperationException("GroupAlsoByWindow should not use tuple outputs");
     }
   }
 

@@ -26,6 +26,7 @@ import com.google.common.collect.Iterables;
 import java.io.Serializable;
 import java.util.List;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.coders.VoidCoder;
 import org.apache.beam.sdk.io.CountingSource;
 import org.apache.beam.sdk.io.GenerateSequence;
 import org.apache.beam.sdk.io.Read;
@@ -78,6 +79,15 @@ public class DirectGraphVisitorTest implements Serializable {
             .apply(View.<String>asList());
     PCollectionView<Object> singletonView =
         p.apply("singletonCreate", Create.<Object>of(1, 2, 3)).apply(View.<Object>asSingleton());
+    p.apply(Create.empty(VoidCoder.of()))
+        .apply(
+            "ParDoConsumingInputs",
+            ParDo.of(
+                    new DoFn<Void, Void>() {
+                      @ProcessElement
+                      public void doNothing(ProcessContext ctxt) {}
+                    })
+                .withSideInputs(listView, singletonView));
     p.traverseTopologically(visitor);
     assertThat(
         visitor.getGraph().getViews(),

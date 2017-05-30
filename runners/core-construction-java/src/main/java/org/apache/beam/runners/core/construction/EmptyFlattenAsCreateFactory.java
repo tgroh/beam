@@ -62,7 +62,7 @@ public class EmptyFlattenAsCreateFactory<T>
   }
 
   @Override
-  public Map<PValue, ReplacementOutput> mapOutputs(
+  public Map<PCollection<?>, ReplacementOutput> mapOutputs(
       Map<TupleTag<?>, PValue> outputs, PCollection<T> newOutput) {
     return ReplacementOutputs.singleton(outputs, newOutput);
   }

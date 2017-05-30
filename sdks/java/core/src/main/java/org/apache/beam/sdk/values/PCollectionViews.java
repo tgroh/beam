@@ -418,6 +418,11 @@ public class PCollectionViews {
     }
 
     @Override
+    public Map<TupleTag<?>, PValue> expand() {
+      return Collections.<TupleTag<?>, PValue>singletonMap(tag, pCollection);
+    }
+
+    @Override
     public ViewFn<Iterable<WindowedValue<?>>, ViewT> getViewFn() {
       // Safe cast: it is required that the rest of the SDK maintain the invariant
       // that a PCollectionView is only provided an iterable for the elements of an

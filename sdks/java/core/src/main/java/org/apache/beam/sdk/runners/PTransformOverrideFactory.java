@@ -26,10 +26,11 @@ import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Experimental.Kind;
 import org.apache.beam.sdk.annotations.Internal;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
-import org.apache.beam.sdk.values.TaggedPValue;
+import org.apache.beam.sdk.values.TaggedPCollection;
 import org.apache.beam.sdk.values.TupleTag;
 
 /**
@@ -55,7 +56,8 @@ public interface PTransformOverrideFactory<
    * Returns a {@link Map} from the expanded values in {@code newOutput} to the values produced by
    * the original transform.
    */
-  Map<PValue, ReplacementOutput> mapOutputs(Map<TupleTag<?>, PValue> outputs, OutputT newOutput);
+  Map<PCollection<?>, ReplacementOutput> mapOutputs(
+      Map<TupleTag<?>, PValue> outputs, OutputT newOutput);
 
   /**
    * A {@link PTransform} that replaces an {@link AppliedPTransform}, and the input required to
@@ -74,16 +76,16 @@ public interface PTransformOverrideFactory<
   }
 
   /**
-   * A mapping between original {@link TaggedPValue} outputs and their replacements.
+   * A mapping between original {@link TaggedPCollection} outputs and their replacements.
    */
   @AutoValue
   abstract class ReplacementOutput {
-    public static ReplacementOutput of(TaggedPValue original, TaggedPValue replacement) {
+    public static ReplacementOutput of(TaggedPCollection original, TaggedPCollection replacement) {
       return new AutoValue_PTransformOverrideFactory_ReplacementOutput(original, replacement);
     }
 
-    public abstract TaggedPValue getOriginal();
+    public abstract TaggedPCollection getOriginal();
 
-    public abstract TaggedPValue getReplacement();
+    public abstract TaggedPCollection getReplacement();
   }
 }

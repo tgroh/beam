@@ -158,7 +158,7 @@ public class SparkGroupAlsoByWindowViaOutputBufferFn<K, InputT, W extends Bounde
         AdditionalOutputT output,
         Instant timestamp,
         Collection<? extends BoundedWindow> windows, PaneInfo pane) {
-      throw new UnsupportedOperationException("GroupAlsoByWindow should not use tagged outputs.");
+      throw new UnsupportedOperationException("GroupAlsoByWindow should not use tuple outputs.");
     }
 
     Iterable<WindowedValue<KV<K, Iterable<V>>>> getOutputs() {

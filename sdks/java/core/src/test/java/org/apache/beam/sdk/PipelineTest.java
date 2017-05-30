@@ -65,7 +65,7 @@ import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
-import org.apache.beam.sdk.values.TaggedPValue;
+import org.apache.beam.sdk.values.TaggedPCollection;
 import org.apache.beam.sdk.values.TupleTag;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -419,14 +419,14 @@ public class PipelineTest {
       }
 
       @Override
-      public Map<PValue, ReplacementOutput> mapOutputs(
+      public Map<PCollection<?>, ReplacementOutput> mapOutputs(
           Map<TupleTag<?>, PValue> outputs, PCollection<Long> newOutput) {
-        return Collections.<PValue, ReplacementOutput>singletonMap(
+        return Collections.<PCollection<?>, ReplacementOutput>singletonMap(
             newOutput,
             ReplacementOutput.of(
-                TaggedPValue.ofExpandedValue(
-                    Iterables.getOnlyElement(outputs.values())),
-                    TaggedPValue.ofExpandedValue(newOutput)));
+                TaggedPCollection.ofExpandedValue(
+                    (PCollection<?>) Iterables.getOnlyElement(outputs.values())),
+                TaggedPCollection.ofExpandedValue(newOutput)));
       }
     }
 
@@ -470,16 +470,16 @@ public class PipelineTest {
     }
 
     @Override
-    public Map<PValue, ReplacementOutput> mapOutputs(
+    public Map<PCollection<?>, ReplacementOutput> mapOutputs(
         Map<TupleTag<?>, PValue> outputs, PCollection<Long> newOutput) {
       Map.Entry<TupleTag<?>, PValue> original = Iterables.getOnlyElement(outputs.entrySet());
       Map.Entry<TupleTag<?>, PValue> replacement =
           Iterables.getOnlyElement(newOutput.expand().entrySet());
-      return Collections.<PValue, ReplacementOutput>singletonMap(
+      return Collections.<PCollection<?>, ReplacementOutput>singletonMap(
           newOutput,
           ReplacementOutput.of(
-              TaggedPValue.of(original.getKey(), original.getValue()),
-              TaggedPValue.of(replacement.getKey(), replacement.getValue())));
+              TaggedPCollection.of(original.getKey(), (PCollection<?>) original.getValue()),
+              TaggedPCollection.of(replacement.getKey(), (PCollection<?>) replacement.getValue())));
     }
   }
 
@@ -502,16 +502,16 @@ public class PipelineTest {
     }
 
     @Override
-    public Map<PValue, ReplacementOutput> mapOutputs(
+    public Map<PCollection<?>, ReplacementOutput> mapOutputs(
         Map<TupleTag<?>, PValue> outputs, PCollection<T> newOutput) {
       Map.Entry<TupleTag<?>, PValue> original = Iterables.getOnlyElement(outputs.entrySet());
       Map.Entry<TupleTag<?>, PValue> replacement =
           Iterables.getOnlyElement(newOutput.expand().entrySet());
-      return Collections.<PValue, ReplacementOutput>singletonMap(
+      return Collections.<PCollection<?>, ReplacementOutput>singletonMap(
           newOutput,
           ReplacementOutput.of(
-              TaggedPValue.of(original.getKey(), original.getValue()),
-              TaggedPValue.of(replacement.getKey(), replacement.getValue())));
+              TaggedPCollection.of(original.getKey(), (PCollection<?>) original.getValue()),
+              TaggedPCollection.of(replacement.getKey(), (PCollection<?>) replacement.getValue())));
     }
   }
 }

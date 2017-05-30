@@ -486,7 +486,7 @@ class FlinkBatchTransformTranslators {
       // assume that the windowing strategy is the same for all outputs
       WindowingStrategy<?, ?> windowingStrategy = null;
 
-      // collect all output Coders and create a UnionCoder for our tagged outputs
+      // collect all output Coders and create a UnionCoder for our tuple outputs
       List<Coder<?>> outputCoders = Lists.newArrayList();
       for (PValue taggedValue : outputs.values()) {
         checkState(

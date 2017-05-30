@@ -28,9 +28,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import org.apache.beam.sdk.runners.PTransformOverrideFactory.ReplacementOutput;
+import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
-import org.apache.beam.sdk.values.TaggedPValue;
+import org.apache.beam.sdk.values.TaggedPCollection;
 import org.apache.beam.sdk.values.TupleTag;
 
 /**
@@ -39,29 +41,35 @@ import org.apache.beam.sdk.values.TupleTag;
 public class ReplacementOutputs {
   private ReplacementOutputs() {}
 
-  public static Map<PValue, ReplacementOutput> singleton(
-      Map<TupleTag<?>, PValue> original, PValue replacement) {
+  public static Map<PCollection<?>, ReplacementOutput> singleton(
+      Map<TupleTag<?>, PValue> original, PCollection<?> replacement) {
     Entry<TupleTag<?>, PValue> originalElement = Iterables.getOnlyElement(original.entrySet());
     TupleTag<?> replacementTag = Iterables.getOnlyElement(replacement.expand().entrySet()).getKey();
-    return Collections.singletonMap(
+    return Collections.<PCollection<?>, ReplacementOutput>singletonMap(
         replacement,
         ReplacementOutput.of(
-            TaggedPValue.of(originalElement.getKey(), originalElement.getValue()),
-            TaggedPValue.of(replacementTag, replacement)));
+            TaggedPCollection.of(
+                originalElement.getKey(), (PCollection<?>) originalElement.getValue()),
+            TaggedPCollection.of(replacementTag, replacement)));
   }
 
-  public static Map<PValue, ReplacementOutput> tagged(
-      Map<TupleTag<?>, PValue> original, POutput replacement) {
-    Map<TupleTag<?>, TaggedPValue> originalTags = new HashMap<>();
+  public static Map<PCollection<?>, ReplacementOutput> tuple(
+      Map<TupleTag<?>, PValue> original, PCollectionTuple replacement) {
+    Map<TupleTag<?>, TaggedPCollection> originalTags = new HashMap<>();
     for (Map.Entry<TupleTag<?>, PValue> originalValue : original.entrySet()) {
+      checkArgument(
+          originalValue.getValue() instanceof PCollection,
+          "Can only replace %s outputs",
+          PCollection.class.getSimpleName());
       originalTags.put(
           originalValue.getKey(),
-          TaggedPValue.of(originalValue.getKey(), originalValue.getValue()));
+          TaggedPCollection.of(originalValue.getKey(), (PCollection<?>) originalValue.getValue()));
     }
-    ImmutableMap.Builder<PValue, ReplacementOutput> resultBuilder = ImmutableMap.builder();
+    ImmutableMap.Builder<PCollection<?>, ReplacementOutput> resultBuilder = ImmutableMap.builder();
     Set<TupleTag<?>> missingTags = new HashSet<>(originalTags.keySet());
-    for (Map.Entry<TupleTag<?>, PValue> replacementValue : replacement.expand().entrySet()) {
-      TaggedPValue mapped = originalTags.get(replacementValue.getKey());
+    for (Map.Entry<TupleTag<?>, PCollection<?>> replacementValue :
+        replacement.getAll().entrySet()) {
+      TaggedPCollection mapped = originalTags.get(replacementValue.getKey());
       checkArgument(
           mapped != null,
           "Missing original output for Tag %s and Value %s Between original %s and replacement %s",
@@ -72,10 +80,11 @@ public class ReplacementOutputs {
       resultBuilder.put(
           replacementValue.getValue(),
           ReplacementOutput.of(
-              mapped, TaggedPValue.of(replacementValue.getKey(), replacementValue.getValue())));
+              mapped,
+              TaggedPCollection.of(replacementValue.getKey(), replacementValue.getValue())));
       missingTags.remove(replacementValue.getKey());
     }
-    ImmutableMap<PValue, ReplacementOutput> result = resultBuilder.build();
+    ImmutableMap<PCollection<?>, ReplacementOutput> result = resultBuilder.build();
     checkArgument(
         missingTags.isEmpty(),
         "Missing replacement for tags %s. Encountered tags: %s",

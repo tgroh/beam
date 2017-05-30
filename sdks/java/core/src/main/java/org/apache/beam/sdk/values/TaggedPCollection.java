@@ -30,12 +30,12 @@ import org.apache.beam.sdk.annotations.Internal;
  */
 @AutoValue
 @Internal
-public abstract class TaggedPValue {
-  public static TaggedPValue of(TupleTag<?> tag, PValue value) {
-    return new AutoValue_TaggedPValue(tag, value);
+public abstract class TaggedPCollection {
+  public static TaggedPCollection of(TupleTag<?> tag, PCollection<?> value) {
+    return new AutoValue_TaggedPCollection(tag, value);
   }
 
-  public static TaggedPValue ofExpandedValue(PValue value) {
+  public static TaggedPCollection ofExpandedValue(PCollection<?> value) {
     return of(Iterables.getOnlyElement(value.expand().keySet()), value);
   }
 
@@ -47,5 +47,5 @@ public abstract class TaggedPValue {
   /**
    * Returns the {@link PValue}.
    */
-  public abstract PValue getValue();
+  public abstract PCollection<?> getPCollection();
 }

@@ -276,9 +276,9 @@ class FlinkStreamingPipelineTranslator extends FlinkPipelineTranslator {
     }
 
     @Override
-    public Map<PValue, ReplacementOutput> mapOutputs(
+    public Map<PCollection<?>, ReplacementOutput> mapOutputs(
         Map<TupleTag<?>, PValue> outputs, PCollectionTuple newOutput) {
-      return ReplacementOutputs.tagged(outputs, newOutput);
+      return ReplacementOutputs.tuple(outputs, newOutput);
     }
   }
 }

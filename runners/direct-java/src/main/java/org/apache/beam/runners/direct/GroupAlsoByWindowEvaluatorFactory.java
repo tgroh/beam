@@ -266,7 +266,7 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
         PaneInfo pane) {
       throw new UnsupportedOperationException(
           String.format(
-              "%s should not use tagged outputs", DirectGroupAlsoByWindow.class.getSimpleName()));
+              "%s should not use tuple outputs", DirectGroupAlsoByWindow.class.getSimpleName()));
     }
   }
 }

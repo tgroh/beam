@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -39,6 +40,7 @@ import org.apache.beam.sdk.Pipeline.PipelineVisitor.CompositeBehavior;
 import org.apache.beam.sdk.annotations.Internal;
 import org.apache.beam.sdk.runners.PTransformOverrideFactory.ReplacementOutput;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
@@ -58,7 +60,7 @@ public class TransformHierarchy {
 
   private final Node root;
   private final Map<Node, PInput> unexpandedInputs;
-  private final Map<POutput, Node> producers;
+  private final Map<PCollection<?>, Node> producers;
   // A map of PValue to the PInput the producing PTransform is applied to
   private final Map<PValue, PInput> producerInput;
   // Maintain a stack based on the enclosing nodes
@@ -165,7 +167,7 @@ public class TransformHierarchy {
    * nodes.
    */
   public void setOutput(POutput output) {
-    for (PValue value : output.expand().values()) {
+    for (PCollection<?> value : pcollectionsIn(output)) {
       if (!producers.containsKey(value)) {
         producers.put(value, current);
         value.finishSpecifyingOutput(
@@ -178,12 +180,24 @@ public class TransformHierarchy {
     current.setOutput(output);
   }
 
+  private Collection<PCollection<?>> pcollectionsIn(POutput output) {
+    Set<PCollection<?>> pcollections = new HashSet<>();
+    for (PValue pvalue : output.expand().values()) {
+      if (pvalue instanceof PCollection) {
+        pcollections.add((PCollection<?>) pvalue);
+      } else {
+        pcollections.addAll(pcollectionsIn(pvalue));
+      }
+    }
+    return pcollections;
+  }
+
   /**
    * Recursively replace the outputs of the current {@link Node} with the original outputs of the
    * node it is replacing. No value that is a key in {@code originalToReplacement} may be present
    * within the {@link TransformHierarchy} after this method completes.
    */
-  public void replaceOutputs(Map<PValue, ReplacementOutput> originalToReplacement) {
+  public void replaceOutputs(Map<PCollection<?>, ReplacementOutput> originalToReplacement) {
     current.replaceOutputs(originalToReplacement);
   }
 
@@ -408,7 +422,7 @@ public class TransformHierarchy {
      * @param originalToReplacement A map from the outputs of the replacement {@link Node} to the
      *                              original output.
      */
-    void replaceOutputs(Map<PValue, ReplacementOutput> originalToReplacement) {
+    void replaceOutputs(Map<PCollection<?>, ReplacementOutput> originalToReplacement) {
       checkNotNull(this.outputs, "Outputs haven't been specified for node %s yet", getFullName());
       for (Node component : this.parts) {
         // Replace the outputs of the component nodes
@@ -418,20 +432,20 @@ public class TransformHierarchy {
       for (Map.Entry<TupleTag<?>, PValue> output : outputs.entrySet()) {
         ReplacementOutput mapping = originalToReplacement.get(output.getValue());
         if (mapping != null) {
-          if (this.equals(producers.get(mapping.getReplacement().getValue()))) {
+          if (this.equals(producers.get(mapping.getReplacement().getPCollection()))) {
             // This Node produced the replacement PCollection. The structure of this if statement
             // requires the replacement transform to produce only new outputs; otherwise the
             // producers map will not be appropriately updated. TODO: investigate alternatives
-            producerInput.remove(mapping.getReplacement().getValue());
+            producerInput.remove(mapping.getReplacement().getPCollection());
             // original and replacement might be identical
-            producers.remove(mapping.getReplacement().getValue());
-            producers.put(mapping.getOriginal().getValue(), this);
+            producers.remove(mapping.getReplacement().getPCollection());
+            producers.put(mapping.getOriginal().getPCollection(), this);
           }
           LOG.debug(
               "Replacing output {} with original {}",
               mapping.getReplacement(),
               mapping.getOriginal());
-          newOutputsBuilder.put(output.getKey(), mapping.getOriginal().getValue());
+          newOutputsBuilder.put(output.getKey(), mapping.getOriginal().getPCollection());
         } else {
           newOutputsBuilder.put(output);
         }
