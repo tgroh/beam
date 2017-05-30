@@ -64,8 +64,8 @@ class ViewEvaluatorFactory implements TransformEvaluatorFactory {
           application) {
     PCollection<Iterable<InT>> input =
         (PCollection<Iterable<InT>>) Iterables.getOnlyElement(application.getInputs().values());
-    final PCollectionViewWriter<InT, OuT> writer = context.createPCollectionViewWriter(input,
-        (PCollectionView<OuT>) Iterables.getOnlyElement(application.getOutputs().values()));
+    final PCollectionViewWriter<InT, OuT> writer =
+        context.createPCollectionViewWriter(input, application.getTransform().getView());
     return new TransformEvaluator<Iterable<InT>>() {
       private final List<WindowedValue<InT>> elements = new ArrayList<>();
 

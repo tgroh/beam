@@ -63,7 +63,7 @@ class WriteWithShardingFactory<InputT>
   }
 
   @Override
-  public Map<PValue, ReplacementOutput> mapOutputs(
+  public Map<PCollection<?>, ReplacementOutput> mapOutputs(
       Map<TupleTag<?>, PValue> outputs, PDone newOutput) {
     return Collections.emptyMap();
   }

@@ -18,15 +18,18 @@
 
 package org.apache.beam.runners.dataflow;
 
+import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.apache.beam.runners.core.construction.PTransformReplacements;
-import org.apache.beam.runners.core.construction.SingleInputOutputOverrideFactory;
+import org.apache.beam.runners.core.construction.ReplacementOutputs;
 import org.apache.beam.runners.dataflow.DataflowRunner.StreamingPCollectionViewWriterFn;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderRegistry;
 import org.apache.beam.sdk.coders.ListCoder;
 import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.transforms.Combine.CombineFn;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -34,6 +37,8 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.View.CreatePCollectionView;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
+import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TupleTag;
 
 /**
  * Dataflow streaming overrides for {@link CreatePCollectionView}, specialized for different view
@@ -41,8 +46,8 @@ import org.apache.beam.sdk.values.PCollectionView;
  */
 class StreamingViewOverrides {
   static class StreamingCreatePCollectionViewFactory<ElemT, ViewT>
-      extends SingleInputOutputOverrideFactory<
-          PCollection<ElemT>, PCollectionView<ViewT>, CreatePCollectionView<ElemT, ViewT>> {
+      implements PTransformOverrideFactory<
+                PCollection<ElemT>, PCollectionView<ViewT>, CreatePCollectionView<ElemT, ViewT>> {
     @Override
     public PTransformReplacement<PCollection<ElemT>, PCollectionView<ViewT>>
         getReplacementTransform(
@@ -53,6 +58,13 @@ class StreamingViewOverrides {
           new StreamingCreatePCollectionView<>(transform.getTransform().getView());
       return PTransformReplacement.of(
           PTransformReplacements.getSingletonMainInput(transform), streamingView);
+    }
+
+    @Override
+    public Map<PCollection<?>, ReplacementOutput> mapOutputs(
+        Map<TupleTag<?>, PValue> outputs, PCollectionView<ViewT> newOutput) {
+      return ReplacementOutputs.singleton(
+          outputs, (PCollection<?>) Iterables.getOnlyElement(newOutput.expand().values()));
     }
 
     private static class StreamingCreatePCollectionView<ElemT, ViewT>

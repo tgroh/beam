@@ -24,6 +24,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.beam.runners.direct.ViewOverrideFactory.WriteView;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VoidCoder;
@@ -66,18 +67,20 @@ public class ViewEvaluatorFactoryTest {
             .setCoder(KvCoder.of(VoidCoder.of(), StringUtf8Coder.of()))
             .apply(GroupByKey.<Void, String>create())
             .apply(Values.<Iterable<String>>create());
+    WriteView<String, Iterable<String>> writeView = new WriteView<>(createView);
     PCollectionView<Iterable<String>> view =
-        concat.apply(new ViewOverrideFactory.WriteView<>(createView));
+        concat.apply(writeView);
 
     EvaluationContext context = mock(EvaluationContext.class);
     TestViewWriter<String, Iterable<String>> viewWriter = new TestViewWriter<>();
     when(context.createPCollectionViewWriter(concat, view)).thenReturn(viewWriter);
 
     CommittedBundle<String> inputBundle = bundleFactory.createBundle(input).commit(Instant.now());
-    AppliedPTransform<?, ?, ?> producer = DirectGraphs.getProducer(view);
+    AppliedPTransform<?, ?, ?> producer =
+        AppliedPTransform.<PCollection<Iterable<String>>, PCollectionView<String>, WriteView>of(
+            "CreateView", concat.expand(), view.expand(), writeView, p);
     TransformEvaluator<Iterable<String>> evaluator =
-        new ViewEvaluatorFactory(context)
-            .forApplication(producer, inputBundle);
+        new ViewEvaluatorFactory(context).forApplication(producer, inputBundle);
 
     evaluator.processElement(
         WindowedValue.<Iterable<String>>valueInGlobalWindow(ImmutableList.of("foo", "bar")));

@@ -57,7 +57,7 @@ class ViewOverrideFactory<ElemT, ViewT>
   }
 
   @Override
-  public Map<PValue, ReplacementOutput> mapOutputs(
+  public Map<PCollection<?>, ReplacementOutput> mapOutputs(
       Map<TupleTag<?>, PValue> outputs, PCollectionView<ViewT> newOutput) {
     return Collections.emptyMap();
   }

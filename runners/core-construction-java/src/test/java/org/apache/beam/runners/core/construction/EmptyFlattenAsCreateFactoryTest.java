@@ -35,7 +35,7 @@ import org.apache.beam.sdk.transforms.Flatten.PCollections;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.PValue;
-import org.apache.beam.sdk.values.TaggedPValue;
+import org.apache.beam.sdk.values.TaggedPCollection;
 import org.apache.beam.sdk.values.TupleTag;
 import org.hamcrest.Matchers;
 import org.junit.Rule;
@@ -89,15 +89,16 @@ public class EmptyFlattenAsCreateFactoryTest {
   public void mapOutputsSucceeds() {
     PCollection<Long> original = pipeline.apply("Original", GenerateSequence.from(0));
     PCollection<Long> replacement = pipeline.apply("Replacement", GenerateSequence.from(0));
-    Map<PValue, ReplacementOutput> mapping = factory.mapOutputs(original.expand(), replacement);
+    Map<PCollection<?>, ReplacementOutput> mapping =
+        factory.mapOutputs(original.expand(), replacement);
 
     assertThat(
         mapping,
         Matchers.<PValue, ReplacementOutput>hasEntry(
             replacement,
             ReplacementOutput.of(
-                TaggedPValue.ofExpandedValue(original),
-                TaggedPValue.ofExpandedValue(replacement))));
+                TaggedPCollection.ofExpandedValue(original),
+                TaggedPCollection.ofExpandedValue(replacement))));
   }
 
   @Test

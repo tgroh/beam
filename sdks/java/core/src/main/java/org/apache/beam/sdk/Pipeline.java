@@ -537,7 +537,7 @@ public class Pipeline {
     transforms.replaceNode(original, originalInput, replacement.getTransform());
     try {
       OutputT newOutput = replacement.getTransform().expand(originalInput);
-      Map<PValue, ReplacementOutput> originalToReplacement =
+      Map<PCollection<?>, ReplacementOutput> originalToReplacement =
           replacementFactory.mapOutputs(original.getOutputs(), newOutput);
       // Ensure the internal TransformHierarchy data structures are consistent.
       transforms.setOutput(newOutput);

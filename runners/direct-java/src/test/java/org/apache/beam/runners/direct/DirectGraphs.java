@@ -19,7 +19,7 @@ package org.apache.beam.runners.direct;
 
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.runners.AppliedPTransform;
-import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.PCollection;
 
 /** Test utilities for the {@link DirectRunner}. */
 final class DirectGraphs {
@@ -29,7 +29,7 @@ final class DirectGraphs {
     return visitor.getGraph();
   }
 
-  public static AppliedPTransform<?, ?, ?> getProducer(PValue value) {
+  public static AppliedPTransform<?, ?, ?> getProducer(PCollection<?> value) {
     return getGraph(value.getPipeline()).getProducer(value);
   }
 }

@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.dataflow;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.beam.sdk.util.WindowedValue.valueInEmptyWindows;
 
@@ -40,7 +41,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.beam.runners.core.construction.PTransformReplacements;
-import org.apache.beam.runners.core.construction.SingleInputOutputOverrideFactory;
 import org.apache.beam.runners.dataflow.internal.IsmFormat;
 import org.apache.beam.runners.dataflow.internal.IsmFormat.IsmRecord;
 import org.apache.beam.runners.dataflow.internal.IsmFormat.IsmRecordCoder;
@@ -58,6 +58,7 @@ import org.apache.beam.sdk.coders.StructuredCoder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.coders.VarLongCoder;
 import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.transforms.Combine.GloballyAsSingletonView;
 import org.apache.beam.sdk.transforms.CombineFnBase.GlobalCombineFn;
@@ -84,6 +85,8 @@ import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.PCollectionViews;
+import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TaggedPCollection;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
 import org.apache.beam.sdk.values.WindowingStrategy;
@@ -1379,9 +1382,9 @@ class BatchViewOverrides {
   }
 
   static class BatchCombineGloballyAsSingletonViewFactory<ElemT, ViewT>
-      extends SingleInputOutputOverrideFactory<
-          PCollection<ElemT>, PCollectionView<ViewT>,
-          Combine.GloballyAsSingletonView<ElemT, ViewT>> {
+      implements PTransformOverrideFactory<
+                PCollection<ElemT>, PCollectionView<ViewT>,
+                GloballyAsSingletonView<ElemT, ViewT>> {
     private final DataflowRunner runner;
 
     BatchCombineGloballyAsSingletonViewFactory(DataflowRunner runner) {
@@ -1400,6 +1403,31 @@ class BatchViewOverrides {
           PTransformReplacements.getSingletonMainInput(transform),
           new BatchCombineGloballyAsSingletonView<>(
               runner, combine.getCombineFn(), combine.getFanout(), combine.getInsertDefault()));
+    }
+
+    @Override
+    public Map<PCollection<?>, ReplacementOutput> mapOutputs(
+        Map<TupleTag<?>, PValue> outputs, PCollectionView<ViewT> newOutput) {
+      Map.Entry<TupleTag<?>, PValue> original = Iterables.getOnlyElement(outputs.entrySet());
+      Map.Entry<TupleTag<?>, PValue> replacement =
+          Iterables.getOnlyElement(newOutput.expand().entrySet());
+      checkArgument(
+          original.getValue() instanceof PCollection,
+          "Original Output must be a %s, was %s",
+          PCollection.class.getSimpleName(),
+          original.getValue().getClass());
+      checkArgument(
+          replacement.getValue() instanceof PCollection,
+          "Replacement Output must expand into a %s, was %s",
+          PCollection.class.getSimpleName(),
+          replacement.getClass());
+      PCollection<?> originalPc = (PCollection<?>) original.getValue();
+      PCollection<?> replacementPc = (PCollection<?>) replacement.getValue();
+      return Collections.<PCollection<?>, ReplacementOutput>singletonMap(
+          replacementPc,
+          ReplacementOutput.of(
+              TaggedPCollection.of(original.getKey(), originalPc),
+              TaggedPCollection.of(replacement.getKey(), replacementPc)));
     }
 
     private static class BatchCombineGloballyAsSingletonView<ElemT, ViewT>

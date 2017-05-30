@@ -143,7 +143,7 @@ public class TfIdf {
 
   /**
    * Reads the documents at the provided uris and returns all lines
-   * from the documents tagged with which document they are from.
+   * from the documents tuple with which document they are from.
    */
   public static class ReadDocuments
       extends PTransform<PBegin, PCollection<KV<URI, String>>> {

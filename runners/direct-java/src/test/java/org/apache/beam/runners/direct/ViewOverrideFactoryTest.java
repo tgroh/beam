@@ -133,6 +133,6 @@ public class ViewOverrideFactoryTest implements Serializable {
           }
         });
 
-    assertThat(writeViewVisited.get(), is(true));
+    assertThat("Write View should have been visited", writeViewVisited.get(), is(true));
   }
 }

@@ -53,7 +53,7 @@ import org.apache.beam.sdk.values.PDone;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
-import org.apache.beam.sdk.values.TaggedPValue;
+import org.apache.beam.sdk.values.TaggedPCollection;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
 import org.apache.beam.sdk.values.WindowingStrategy;
@@ -70,8 +70,7 @@ import org.junit.runners.JUnit4;
  */
 @RunWith(JUnit4.class)
 public class TransformHierarchyTest implements Serializable {
-  @Rule
-  public final transient TestPipeline pipeline =
+  @Rule public final transient TestPipeline pipeline =
       TestPipeline.create().enableAbandonedNodeEnforcement(false);
 
   @Rule public transient ExpectedException thrown = ExpectedException.none();
@@ -134,21 +133,19 @@ public class TransformHierarchyTest implements Serializable {
 
   @Test
   public void producingOwnAndOthersOutputsFails() {
-    PCollection<Long> created =
-        PCollection.createPrimitiveOutputInternal(
-            pipeline, WindowingStrategy.globalDefault(), IsBounded.BOUNDED);
+    PCollection<Long> created = PCollection.createPrimitiveOutputInternal(pipeline,
+        WindowingStrategy.globalDefault(),
+        IsBounded.BOUNDED);
     hierarchy.pushNode("Create", PBegin.in(pipeline), Create.of(1));
     hierarchy.setOutput(created);
     hierarchy.popNode();
     PCollectionList<Long> pcList = PCollectionList.of(created);
 
     final PCollectionList<Long> appended =
-        pcList.and(
-            PCollection.<Long>createPrimitiveOutputInternal(
-                    pipeline, WindowingStrategy.globalDefault(), IsBounded.BOUNDED)
-                .setName("prim"));
-    hierarchy.pushNode(
-        "AddPc",
+        pcList.and(PCollection.<Long>createPrimitiveOutputInternal(pipeline,
+            WindowingStrategy.globalDefault(),
+            IsBounded.BOUNDED).setName("prim"));
+    hierarchy.pushNode("AddPc",
         pcList,
         new PTransform<PCollectionList<Long>, PCollectionList<Long>>() {
           @Override
@@ -166,16 +163,15 @@ public class TransformHierarchyTest implements Serializable {
 
   @Test
   public void producingOwnOutputWithCompositeFails() {
-    final PCollection<Long> comp =
-        PCollection.createPrimitiveOutputInternal(
-            pipeline, WindowingStrategy.globalDefault(), IsBounded.BOUNDED);
-    PTransform<PBegin, PCollection<Long>> root =
-        new PTransform<PBegin, PCollection<Long>>() {
-          @Override
-          public PCollection<Long> expand(PBegin input) {
-            return comp;
-          }
-        };
+    final PCollection<Long> comp = PCollection.createPrimitiveOutputInternal(pipeline,
+        WindowingStrategy.globalDefault(),
+        IsBounded.BOUNDED);
+    PTransform<PBegin, PCollection<Long>> root = new PTransform<PBegin, PCollection<Long>>() {
+      @Override
+      public PCollection<Long> expand(PBegin input) {
+        return comp;
+      }
+    };
     hierarchy.pushNode("Composite", PBegin.in(pipeline), root);
 
     Create.Values<Integer> create = Create.of(1);
@@ -192,13 +188,12 @@ public class TransformHierarchyTest implements Serializable {
 
   @Test
   public void replaceSucceeds() {
-    PTransform<?, ?> enclosingPT =
-        new PTransform<PInput, POutput>() {
-          @Override
-          public POutput expand(PInput input) {
-            return PDone.in(input.getPipeline());
-          }
-        };
+    PTransform<?, ?> enclosingPT = new PTransform<PInput, POutput>() {
+      @Override
+      public POutput expand(PInput input) {
+        return PDone.in(input.getPipeline());
+      }
+    };
 
     TransformHierarchy.Node enclosing =
         hierarchy.pushNode("Enclosing", PBegin.in(pipeline), enclosingPT);
@@ -221,13 +216,12 @@ public class TransformHierarchyTest implements Serializable {
     assertThat(hierarchy.getCurrent(), equalTo(replacement));
     hierarchy.setOutput(replacementOutput);
 
-    TaggedPValue taggedReplacement = TaggedPValue.ofExpandedValue(replacementOutput);
-    Map<PValue, ReplacementOutput> replacementOutputs =
-        Collections.<PValue, ReplacementOutput>singletonMap(
+    TaggedPCollection taggedReplacement = TaggedPCollection.ofExpandedValue(replacementOutput);
+    Map<PCollection<?>, ReplacementOutput> replacementOutputs =
+        Collections.<PCollection<?>, ReplacementOutput>singletonMap(
             replacementOutput,
             ReplacementOutput.of(
-                TaggedPValue.ofExpandedValue(originalOutput),
-                taggedReplacement));
+                TaggedPCollection.ofExpandedValue(originalOutput), taggedReplacement));
     hierarchy.replaceOutputs(replacementOutputs);
 
     assertThat(replacement.getInputs(), equalTo(original.getInputs()));
@@ -245,14 +239,12 @@ public class TransformHierarchyTest implements Serializable {
 
   @Test
   public void replaceWithCompositeSucceeds() {
-    final SingleOutput<Long, Long> originalParDo =
-        ParDo.of(
-            new DoFn<Long, Long>() {
-              @ProcessElement
-              public void processElement(ProcessContext ctxt) {
-                ctxt.output(ctxt.element() + 1L);
-              }
-            });
+    final SingleOutput<Long, Long> originalParDo = ParDo.of(new DoFn<Long, Long>() {
+      @ProcessElement
+      public void processElement(ProcessContext ctxt) {
+        ctxt.output(ctxt.element() + 1L);
+      }
+    });
 
     GenerateSequence genUpstream = GenerateSequence.from(0);
     PCollection<Long> upstream = pipeline.apply(genUpstream);
@@ -268,15 +260,12 @@ public class TransformHierarchyTest implements Serializable {
     hierarchy.popNode();
 
     final TupleTag<Long> longs = new TupleTag<>();
-    final MultiOutput<Long, Long> replacementParDo =
-        ParDo.of(
-                new DoFn<Long, Long>() {
-                  @ProcessElement
-                  public void processElement(ProcessContext ctxt) {
-                    ctxt.output(ctxt.element() + 1L);
-                  }
-                })
-            .withOutputTags(longs, TupleTagList.empty());
+    final MultiOutput<Long, Long> replacementParDo = ParDo.of(new DoFn<Long, Long>() {
+      @ProcessElement
+      public void processElement(ProcessContext ctxt) {
+        ctxt.output(ctxt.element() + 1L);
+      }
+    }).withOutputTags(longs, TupleTagList.empty());
     PTransform<PCollection<Long>, PCollection<Long>> replacementComposite =
         new PTransform<PCollection<Long>, PCollection<Long>>() {
           @Override
@@ -294,21 +283,21 @@ public class TransformHierarchyTest implements Serializable {
     hierarchy.popNode();
     hierarchy.setOutput(replacementOutput.get(longs));
 
-    Entry<TupleTag<?>, PValue>
-        replacementLongs = Iterables.getOnlyElement(replacementOutput.expand().entrySet());
+    Entry<TupleTag<?>, PValue> replacementLongs =
+        Iterables.getOnlyElement(replacementOutput.expand().entrySet());
     hierarchy.replaceOutputs(
-        Collections.<PValue, ReplacementOutput>singletonMap(
+        Collections.<PCollection<?>, ReplacementOutput>singletonMap(
             replacementOutput.get(longs),
             ReplacementOutput.of(
-                TaggedPValue.ofExpandedValue(output),
-                TaggedPValue.of(replacementLongs.getKey(), replacementLongs.getValue()))));
+                TaggedPCollection.ofExpandedValue(output),
+                TaggedPCollection.of(
+                    replacementLongs.getKey(), (PCollection<?>) replacementLongs.getValue()))));
 
     assertThat(
         replacementParNode.getOutputs().keySet(),
         Matchers.<TupleTag<?>>contains(replacementLongs.getKey()));
     assertThat(replacementParNode.getOutputs().values(), Matchers.<PValue>contains(output));
-    assertThat(
-        compositeNode.getOutputs().keySet(),
+    assertThat(compositeNode.getOutputs().keySet(),
         equalTo(replacementOutput.get(longs).expand().keySet()));
     assertThat(compositeNode.getOutputs().values(), Matchers.<PValue>contains(output));
     hierarchy.popNode();
@@ -322,22 +311,20 @@ public class TransformHierarchyTest implements Serializable {
     Create.Values<Long> create = Create.of(1L);
     Read.Bounded<Long> read = Read.from(CountingSource.upTo(1L));
 
-    PCollection<Long> created =
-        PCollection.createPrimitiveOutputInternal(
-            pipeline, WindowingStrategy.globalDefault(), IsBounded.BOUNDED);
+    PCollection<Long> created = PCollection.createPrimitiveOutputInternal(pipeline,
+        WindowingStrategy.globalDefault(),
+        IsBounded.BOUNDED);
 
-    SingleOutput<Long, Long> pardo =
-        ParDo.of(
-            new DoFn<Long, Long>() {
-              @ProcessElement
-              public void processElement(ProcessContext ctxt) {
-                ctxt.output(ctxt.element());
-              }
-            });
+    SingleOutput<Long, Long> pardo = ParDo.of(new DoFn<Long, Long>() {
+      @ProcessElement
+      public void processElement(ProcessContext ctxt) {
+        ctxt.output(ctxt.element());
+      }
+    });
 
-    PCollection<Long> mapped =
-        PCollection.createPrimitiveOutputInternal(
-            pipeline, WindowingStrategy.globalDefault(), IsBounded.BOUNDED);
+    PCollection<Long> mapped = PCollection.createPrimitiveOutputInternal(pipeline,
+        WindowingStrategy.globalDefault(),
+        IsBounded.BOUNDED);
 
     TransformHierarchy.Node compositeNode = hierarchy.pushNode("Create", begin, create);
     hierarchy.finishSpecifyingInput();
@@ -374,25 +361,23 @@ public class TransformHierarchyTest implements Serializable {
     final Set<TransformHierarchy.Node> visitedPrimitiveNodes = new HashSet<>();
     final Set<PValue> visitedValuesInVisitor = new HashSet<>();
 
-    Set<PValue> visitedValues =
-        hierarchy.visit(
-            new PipelineVisitor.Defaults() {
-              @Override
-              public CompositeBehavior enterCompositeTransform(TransformHierarchy.Node node) {
-                visitedCompositeNodes.add(node);
-                return CompositeBehavior.ENTER_TRANSFORM;
-              }
+    Set<PValue> visitedValues = hierarchy.visit(new PipelineVisitor.Defaults() {
+      @Override
+      public CompositeBehavior enterCompositeTransform(TransformHierarchy.Node node) {
+        visitedCompositeNodes.add(node);
+        return CompositeBehavior.ENTER_TRANSFORM;
+      }
 
-              @Override
-              public void visitPrimitiveTransform(TransformHierarchy.Node node) {
-                visitedPrimitiveNodes.add(node);
-              }
+      @Override
+      public void visitPrimitiveTransform(TransformHierarchy.Node node) {
+        visitedPrimitiveNodes.add(node);
+      }
 
-              @Override
-              public void visitValue(PValue value, TransformHierarchy.Node producer) {
-                visitedValuesInVisitor.add(value);
-              }
-            });
+      @Override
+      public void visitValue(PValue value, TransformHierarchy.Node producer) {
+        visitedValuesInVisitor.add(value);
+      }
+    });
 
     assertThat(visitedCompositeNodes, containsInAnyOrder(root, compositeNode));
     assertThat(visitedPrimitiveNodes, containsInAnyOrder(primitiveNode, otherPrimitive));
@@ -408,14 +393,12 @@ public class TransformHierarchyTest implements Serializable {
   @Test
   public void visitAfterReplace() {
     Node root = hierarchy.getCurrent();
-    final SingleOutput<Long, Long> originalParDo =
-        ParDo.of(
-            new DoFn<Long, Long>() {
-              @ProcessElement
-              public void processElement(ProcessContext ctxt) {
-                ctxt.output(ctxt.element() + 1L);
-              }
-            });
+    final SingleOutput<Long, Long> originalParDo = ParDo.of(new DoFn<Long, Long>() {
+      @ProcessElement
+      public void processElement(ProcessContext ctxt) {
+        ctxt.output(ctxt.element() + 1L);
+      }
+    });
 
     GenerateSequence genUpstream = GenerateSequence.from(0);
     PCollection<Long> upstream = pipeline.apply(genUpstream);
@@ -431,15 +414,12 @@ public class TransformHierarchyTest implements Serializable {
     hierarchy.popNode();
 
     final TupleTag<Long> longs = new TupleTag<>();
-    final MultiOutput<Long, Long> replacementParDo =
-        ParDo.of(
-                new DoFn<Long, Long>() {
-                  @ProcessElement
-                  public void processElement(ProcessContext ctxt) {
-                    ctxt.output(ctxt.element() + 1L);
-                  }
-                })
-            .withOutputTags(longs, TupleTagList.empty());
+    final MultiOutput<Long, Long> replacementParDo = ParDo.of(new DoFn<Long, Long>() {
+      @ProcessElement
+      public void processElement(ProcessContext ctxt) {
+        ctxt.output(ctxt.element() + 1L);
+      }
+    }).withOutputTags(longs, TupleTagList.empty());
     PTransform<PCollection<Long>, PCollection<Long>> replacementComposite =
         new PTransform<PCollection<Long>, PCollection<Long>>() {
           @Override
@@ -460,11 +440,12 @@ public class TransformHierarchyTest implements Serializable {
     Entry<TupleTag<?>, PValue> replacementLongs =
         Iterables.getOnlyElement(replacementOutput.expand().entrySet());
     hierarchy.replaceOutputs(
-        Collections.<PValue, ReplacementOutput>singletonMap(
+        Collections.<PCollection<?>, ReplacementOutput>singletonMap(
             replacementOutput.get(longs),
             ReplacementOutput.of(
-                TaggedPValue.ofExpandedValue(output),
-                TaggedPValue.of(replacementLongs.getKey(), replacementLongs.getValue()))));
+                TaggedPCollection.ofExpandedValue(output),
+                TaggedPCollection.of(
+                    replacementLongs.getKey(), (PCollection<?>) replacementLongs.getValue()))));
     hierarchy.popNode();
 
     final Set<Node> visitedCompositeNodes = new HashSet<>();
@@ -485,9 +466,9 @@ public class TransformHierarchyTest implements Serializable {
             });
 
     /*
-     Final Graph:
-     Upstream -> Upstream.out -> Composite -> (ReplacementParDo -> OriginalParDo.out)
-     */
+    Final Graph:
+    Upstream -> Upstream.out -> Composite -> (ReplacementParDo -> OriginalParDo.out)
+    */
     assertThat(visitedCompositeNodes, containsInAnyOrder(root, compositeNode));
     assertThat(visitedPrimitiveNodes, containsInAnyOrder(upstreamNode, replacementParNode));
     assertThat(visitedValues, Matchers.<PValue>containsInAnyOrder(upstream, output));

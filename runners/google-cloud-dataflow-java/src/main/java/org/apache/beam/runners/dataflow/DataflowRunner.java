@@ -438,7 +438,7 @@ public class DataflowRunner extends PipelineRunner<DataflowPipelineJob> {
     }
 
     @Override
-    public Map<PValue, ReplacementOutput> mapOutputs(
+    public Map<PCollection<?>, ReplacementOutput> mapOutputs(
         Map<TupleTag<?>, PValue> outputs, PCollection<T> newOutput) {
       return ReplacementOutputs.singleton(outputs, newOutput);
     }
@@ -1263,7 +1263,7 @@ public class DataflowRunner extends PipelineRunner<DataflowPipelineJob> {
     }
 
     @Override
-    public Map<PValue, ReplacementOutput> mapOutputs(
+    public Map<PCollection<?>, ReplacementOutput> mapOutputs(
         Map<TupleTag<?>, PValue> outputs, PCollection<KV<K, OutputT>> newOutput) {
       return ReplacementOutputs.singleton(outputs, newOutput);
     }
@@ -1289,7 +1289,7 @@ public class DataflowRunner extends PipelineRunner<DataflowPipelineJob> {
     }
 
     @Override
-    public Map<PValue, ReplacementOutput> mapOutputs(
+    public Map<PCollection<?>, ReplacementOutput> mapOutputs(
         Map<TupleTag<?>, PValue> outputs, PDone newOutput) {
       return Collections.emptyMap();
     }

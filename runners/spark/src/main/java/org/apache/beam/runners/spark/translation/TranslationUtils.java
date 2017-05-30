@@ -248,7 +248,7 @@ public final class TranslationUtils {
    *
    * @param views The {@link PCollectionView}s.
    * @param context The {@link EvaluationContext}.
-   * @return a map of tagged {@link SideInputBroadcast}s and their {@link WindowingStrategy}.
+   * @return a map of tuple {@link SideInputBroadcast}s and their {@link WindowingStrategy}.
    */
   static Map<TupleTag<?>, KV<WindowingStrategy<?, ?>, SideInputBroadcast<?>>> getSideInputs(
       List<PCollectionView<?>> views, EvaluationContext context) {
@@ -261,7 +261,7 @@ public final class TranslationUtils {
    * @param views The {@link PCollectionView}s.
    * @param context The {@link JavaSparkContext}.
    * @param pviews The {@link SparkPCollectionView}.
-   * @return a map of tagged {@link SideInputBroadcast}s and their {@link WindowingStrategy}.
+   * @return a map of tuple {@link SideInputBroadcast}s and their {@link WindowingStrategy}.
    */
   public static Map<TupleTag<?>, KV<WindowingStrategy<?, ?>, SideInputBroadcast<?>>> getSideInputs(
       List<PCollectionView<?>> views, JavaSparkContext context, SparkPCollectionView pviews) {

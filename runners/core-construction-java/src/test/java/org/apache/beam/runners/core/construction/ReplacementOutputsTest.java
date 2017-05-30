@@ -30,7 +30,7 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollection.IsBounded;
 import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.PValue;
-import org.apache.beam.sdk.values.TaggedPValue;
+import org.apache.beam.sdk.values.TaggedPCollection;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.WindowingStrategy;
 import org.hamcrest.Matchers;
@@ -70,7 +70,7 @@ public class ReplacementOutputsTest {
 
   @Test
   public void singletonSucceeds() {
-    Map<PValue, ReplacementOutput> replacements =
+    Map<PCollection<?>, ReplacementOutput> replacements =
         ReplacementOutputs.singleton(ints.expand(), replacementInts);
 
     assertThat(replacements, Matchers.<PValue>hasKey(replacementInts));
@@ -79,8 +79,9 @@ public class ReplacementOutputsTest {
     Map.Entry<TupleTag<?>, PValue> taggedInts = Iterables.getOnlyElement(ints.expand().entrySet());
     assertThat(
         replacement.getOriginal().getTag(), Matchers.<TupleTag<?>>equalTo(taggedInts.getKey()));
-    assertThat(replacement.getOriginal().getValue(), equalTo(taggedInts.getValue()));
-    assertThat(replacement.getReplacement().getValue(), Matchers.<PValue>equalTo(replacementInts));
+    assertThat(replacement.getOriginal().getPCollection(), equalTo(taggedInts.getValue()));
+    assertThat(
+        replacement.getReplacement().getPCollection(), Matchers.<PValue>equalTo(replacementInts));
   }
 
   @Test
@@ -103,8 +104,8 @@ public class ReplacementOutputsTest {
     PCollectionTuple original =
         PCollectionTuple.of(intsTag, ints).and(strsTag, strs).and(moreIntsTag, moreInts);
 
-    Map<PValue, ReplacementOutput> replacements =
-        ReplacementOutputs.tagged(
+    Map<PCollection<?>, ReplacementOutput> replacements =
+        ReplacementOutputs.tuple(
             original.expand(),
             PCollectionTuple.of(strsTag, replacementStrs)
                 .and(moreIntsTag, moreReplacementInts)
@@ -120,18 +121,20 @@ public class ReplacementOutputsTest {
         intsReplacement,
         equalTo(
             ReplacementOutput.of(
-                TaggedPValue.of(intsTag, ints), TaggedPValue.of(intsTag, replacementInts))));
+                TaggedPCollection.of(intsTag, ints),
+                TaggedPCollection.of(intsTag, replacementInts))));
     assertThat(
         strsReplacement,
         equalTo(
             ReplacementOutput.of(
-                TaggedPValue.of(strsTag, strs), TaggedPValue.of(strsTag, replacementStrs))));
+                TaggedPCollection.of(strsTag, strs),
+                TaggedPCollection.of(strsTag, replacementStrs))));
     assertThat(
         moreIntsReplacement,
         equalTo(
             ReplacementOutput.of(
-                TaggedPValue.of(moreIntsTag, moreInts),
-                TaggedPValue.of(moreIntsTag, moreReplacementInts))));
+                TaggedPCollection.of(moreIntsTag, moreInts),
+                TaggedPCollection.of(moreIntsTag, moreReplacementInts))));
   }
 
   @Test
@@ -143,7 +146,7 @@ public class ReplacementOutputsTest {
     thrown.expectMessage("Missing replacement");
     thrown.expectMessage(intsTag.toString());
     thrown.expectMessage(ints.toString());
-    ReplacementOutputs.tagged(
+    ReplacementOutputs.tuple(
         original.expand(),
         PCollectionTuple.of(strsTag, replacementStrs).and(moreIntsTag, moreReplacementInts));
   }
@@ -156,7 +159,7 @@ public class ReplacementOutputsTest {
     thrown.expectMessage("Missing original output");
     thrown.expectMessage(moreIntsTag.toString());
     thrown.expectMessage(moreReplacementInts.toString());
-    ReplacementOutputs.tagged(
+    ReplacementOutputs.tuple(
         original.expand(),
         PCollectionTuple.of(strsTag, replacementStrs)
             .and(moreIntsTag, moreReplacementInts)

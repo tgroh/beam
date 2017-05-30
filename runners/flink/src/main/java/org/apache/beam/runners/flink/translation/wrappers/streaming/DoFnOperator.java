@@ -94,7 +94,7 @@ import org.joda.time.Instant;
  * @param <InputT> the input type of the {@link DoFn}
  * @param <FnOutputT> the output type of the {@link DoFn}
  * @param <OutputT> the output type of the operator, this can be different from the fn output
- *                 type when we have additional tagged outputs
+ *                 type when we have additional tuple outputs
  */
 public class DoFnOperator<InputT, FnOutputT, OutputT>
     extends AbstractStreamOperator<OutputT>
@@ -634,7 +634,7 @@ public class DoFnOperator<InputT, FnOutputT, OutputT>
       return new DoFnRunners.OutputManager() {
         @Override
         public <T> void output(TupleTag<T> tag, WindowedValue<T> value) {
-          // with tagged outputs we can't get around this because we don't
+          // with tuple outputs we can't get around this because we don't
           // know our own output type...
           @SuppressWarnings("unchecked")
           OutputT castValue = (OutputT) value;

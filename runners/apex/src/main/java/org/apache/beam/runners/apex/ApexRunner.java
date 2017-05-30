@@ -23,6 +23,7 @@ import com.datatorrent.api.DAG;
 import com.datatorrent.api.StreamingApplication;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,7 +45,6 @@ import org.apache.beam.runners.core.construction.PTransformMatchers;
 import org.apache.beam.runners.core.construction.PTransformReplacements;
 import org.apache.beam.runners.core.construction.PrimitiveCreate;
 import org.apache.beam.runners.core.construction.ReplacementOutputs;
-import org.apache.beam.runners.core.construction.SingleInputOutputOverrideFactory;
 import org.apache.beam.runners.core.construction.SplittableParDo;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineRunner;
@@ -62,7 +62,6 @@ import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.ParDo.MultiOutput;
-import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.transforms.View.AsIterable;
 import org.apache.beam.sdk.transforms.View.CreatePCollectionView;
 import org.apache.beam.sdk.values.PCollection;
@@ -266,7 +265,7 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
     }
 
     static class Factory<T>
-        extends SingleInputOutputOverrideFactory<
+        implements PTransformOverrideFactory<
             PCollection<T>, PCollectionView<T>,
             CreatePCollectionView<T, T>> {
       @Override
@@ -279,6 +278,13 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
         return PTransformReplacement.of(
             PTransformReplacements.getSingletonMainInput(transform),
             new StreamingWrapSingletonInList<>(transform.getTransform()));
+      }
+
+      @Override
+      public Map<PCollection<?>, ReplacementOutput> mapOutputs(
+          Map<TupleTag<?>, PValue> outputs, PCollectionView<T> newOutput) {
+        return ReplacementOutputs.singleton(
+            outputs, (PCollection<?>) Iterables.getOnlyElement(newOutput.expand().values()));
       }
     }
   }
@@ -304,8 +310,8 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
     }
 
     static class Factory<T>
-        extends SingleInputOutputOverrideFactory<
-            PCollection<T>, PCollectionView<Iterable<T>>, View.AsIterable<T>> {
+        implements  PTransformOverrideFactory<
+            PCollection<T>, PCollectionView<Iterable<T>>, AsIterable<T>> {
       @Override
       public PTransformReplacement<PCollection<T>, PCollectionView<Iterable<T>>>
           getReplacementTransform(
@@ -314,6 +320,13 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
         return PTransformReplacement.of(
             PTransformReplacements.getSingletonMainInput(transform),
             new StreamingViewAsIterable<T>());
+      }
+
+      @Override
+      public Map<PCollection<?>, ReplacementOutput> mapOutputs(
+          Map<TupleTag<?>, PValue> outputs, PCollectionView<Iterable<T>> newOutput) {
+        return ReplacementOutputs.singleton(
+            outputs, (PCollection<?>) Iterables.getOnlyElement(newOutput.expand().values()));
       }
     }
   }
@@ -380,9 +393,9 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
     }
 
     @Override
-    public Map<PValue, ReplacementOutput> mapOutputs(Map<TupleTag<?>, PValue> outputs,
+    public Map<PCollection<?>, ReplacementOutput> mapOutputs(Map<TupleTag<?>, PValue> outputs,
         PCollectionTuple newOutput) {
-      return ReplacementOutputs.tagged(outputs, newOutput);
+      return ReplacementOutputs.tuple(outputs, newOutput);
     }
   }
 
