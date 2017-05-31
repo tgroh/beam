@@ -39,6 +39,7 @@ import org.apache.beam.sdk.Pipeline.PipelineVisitor.CompositeBehavior;
 import org.apache.beam.sdk.annotations.Internal;
 import org.apache.beam.sdk.runners.PTransformOverrideFactory.ReplacementOutput;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PInput;
 import org.apache.beam.sdk.values.POutput;
 import org.apache.beam.sdk.values.PValue;
@@ -470,7 +471,7 @@ public class TransformHierarchy {
       if (!isRootNode()) {
         // Visit inputs.
         for (PValue inputValue : inputs.values()) {
-          if (visitedValues.add(inputValue)) {
+          if (inputValue instanceof PCollection && visitedValues.add(inputValue)) {
             visitor.visitValue(inputValue, getProducer(inputValue));
           }
         }
@@ -493,7 +494,7 @@ public class TransformHierarchy {
         checkNotNull(outputs, "Outputs for non-root node %s are null", getFullName());
         // Visit outputs.
         for (PValue pValue : outputs.values()) {
-          if (visitedValues.add(pValue)) {
+          if (pValue instanceof PCollection && visitedValues.add(pValue)) {
             visitor.visitValue(pValue, this);
           }
         }
