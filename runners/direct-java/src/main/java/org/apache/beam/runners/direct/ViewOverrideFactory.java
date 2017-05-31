@@ -21,7 +21,6 @@ package org.apache.beam.runners.direct;
 import com.google.protobuf.Message;
 import java.util.Collections;
 import java.util.Map;
-import org.apache.beam.runners.core.construction.ForwardingPTransform;
 import org.apache.beam.runners.core.construction.PTransformReplacements;
 import org.apache.beam.runners.core.construction.PTransformTranslation.RawPTransform;
 import org.apache.beam.sdk.coders.KvCoder;
@@ -53,7 +52,7 @@ class ViewOverrideFactory<ElemT, ViewT>
           transform) {
     return PTransformReplacement.of(
         PTransformReplacements.getSingletonMainInput(transform),
-        new GroupAndWriteView<>(transform.getTransform()));
+        new GroupAndWriteView<ElemT, ViewT>(transform.getTransform().getView()));
   }
 
   @Override
@@ -64,10 +63,10 @@ class ViewOverrideFactory<ElemT, ViewT>
 
   /** The {@link DirectRunner} composite override for {@link CreatePCollectionView}. */
   static class GroupAndWriteView<ElemT, ViewT>
-      extends ForwardingPTransform<PCollection<ElemT>, PCollectionView<ViewT>> {
-    private final CreatePCollectionView<ElemT, ViewT> og;
+      extends PTransform<PCollection<ElemT>, PCollectionView<ViewT>> {
+    private final PCollectionView<ViewT> og;
 
-    private GroupAndWriteView(CreatePCollectionView<ElemT, ViewT> og) {
+    GroupAndWriteView(PCollectionView<ViewT> og) {
       this.og = og;
     }
 
@@ -80,11 +79,6 @@ class ViewOverrideFactory<ElemT, ViewT>
           .apply(Values.<Iterable<ElemT>>create())
           .apply(new WriteView<ElemT, ViewT>(og));
     }
-
-    @Override
-    protected PTransform<PCollection<ElemT>, PCollectionView<ViewT>> delegate() {
-      return og;
-    }
   }
 
   /**
@@ -96,21 +90,21 @@ class ViewOverrideFactory<ElemT, ViewT>
    */
   static final class WriteView<ElemT, ViewT>
       extends RawPTransform<PCollection<Iterable<ElemT>>, PCollectionView<ViewT>, Message> {
-    private final CreatePCollectionView<ElemT, ViewT> og;
+    private final PCollectionView<ViewT> og;
 
-    WriteView(CreatePCollectionView<ElemT, ViewT> og) {
+    WriteView(PCollectionView<ViewT> og) {
       this.og = og;
     }
 
     @Override
     @SuppressWarnings("deprecation")
     public PCollectionView<ViewT> expand(PCollection<Iterable<ElemT>> input) {
-      return og.getView();
+      return og;
     }
 
     @SuppressWarnings("deprecation")
     public PCollectionView<ViewT> getView() {
-      return og.getView();
+      return og;
     }
 
     @Override

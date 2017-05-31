@@ -26,6 +26,7 @@ import static org.apache.beam.runners.core.construction.PTransformTranslation.WI
 import static org.apache.beam.runners.core.construction.SplittableParDo.SPLITTABLE_PROCESS_URN;
 import static org.apache.beam.runners.direct.DirectGroupByKey.DIRECT_GABW_URN;
 import static org.apache.beam.runners.direct.DirectGroupByKey.DIRECT_GBKO_URN;
+import static org.apache.beam.runners.direct.NoOpViewOverrideFactory.DIRECT_NO_OP_URN;
 import static org.apache.beam.runners.direct.ParDoMultiOverrideFactory.DIRECT_STATEFUL_PAR_DO_URN;
 import static org.apache.beam.runners.direct.TestStreamEvaluatorFactory.DirectTestStreamFactory.DIRECT_TEST_STREAM_URN;
 import static org.apache.beam.runners.direct.ViewOverrideFactory.DIRECT_WRITE_VIEW_URN;
@@ -39,6 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems;
 import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems.ProcessElements;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
+import org.apache.beam.runners.core.construction.PTransformTranslation.RawPTransformTranslator;
 import org.apache.beam.runners.core.construction.PTransformTranslation.TransformPayloadTranslator;
 import org.apache.beam.runners.core.construction.SdkComponents;
 import org.apache.beam.runners.core.construction.TransformPayloadTranslatorRegistrar;
@@ -73,6 +75,7 @@ class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
             .put(DIRECT_GBKO_URN, new GroupByKeyOnlyEvaluatorFactory(ctxt))
             .put(DIRECT_GABW_URN, new GroupAlsoByWindowEvaluatorFactory(ctxt))
             .put(DIRECT_TEST_STREAM_URN, new TestStreamEvaluatorFactory(ctxt))
+            .put(DIRECT_NO_OP_URN, new NoOpEvaluatorFactory())
 
             // Runners-core primitives
             .put(SPLITTABLE_PROCESS_URN, new SplittableProcessElementsEvaluatorFactory<>(ctxt))
@@ -90,6 +93,7 @@ class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
         getTransformPayloadTranslators() {
       return ImmutableMap
           .<Class<? extends PTransform>, PTransformTranslation.TransformPayloadTranslator>builder()
+          .put(NoOpViewOverrideFactory.NoOpTransform.class, new RawPTransformTranslator())
           .put(
               DirectGroupByKey.DirectGroupByKeyOnly.class,
               new PTransformTranslation.RawPTransformTranslator<>())

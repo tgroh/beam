@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +35,7 @@ import org.apache.beam.runners.direct.DirectRunner.DirectPipelineResult;
 import org.apache.beam.runners.direct.TestStreamEvaluatorFactory.DirectTestStreamFactory;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.Pipeline.PipelineExecutionException;
+import org.apache.beam.sdk.Pipeline.PipelineVisitor;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.PipelineRunner;
 import org.apache.beam.sdk.io.Read;
@@ -41,6 +43,7 @@ import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.runners.PTransformOverride;
+import org.apache.beam.sdk.runners.TransformHierarchy.Node;
 import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -49,6 +52,7 @@ import org.apache.beam.sdk.transforms.ParDo.MultiOutput;
 import org.apache.beam.sdk.transforms.View.CreatePCollectionView;
 import org.apache.beam.sdk.util.UserCodeException;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PCollectionView;
 import org.joda.time.Duration;
 
 /**
@@ -153,17 +157,20 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
     return options;
   }
 
-  Supplier<Clock> getClockSupplier() {
-    return clockSupplier;
-  }
-
   void setClockSupplier(Supplier<Clock> supplier) {
     this.clockSupplier = supplier;
   }
 
   @Override
   public DirectPipelineResult run(Pipeline pipeline) {
-    pipeline.replaceAll(defaultTransformOverrides());
+    pipeline.replaceAll(behaviorOverrides());
+
+    Set<PCollectionView<?>> views = getViews(pipeline);
+    for (PCollectionView<?> view : views) {
+      view.getPCollection().apply(new ViewOverrideFactory.GroupAndWriteView(view));
+    }
+
+    pipeline.replaceAll(implementationOverrides());
     MetricsEnvironment.setMetricsSupported(true);
     DirectGraphVisitor graphVisitor = new DirectGraphVisitor();
     pipeline.traverseTopologically(graphVisitor);
@@ -188,7 +195,8 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
     TransformEvaluatorRegistry registry = TransformEvaluatorRegistry.defaultRegistry(context);
     PipelineExecutor executor =
         ExecutorServiceParallelExecutor.create(
-            options.getTargetParallelism(), graph,
+            options.getTargetParallelism(),
+            graph,
             rootInputProvider,
             registry,
             Enforcement.defaultModelEnforcements(enabledEnforcements),
@@ -211,6 +219,29 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
     return result;
   }
 
+  private Set<PCollectionView<?>> getViews(Pipeline pipeline) {
+    final Set<PCollectionView<?>> views = new HashSet<>();
+    pipeline.traverseTopologically(
+        new PipelineVisitor.Defaults() {
+          @Override
+          public void visitPrimitiveTransform(Node node) {
+            if (node.getTransform() instanceof ParDo.MultiOutput) {
+              views.addAll(((ParDo.MultiOutput) node.getTransform()).getSideInputs());
+            }
+          }
+        });
+    return views;
+  }
+
+  private List<PTransformOverride> behaviorOverrides() {
+    return ImmutableList.<PTransformOverride>builder()
+        .add(
+            PTransformOverride.of(
+                PTransformMatchers.writeWithRunnerDeterminedSharding(),
+                new WriteWithShardingFactory())) /* Uses a view internally. */
+        .build();
+  }
+
   /**
    * The default set of transform overrides to use in the {@link DirectRunner}.
    *
@@ -220,16 +251,12 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
    * iteration order based on the order at which elements are added to it.
    */
   @SuppressWarnings("rawtypes")
-  private List<PTransformOverride> defaultTransformOverrides() {
+  private List<PTransformOverride> implementationOverrides() {
     return ImmutableList.<PTransformOverride>builder()
         .add(
             PTransformOverride.of(
-                PTransformMatchers.writeWithRunnerDeterminedSharding(),
-                new WriteWithShardingFactory())) /* Uses a view internally. */
-        .add(
-            PTransformOverride.of(
                 PTransformMatchers.classEqualTo(CreatePCollectionView.class),
-                new ViewOverrideFactory())) /* Uses pardos and GBKs */
+                new NoOpViewOverrideFactory()))
         .add(
             PTransformOverride.of(
                 PTransformMatchers.classEqualTo(TestStream.class),
