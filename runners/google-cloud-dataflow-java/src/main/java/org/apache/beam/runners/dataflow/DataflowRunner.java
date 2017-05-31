@@ -731,9 +731,6 @@ public class DataflowRunner extends PipelineRunner<DataflowPipelineJob> {
       pipeline.traverseTopologically(
           new PipelineVisitor.Defaults() {
             @Override
-            public void visitValue(PValue value, TransformHierarchy.Node producer) {}
-
-            @Override
             public void visitPrimitiveTransform(TransformHierarchy.Node node) {
               if (ptransformViewsWithNonDeterministicKeyCoders.contains(node.getTransform())) {
                 ptransformViewNamesWithNonDeterministicKeyCoders.add(node.getFullName());

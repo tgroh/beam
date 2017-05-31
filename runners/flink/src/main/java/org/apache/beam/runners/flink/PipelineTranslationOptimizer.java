@@ -20,7 +20,6 @@ package org.apache.beam.runners.flink;
 import org.apache.beam.sdk.io.Read;
 import org.apache.beam.sdk.runners.TransformHierarchy;
 import org.apache.beam.sdk.transforms.PTransform;
-import org.apache.beam.sdk.values.PValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,14 +50,6 @@ class PipelineTranslationOptimizer extends FlinkPipelineTranslator {
   }
 
   @Override
-  public CompositeBehavior enterCompositeTransform(TransformHierarchy.Node node) {
-    return CompositeBehavior.ENTER_TRANSFORM;
-  }
-
-  @Override
-  public void leaveCompositeTransform(TransformHierarchy.Node node) {}
-
-  @Override
   public void visitPrimitiveTransform(TransformHierarchy.Node node) {
     Class<? extends PTransform> transformClass = node.getTransform().getClass();
     if (transformClass == Read.Unbounded.class) {
@@ -66,7 +57,4 @@ class PipelineTranslationOptimizer extends FlinkPipelineTranslator {
       translationMode = TranslationMode.STREAMING;
     }
   }
-
-  @Override
-  public void visitValue(PValue value, TransformHierarchy.Node producer) {}
 }

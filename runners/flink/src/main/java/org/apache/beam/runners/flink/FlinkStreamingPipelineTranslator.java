@@ -171,11 +171,6 @@ class FlinkStreamingPipelineTranslator extends FlinkPipelineTranslator {
     applyStreamingTransform(transform, node, translator);
   }
 
-  @Override
-  public void visitValue(PValue value, TransformHierarchy.Node producer) {
-    // do nothing here
-  }
-
   private <T extends PTransform<?, ?>> void applyStreamingTransform(
       PTransform<?, ?> transform,
       TransformHierarchy.Node node,
