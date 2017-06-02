@@ -491,5 +491,10 @@ public class PCollectionViews {
     public String toString() {
       return MoreObjects.toStringHelper(this).add("tag", tag).toString();
     }
+
+    @Override
+    public Map<TupleTag<?>, PValue> expand() {
+      return Collections.<TupleTag<?>, PValue>singletonMap(tag, pCollection);
+    }
   }
 }

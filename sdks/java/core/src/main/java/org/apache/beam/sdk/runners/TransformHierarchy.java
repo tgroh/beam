@@ -24,6 +24,7 @@ import static com.google.common.base.Preconditions.checkState;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -242,8 +243,18 @@ public class TransformHierarchy {
             previous,
             value.getValue());
       } else {
-        for (Map.Entry<TupleTag<?>, PCollection<?>> valueComponent :
-            fullyExpand(value.getValue()).entrySet()) {
+        if (value.getValue().expand().size() == 1
+            && Iterables.getOnlyElement(value.getValue().expand().values())
+                .equals(value.getValue())) {
+          throw new IllegalStateException(
+              String.format(
+                  "Non %s %s that expands into itself %s",
+                  PCollection.class.getSimpleName(),
+                  PValue.class.getSimpleName(),
+                  value.getValue()));
+        }
+          for (Map.Entry<TupleTag<?>, PCollection<?>> valueComponent :
+              fullyExpand(value.getValue()).entrySet()) {
           PCollection<?> previous = result.put(valueComponent.getKey(), valueComponent.getValue());
           checkArgument(
               previous == null,
