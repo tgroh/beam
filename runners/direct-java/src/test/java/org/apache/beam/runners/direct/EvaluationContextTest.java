@@ -101,9 +101,7 @@ public class EvaluationContextTest {
     view = created.apply(View.<Integer>asIterable());
     unbounded = p.apply(GenerateSequence.from(0));
 
-    p.replaceAll(
-        DirectRunner.fromOptions(TestPipeline.testingPipelineOptions())
-            .defaultTransformOverrides());
+    p.replaceAll(runner.defaultTransformOverrides());
 
     KeyedPValueTrackingVisitor keyedPValueTrackingVisitor = KeyedPValueTrackingVisitor.create();
     p.traverseTopologically(keyedPValueTrackingVisitor);

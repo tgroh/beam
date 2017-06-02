@@ -120,7 +120,7 @@ public class ViewOverrideFactoryTest implements Serializable {
     p.traverseTopologically(
         new PipelineVisitor.Defaults() {
           @Override
-          public void visitPrimitiveTransform(Node node) {
+          public void leaveCompositeTransform(Node node) {
             if (node.getTransform() instanceof WriteView) {
               assertThat(
                   "There should only be one WriteView primitive in the graph",
