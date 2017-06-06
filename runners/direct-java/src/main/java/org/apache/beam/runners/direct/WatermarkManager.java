@@ -19,6 +19,7 @@ package org.apache.beam.runners.direct;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.annotations.VisibleForTesting;
@@ -64,6 +65,7 @@ import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.PValue;
 import org.apache.beam.sdk.values.TupleTag;
 import org.joda.time.Instant;
+import org.slf4j.LoggerFactory;
 
 /**
  * Manages watermarks of {@link PCollection PCollections} and input and output watermarks of
@@ -211,6 +213,8 @@ class WatermarkManager {
    * <p>See {@link #refresh()} for more information.
    */
   private static class AppliedPTransformInputWatermark implements Watermark {
+    private static final org.slf4j.Logger LOG =
+        LoggerFactory.getLogger(AppliedPTransformInputWatermark.class);
     private final Collection<? extends Watermark> inputWatermarks;
     private final SortedMultiset<CommittedBundle<?>> pendingElements;
 
@@ -282,7 +286,9 @@ class WatermarkManager {
     }
 
     private synchronized void addPending(CommittedBundle<?> newPending) {
-      pendingElements.add(newPending);
+      if (newPending.getElements().iterator().hasNext()) {
+        pendingElements.add(newPending);
+      }
     }
 
     private synchronized void removePending(CommittedBundle<?> completed) {
@@ -507,6 +513,7 @@ class WatermarkManager {
     }
 
     public synchronized void addPending(CommittedBundle<?> bundle) {
+      checkArgument(bundle.getElements().iterator().hasNext());
       pendingBundles.add(bundle);
     }
 
@@ -912,6 +919,9 @@ class WatermarkManager {
       TimerUpdate timerUpdate,
       CommittedResult result,
       Instant earliestHold) {
+    for (CommittedBundle<?> output : result.getOutputs()) {
+      checkState(output.getElements().iterator().hasNext());
+    }
     pendingUpdates.offer(PendingWatermarkUpdate.create(completed,
         timerUpdate,
         result,
@@ -994,7 +1004,7 @@ class WatermarkManager {
     }
 
     TransformWatermarks completedTransform = transformToWatermarks.get(result.getTransform());
-    if (input != null) {
+    if (input != null && result.getUnprocessedInputs().getElements().iterator().hasNext()) {
       // Add the unprocessed inputs
       completedTransform.addPending(result.getUnprocessedInputs());
     }

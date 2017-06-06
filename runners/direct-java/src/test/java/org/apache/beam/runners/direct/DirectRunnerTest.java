@@ -75,12 +75,15 @@ import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.TypeDescriptor;
 import org.hamcrest.Matchers;
 import org.joda.time.Duration;
+import org.joda.time.Instant;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.internal.matchers.ThrowableMessageMatcher;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tests for basic {@link DirectRunner} functionality.
@@ -575,6 +578,45 @@ public class DirectRunnerTest implements Serializable {
     @Override
     public Coder<T> getDefaultOutputCoder() {
       return underlying.getDefaultOutputCoder();
+    }
+  }
+
+  @Test
+  public void testLatencyStuff() {
+    Pipeline pipeline = getPipeline();
+    PCollection<Long> longs =
+        pipeline
+            .apply(
+                GenerateSequence.from(0)
+                    .withRate(10L, Duration.standardSeconds(1L))
+                        );
+    PCollection<Long> input = longs;
+    for (int i = 0; i < 100; i++) {
+      input = input.apply(ParDo.of(new Identity()));
+    }
+    input.apply(ParDo.of(new LogLatencyFn()));
+    pipeline.run();
+  }
+
+  private static class Identity extends DoFn<Long, Long> {
+    @ProcessElement
+    public void process(ProcessContext context) {
+      context.output(context.element());
+    }
+  }
+
+  private static class LogLatencyFn extends DoFn<Long, Void> {
+    private static final Logger LOG = LoggerFactory.getLogger(LogLatencyFn.class);
+    @ProcessElement
+    public void process(ProcessContext context) {
+      Instant now = Instant.now();
+      long latency = now.getMillis() - context.timestamp().getMillis();
+      LOG.info(
+          "Latency for {}: {} ms (start {} stop {})",
+          context.element(), latency,
+          context.timestamp(),
+          now);
+      context.outputWithTimestamp(null, now);
     }
   }
 }

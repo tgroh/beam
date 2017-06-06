@@ -19,6 +19,7 @@
 package org.apache.beam.runners.direct;
 
 import com.google.auto.value.AutoValue;
+import com.google.common.base.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.runners.AppliedPTransform;
@@ -41,7 +42,7 @@ abstract class CommittedResult {
    * <p>{@code null} if the input bundle was null.
    */
   @Nullable
-  public abstract CommittedBundle<?> getUnprocessedInputs();
+  public abstract Optional<CommittedBundle<?>> getUnprocessedInputs();
 
   /**
    * Returns the outputs produced by the transform.
@@ -63,7 +64,7 @@ abstract class CommittedResult {
       Iterable<? extends CommittedBundle<?>> outputs,
       Set<OutputType> producedOutputs) {
     return new AutoValue_CommittedResult(original.getTransform(),
-        unprocessedElements,
+        Optional.fromNullable(unprocessedElements),
         outputs,
         producedOutputs);
   }
