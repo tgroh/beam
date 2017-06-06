@@ -23,21 +23,14 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.PipelineRunner;
 import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsValidator;
-import org.apache.beam.sdk.runners.TransformHierarchy;
-import org.apache.beam.sdk.transforms.PTransform;
-import org.apache.beam.sdk.transforms.View;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.client.program.DetachedEnvironment;
 import org.slf4j.Logger;
@@ -96,13 +89,10 @@ public class FlinkRunner extends PipelineRunner<PipelineResult> {
 
   private FlinkRunner(FlinkPipelineOptions options) {
     this.options = options;
-    this.ptransformViewsWithNonDeterministicKeyCoders = new HashSet<>();
   }
 
   @Override
   public PipelineResult run(Pipeline pipeline) {
-    logWarningIfPCollectionViewHasNonDeterministicKeyCoder(pipeline);
-
     MetricsEnvironment.setMetricsSupported(true);
 
     LOG.info("Executing pipeline using FlinkRunner.");
@@ -179,48 +169,5 @@ public class FlinkRunner extends PipelineRunner<PipelineResult> {
       }
     }
     return files;
-  }
-
-  /** A set of {@link View}s with non-deterministic key coders. */
-  Set<PTransform<?, ?>> ptransformViewsWithNonDeterministicKeyCoders;
-
-  /**
-   * Records that the {@link PTransform} requires a deterministic key coder.
-   */
-  void recordViewUsesNonDeterministicKeyCoder(PTransform<?, ?> ptransform) {
-    ptransformViewsWithNonDeterministicKeyCoders.add(ptransform);
-  }
-
-  /** Outputs a warning about PCollection views without deterministic key coders. */
-  private void logWarningIfPCollectionViewHasNonDeterministicKeyCoder(Pipeline pipeline) {
-    // We need to wait till this point to determine the names of the transforms since only
-    // at this time do we know the hierarchy of the transforms otherwise we could
-    // have just recorded the full names during apply time.
-    if (!ptransformViewsWithNonDeterministicKeyCoders.isEmpty()) {
-      final SortedSet<String> ptransformViewNamesWithNonDeterministicKeyCoders = new TreeSet<>();
-      pipeline.traverseTopologically(new Pipeline.PipelineVisitor.Defaults() {
-
-        @Override
-        public void visitPrimitiveTransform(TransformHierarchy.Node node) {
-          if (ptransformViewsWithNonDeterministicKeyCoders.contains(node.getTransform())) {
-            ptransformViewNamesWithNonDeterministicKeyCoders.add(node.getFullName());
-          }
-        }
-
-        @Override
-        public CompositeBehavior enterCompositeTransform(TransformHierarchy.Node node) {
-          if (ptransformViewsWithNonDeterministicKeyCoders.contains(node.getTransform())) {
-            ptransformViewNamesWithNonDeterministicKeyCoders.add(node.getFullName());
-          }
-          return CompositeBehavior.ENTER_TRANSFORM;
-        }
-      });
-
-      LOG.warn("Unable to use indexed implementation for View.AsMap and View.AsMultimap for {} "
-          + "because the key coder is not deterministic. Falling back to singleton implementation "
-          + "which may cause memory and/or performance problems. Future major versions of "
-          + "the Flink runner will require deterministic key coders.",
-          ptransformViewNamesWithNonDeterministicKeyCoders);
-    }
   }
 }
