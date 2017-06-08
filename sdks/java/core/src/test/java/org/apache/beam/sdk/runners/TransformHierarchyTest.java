@@ -511,17 +511,19 @@ public class TransformHierarchyTest implements Serializable {
     final TupleTag<Integer> twoTag = new TupleTag<Integer>() {};
     final PCollectionTuple oneAndTwo = PCollectionTuple.of(oneTag, one).and(twoTag, two);
 
-    hierarchy.pushNode("consumes_both", one, new PTransform<PCollection<String>, PDone>() {
-      @Override
-      public PDone expand(PCollection<String> input) {
-        return done;
-      }
+    PTransform<PCollection<String>, PDone> multiConsumer =
+        new PTransform<PCollection<String>, PDone>() {
+          @Override
+          public PDone expand(PCollection<String> input) {
+            return done;
+          }
 
-      @Override
-      public Map<TupleTag<?>, PValue> getAdditionalInputs() {
-        return Collections.<TupleTag<?>, PValue>singletonMap(twoTag, two);
-      }
-    });
+          @Override
+          public Map<TupleTag<?>, PValue> getAdditionalInputs() {
+            return Collections.<TupleTag<?>, PValue>singletonMap(twoTag, two);
+          }
+        };
+    hierarchy.pushNode("consumes_both", one, multiConsumer);
     hierarchy.setOutput(done);
     hierarchy.popNode();
 
@@ -549,33 +551,139 @@ public class TransformHierarchyTest implements Serializable {
     hierarchy.setOutput(oneAndTwo);
     hierarchy.popNode();
 
-    hierarchy.visit(new PipelineVisitor.Defaults() {
-      private final Set<Node> visitedNodes = new HashSet<>();
-      private final Set<PValue> visitedValues = new HashSet<>();
-      @Override
-      public CompositeBehavior enterCompositeTransform(Node node) {
-        for (PValue input : node.getInputs().values()) {
-          assertThat(visitedValues, hasItem(input));
-        }
-        visitedNodes.add(node);
-        return CompositeBehavior.ENTER_TRANSFORM;
-      }
+    hierarchy.pushNode("second_copy_of_consumes_both", one, multiConsumer);
+    hierarchy.setOutput(done);
+    hierarchy.popNode();
 
-      @Override
-      public void visitPrimitiveTransform(Node node) {
-        assertThat(visitedNodes, hasItem(node.getEnclosingNode()));
-        for (PValue input : node.getInputs().values()) {
-          assertThat(visitedValues, hasItem(input));
-        }
-        visitedNodes.add(node);
-      }
+    hierarchy.visit(
+        new PipelineVisitor.Defaults() {
+          private final Set<Node> visitedNodes = new HashSet<>();
+          private final Set<Node> exitedNodes = new HashSet<>();
+          private final Set<PValue> visitedValues = new HashSet<>();
 
-      @Override
-      public void visitValue(PValue value, Node producer) {
-        assertThat(visitedNodes, hasItem(producer));
-        assertThat(visitedValues, not(hasItem(value)));
-        visitedValues.add(value);
-      }
-    });
+          @Override
+          public CompositeBehavior enterCompositeTransform(Node node) {
+            for (PValue input : node.getInputs().values()) {
+              assertThat(visitedValues, hasItem(input));
+            }
+            assertThat(
+                "Nodes should not be visited more than once", visitedNodes, not(hasItem(node)));
+            if (!node.isRootNode()) {
+              assertThat(
+                  "Nodes should always be visited after their enclosing nodes",
+                  visitedNodes,
+                  hasItem(node.getEnclosingNode()));
+            }
+            visitedNodes.add(node);
+            return CompositeBehavior.ENTER_TRANSFORM;
+          }
+
+          @Override
+          public void leaveCompositeTransform(Node node) {
+            assertThat(visitedNodes, hasItem(node));
+            if (!node.isRootNode()) {
+              assertThat(
+                  "Nodes should always be left before their enclosing nodes are left",
+                  exitedNodes,
+                  not(hasItem(node.getEnclosingNode())));
+            }
+            assertThat(exitedNodes, not(hasItem(node)));
+            exitedNodes.add(node);
+          }
+
+          @Override
+          public void visitPrimitiveTransform(Node node) {
+            assertThat(visitedNodes, hasItem(node.getEnclosingNode()));
+            assertThat(exitedNodes, not(hasItem(node.getEnclosingNode())));
+            assertThat(
+                "Nodes should not be visited more than once", visitedNodes, not(hasItem(node)));
+            for (PValue input : node.getInputs().values()) {
+              assertThat(visitedValues, hasItem(input));
+            }
+            visitedNodes.add(node);
+          }
+
+          @Override
+          public void visitValue(PValue value, Node producer) {
+            assertThat(visitedNodes, hasItem(producer));
+            assertThat(visitedValues, not(hasItem(value)));
+            visitedValues.add(value);
+          }
+        });
+  }
+
+  @Test
+  public void visitDoesNotVisitSkippedNodes() {
+    PCollection<String> one =
+        PCollection.<String>createPrimitiveOutputInternal(
+                pipeline, WindowingStrategy.globalDefault(), IsBounded.BOUNDED)
+            .setCoder(StringUtf8Coder.of());
+    final PCollection<Integer> two =
+        PCollection.<Integer>createPrimitiveOutputInternal(
+                pipeline, WindowingStrategy.globalDefault(), IsBounded.UNBOUNDED)
+            .setCoder(VarIntCoder.of());
+    final PDone done = PDone.in(pipeline);
+    final TupleTag<String> oneTag = new TupleTag<String>() {};
+    final TupleTag<Integer> twoTag = new TupleTag<Integer>() {};
+    final PCollectionTuple oneAndTwo = PCollectionTuple.of(oneTag, one).and(twoTag, two);
+
+    hierarchy.pushNode(
+        "consumes_both",
+        one,
+        new PTransform<PCollection<String>, PDone>() {
+          @Override
+          public PDone expand(PCollection<String> input) {
+            return done;
+          }
+
+          @Override
+          public Map<TupleTag<?>, PValue> getAdditionalInputs() {
+            return Collections.<TupleTag<?>, PValue>singletonMap(twoTag, two);
+          }
+        });
+    hierarchy.setOutput(done);
+    hierarchy.popNode();
+
+    final PTransform<PBegin, PCollectionTuple> producer =
+        new PTransform<PBegin, PCollectionTuple>() {
+          @Override
+          public PCollectionTuple expand(PBegin input) {
+            return oneAndTwo;
+          }
+        };
+    final Node enclosing =
+        hierarchy.pushNode(
+            "encloses_producer",
+            PBegin.in(pipeline),
+            new PTransform<PBegin, PCollectionTuple>() {
+              @Override
+              public PCollectionTuple expand(PBegin input) {
+                return input.apply(producer);
+              }
+            });
+    Node enclosed = hierarchy.pushNode("creates_one_and_two", PBegin.in(pipeline), producer);
+    hierarchy.setOutput(oneAndTwo);
+    hierarchy.popNode();
+    hierarchy.setOutput(oneAndTwo);
+    hierarchy.popNode();
+
+    final Set<Node> visitedNodes = new HashSet<>();
+    hierarchy.visit(
+        new PipelineVisitor.Defaults() {
+          @Override
+          public CompositeBehavior enterCompositeTransform(Node node) {
+            visitedNodes.add(node);
+            return node.equals(enclosing)
+                ? CompositeBehavior.DO_NOT_ENTER_TRANSFORM
+                : CompositeBehavior.ENTER_TRANSFORM;
+          }
+
+          @Override
+          public void visitPrimitiveTransform(Node node) {
+            visitedNodes.add(node);
+          }
+        });
+
+    assertThat(visitedNodes, not(hasItem(enclosed)));
   }
 }

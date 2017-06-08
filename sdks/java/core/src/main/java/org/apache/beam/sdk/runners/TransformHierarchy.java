@@ -503,6 +503,35 @@ public class TransformHierarchy {
     /**
      * Visit the transform node.
      *
+     * <p>The visit proceeds in the following order:
+     *
+     * <ul>
+     *   <li>Visit all input {@link PValue PValues} returned by the flattened expansion of {@link
+     *       Node#getInputs()}.
+     *   <li>If the node is a composite:
+     *       <ul>
+     *         <li>Enter the node via {@link PipelineVisitor#enterCompositeTransform(Node)}.
+     *         <li>If the result of {@link PipelineVisitor#enterCompositeTransform(Node)} was {@link
+     *             CompositeBehavior#ENTER_TRANSFORM}, visit each child node of this {@link Node}.
+     *         <li>Leave the node via {@link PipelineVisitor#leaveCompositeTransform(Node)}.
+     *       </ul>
+     *   <li>If the node is a primitive, visit it via {@link
+     *       PipelineVisitor#visitPrimitiveTransform(Node)}.
+     *   <li>Visit each {@link PValue} that was output by this node.
+     * </ul>
+     *
+     * <p>Additionally, the following ordering restrictions are observed:
+     *
+     * <ul>
+     *   <li>A {@link Node} will be visited after its enclosing node has been entered and before its
+     *       enclosing node has been left
+     *   <li>A {@link Node} will not be visited if any enclosing {@link Node} has returned {@link
+     *       CompositeBehavior#DO_NOT_ENTER_TRANSFORM} from the call to {@link
+     *       PipelineVisitor#enterCompositeTransform(Node)}.
+     *   <li>A {@link PValue} will only be visited after the {@link Node} that originally produced
+     *       it has been visited.
+     * </ul>
+     *
      * <p>Provides an ordered visit of the input values, the primitive transform (or child nodes for
      * composite transforms), then the output values.
      */
@@ -510,16 +539,21 @@ public class TransformHierarchy {
         PipelineVisitor visitor,
         Set<PValue> visitedValues,
         Set<Node> visitedNodes,
-        Set<Node> passedComposites) {
+        Set<Node> skippedComposites) {
       if (getEnclosingNode() != null && !visitedNodes.contains(getEnclosingNode())) {
-        getEnclosingNode().visit(visitor, visitedValues, visitedNodes, passedComposites);
+        // Recursively enter all enclosing nodes, as appropriate.
+        getEnclosingNode().visit(visitor, visitedValues, visitedNodes, skippedComposites);
       }
+      // These checks occur after visiting the enclosing node to ensure that if this node has been
+      // visited while visiting the enclosing node the node is not revisited, or, if an enclosing
+      // Node is skipped, this node is also skipped.
       if (!visitedNodes.add(this)) {
         LOG.debug("Not revisiting previously visited node {}", this);
         return;
-      } else if (childNodeOf(passedComposites)) {
+      } else if (childNodeOf(skippedComposites)) {
+        // This node is a child of a node that has been passed over via CompositeBehavior, and
+        // should also be skipped. All child nodes of a skipped composite should always be skipped.
         LOG.debug("Not revisiting Node {} which is a child of a previously passed composite", this);
-        passedComposites.add(this);
         return;
       }
 
@@ -532,7 +566,7 @@ public class TransformHierarchy {
         for (PValue inputValue : inputs.values()) {
           Node valueProducer = getProducer(inputValue);
           if (!visitedNodes.contains(valueProducer)) {
-            valueProducer.visit(visitor, visitedValues, visitedNodes, passedComposites);
+            valueProducer.visit(visitor, visitedValues, visitedNodes, skippedComposites);
           }
           if (visitedValues.add(inputValue)) {
             LOG.debug("Visiting input value {}", inputValue);
@@ -547,10 +581,10 @@ public class TransformHierarchy {
 
         if (recurse.equals(CompositeBehavior.ENTER_TRANSFORM)) {
           for (Node child : parts) {
-            child.visit(visitor, visitedValues, visitedNodes, passedComposites);
+            child.visit(visitor, visitedValues, visitedNodes, skippedComposites);
           }
         } else {
-          passedComposites.add(this);
+          skippedComposites.add(this);
         }
         visitor.leaveCompositeTransform(this);
       } else {
