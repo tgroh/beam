@@ -86,6 +86,7 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.mockito.Mock;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tests for Combine transforms.
@@ -446,23 +447,24 @@ public class CombineTest implements Serializable {
     PCollection<KV<String, Integer>> perKeyInput =
         pipeline.apply(
             Create.timestamped(
-                    TimestampedValue.of(KV.of("a", 1), new Instant(0L)),
-                    TimestampedValue.of(KV.of("a", 1), new Instant(4L)),
+                    TimestampedValue.of(KV.of("a", 2), new Instant(0L)),
+                    TimestampedValue.of(KV.of("a", 3), new Instant(4L)),
                     TimestampedValue.of(KV.of("a", 4), new Instant(7L)),
-                    TimestampedValue.of(KV.of("b", 1), new Instant(10L)),
+                    TimestampedValue.of(KV.of("b", 5), new Instant(10L)),
                     TimestampedValue.of(KV.of("b", 13), new Instant(16L)))
                 .withCoder(KvCoder.of(StringUtf8Coder.of(), BigEndianIntegerCoder.of())));
 
-    PCollection<Integer> globallyInput = perKeyInput.apply(Values.<Integer>create());
-
-    PCollection<Integer> fixedWindowsSum = globallyInput
-        .apply("FixedWindows",
-            Window.<Integer>into(FixedWindows.of(Duration.millis(5))))
-        .apply("Sum", Combine.globally(new SumInts()).withoutDefaults());
-
     PCollectionView<Integer> globallyFixedWindowsView =
-        fixedWindowsSum.apply(View.<Integer>asSingleton().withDefaultValue(0));
+        pipeline
+            .apply(
+                "SideInputs",
+                Create.timestamped(
+                    TimestampedValue.of(1, new Instant(12L)),
+                    TimestampedValue.of(9, new Instant(20L))))
+            .apply(Window.<Integer>into(FixedWindows.of(Duration.millis(5))))
+            .apply(View.<Integer>asSingleton().withDefaultValue(0));
 
+    // "a: 1, 1, 4", "b: 1", "b: 13"
     PCollection<KV<String, String>> sessionsCombinePerKey =
         perKeyInput
             .apply(
@@ -474,7 +476,8 @@ public class CombineTest implements Serializable {
                     .withSideInputs(Arrays.asList(globallyFixedWindowsView)));
 
     PCollection<String> sessionsCombineGlobally =
-        globallyInput
+        perKeyInput
+            .apply(Values.<Integer>create())
             .apply(
                 "Globally Input Sessions",
                 Window.<Integer>into(Sessions.withGapDuration(Duration.millis(5))))
@@ -483,12 +486,9 @@ public class CombineTest implements Serializable {
                     .withoutDefaults()
                     .withSideInputs(Arrays.asList(globallyFixedWindowsView)));
 
-    PAssert.that(fixedWindowsSum).containsInAnyOrder(2, 4, 1, 13);
-    PAssert.that(sessionsCombinePerKey).containsInAnyOrder(
-        KV.of("a", "1:114"),
-        KV.of("b", "1:1"),
-        KV.of("b", "0:13"));
-    PAssert.that(sessionsCombineGlobally).containsInAnyOrder("1:1114", "0:13");
+    PAssert.that(sessionsCombinePerKey)
+        .containsInAnyOrder(KV.of("a", "1:234"), KV.of("b", "1:5"), KV.of("b", "9:13"));
+    PAssert.that(sessionsCombineGlobally).containsInAnyOrder("1:2345", "9:13");
     pipeline.run();
   }
 
@@ -988,6 +988,11 @@ public class CombineTest implements Serializable {
         this.seed = seed;
         this.value = value;
       }
+      
+      @Override
+      public String toString() {
+        return MoreObjects.toStringHelper(this).add("seed", seed).add("value", value).toString();
+      }
 
       public static Coder<Accumulator> getCoder() {
         return new AtomicCoder<Accumulator>() {
@@ -1090,6 +1095,9 @@ public class CombineTest implements Serializable {
     @Override
     public TestCombineFn.Accumulator addInput(
         TestCombineFn.Accumulator accumulator, Integer value, Context c) {
+      LoggerFactory.getLogger(TestCombineFnWithContext.class)
+          .info("Value {} has Side Input {}", value, c.sideInput(view));
+      System.err.printf("Value %s has Side Input %s%n", value, c.sideInput(view));
       try {
         assertThat(
             "Not expecting view contents to change",
@@ -1107,9 +1115,9 @@ public class CombineTest implements Serializable {
         Iterable<TestCombineFn.Accumulator> accumulators, Context c) {
       String sideInputValue = c.sideInput(view).toString();
       StringBuilder all = new StringBuilder();
+      System.err.printf("Side input: %s%nAccumulators: %s%n", sideInputValue, accumulators);
       for (TestCombineFn.Accumulator accumulator : accumulators) {
         assertThat(
-            "Accumulators should all have the same Side Input Value",
             accumulator.seed,
             Matchers.equalTo(sideInputValue));
         all.append(accumulator.value);
