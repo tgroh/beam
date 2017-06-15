@@ -47,6 +47,7 @@ import org.apache.beam.sdk.coders.BigEndianLongCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.CoderRegistry;
+import org.apache.beam.sdk.coders.CustomCoder;
 import org.apache.beam.sdk.coders.DoubleCoder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.SerializableCoder;
@@ -86,6 +87,7 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.mockito.Mock;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tests for Combine transforms.
@@ -128,28 +130,117 @@ public class CombineTest implements Serializable {
   }
 
   private void runTestSimpleCombineWithContext(List<KV<String, Integer>> table,
-                                               int globalSum,
+                                               final int sideInput,
                                                List<KV<String, String>> perKeyCombines,
                                                String[] globallyCombines) {
     PCollection<KV<String, Integer>> perKeyInput = createInput(pipeline, table);
-    PCollection<Integer> globallyInput = perKeyInput.apply(Values.<Integer>create());
+    PCollection<Integer> globallyInput =
+        perKeyInput.apply("All the Values", Values.<Integer>create());
 
     PCollection<Integer> sum = globallyInput.apply("Sum", Combine.globally(new SumInts()));
+    final PCollectionView<Integer> globallySumView =
+        sum.apply("SumToSingleton", View.<Integer>asSingleton());
+    final PCollectionView<Integer> myGlobalSumView =
+        perKeyInput
+            .apply("GlobalSumValues", Values.<Integer>create())
+            .apply("GlobalSumView", Sum.integersGlobally().asSingletonView());
 
-    PCollectionView<Integer> globallySumView = sum.apply(View.<Integer>asSingleton());
+    CombineFnWithContext<Integer, Accumulator, String> combinefn =
+        new CombineFnWithContext<Integer, Accumulator, String>() {
+          @Override
+          public Accumulator createAccumulator(Context c) {
+            assertThat(
+                "Creating the Accumulator got an inconsistent side input view",
+                c.sideInput(globallySumView),
+                equalTo(sideInput));
+            assertThat(
+                "CreateAccumulator: Different methods of combining were inconsistent",
+                c.sideInput(globallySumView),
+                equalTo(c.sideInput(myGlobalSumView)));
+            return new Accumulator(Integer.toString(c.sideInput(globallySumView)), "");
+          }
 
+          @Override
+          public Accumulator addInput(Accumulator accumulator, Integer input, Context c) {
+            LoggerFactory.getLogger(CombineTest.class).warn("Simple Combine got input {}", input);
+            assertThat(
+                "Adding an input got an inconsistent side input view",
+                c.sideInput(globallySumView),
+                equalTo(sideInput));
+            assertThat(
+                "AddInput: Different methods of combining were inconsistent",
+                c.sideInput(globallySumView),
+                equalTo(c.sideInput(myGlobalSumView)));
+            accumulator.value = accumulator.value + input.toString();
+            return accumulator;
+          }
+
+          @Override
+          public Accumulator mergeAccumulators(Iterable<Accumulator> accumulators, Context c) {
+            assertThat(
+                "Merging accumulators got an inconsistent side input view",
+                c.sideInput(globallySumView),
+                equalTo(sideInput));
+            assertThat(
+                "MergeAccumulators: Different methods of combining were inconsistent",
+                c.sideInput(globallySumView),
+                equalTo(c.sideInput(myGlobalSumView)));
+            StringBuilder valueBuilder = new StringBuilder();
+            for (Accumulator accumulator : accumulators) {
+              valueBuilder.append(accumulator.value);
+            }
+            return new Accumulator(
+                c.sideInput(globallySumView).toString(), valueBuilder.toString());
+          }
+
+          @Override
+          public String extractOutput(Accumulator accumulator, Context c) {
+            assertThat(
+                "Extracting output got an inconsistent side input view",
+                c.sideInput(globallySumView),
+                equalTo(sideInput));
+            assertThat(
+                "ExtractOutput: Different methods of combining were inconsistent",
+                c.sideInput(globallySumView),
+                equalTo(c.sideInput(myGlobalSumView)));
+            char[] chars = accumulator.value.toCharArray();
+            Arrays.sort(chars);
+            return accumulator.seed + ":" + new String(chars);
+          }
+
+          @Override
+          public Coder<Accumulator> getAccumulatorCoder(
+              CoderRegistry registry, Coder<Integer> inputCoder) {
+            return new CustomCoder<Accumulator>() {
+              @Override
+              public void encode(Accumulator value, OutputStream outStream)
+                  throws CoderException, IOException {
+                StringUtf8Coder.of().encode(value.seed, outStream);
+                StringUtf8Coder.of().encode(value.value, outStream);
+              }
+
+              @Override
+              public Accumulator decode(InputStream inStream) throws CoderException, IOException {
+                return new Accumulator(
+                    StringUtf8Coder.of().decode(inStream), StringUtf8Coder.of().decode(inStream));
+              }
+            };
+          }
+        };
     // Java 8 will infer.
     PCollection<KV<String, String>> combinePerKey =
         perKeyInput.apply(
-            Combine.<String, Integer, String>perKey(new TestCombineFnWithContext(globallySumView))
-                .withSideInputs(Arrays.asList(globallySumView)));
+            Combine.<String, Integer, String>perKey(combinefn)
+                .withSideInputs(globallySumView, myGlobalSumView));
 
-    PCollection<String> combineGlobally = globallyInput
-        .apply(Combine.globally(new TestCombineFnWithContext(globallySumView))
-            .withoutDefaults()
-            .withSideInputs(Arrays.asList(globallySumView)));
+    PCollection<String> combineGlobally =
+        perKeyInput
+            .apply(Values.<Integer>create())
+            .apply(
+                Combine.globally(combinefn)
+                    .withoutDefaults()
+                    .withSideInputs(globallySumView, myGlobalSumView));
 
-    PAssert.that(sum).containsInAnyOrder(globalSum);
     PAssert.that(combinePerKey).containsInAnyOrder(perKeyCombines);
     PAssert.that(combineGlobally).containsInAnyOrder(globallyCombines);
 
