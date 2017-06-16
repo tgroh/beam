@@ -65,6 +65,7 @@ import org.apache.beam.sdk.transforms.display.DisplayDataEvaluator;
 import org.apache.beam.sdk.transforms.windowing.AfterPane;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindows;
+import org.apache.beam.sdk.transforms.windowing.IntervalWindow;
 import org.apache.beam.sdk.transforms.windowing.Repeatedly;
 import org.apache.beam.sdk.transforms.windowing.Sessions;
 import org.apache.beam.sdk.transforms.windowing.SlidingWindows;
@@ -84,6 +85,7 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import org.slf4j.LoggerFactory;
 
 /**
  * Tests for Combine transforms.
@@ -326,7 +328,7 @@ public class CombineTest implements Serializable {
   @Test
   @Category(ValidatesRunner.class)
   public void testSlidingWindowsCombineWithContext() {
-    // [a: 1, 1], [a: 4; b: 1], [b: 13]
+    // [a: 1], [a: 1, 1], [a: 1], [a: 4], [a: 4; b: 1], [b: 1, 13], [b: 13]
     PCollection<KV<String, Integer>> perKeyInput =
         pipeline
             .apply(
@@ -337,7 +339,9 @@ public class CombineTest implements Serializable {
                         TimestampedValue.of(KV.of("b", 1), new Instant(9L)),
                         TimestampedValue.of(KV.of("b", 13), new Instant(10L)))
                     .withCoder(KvCoder.of(StringUtf8Coder.of(), BigEndianIntegerCoder.of())))
-            .apply(Window.<KV<String, Integer>>into(SlidingWindows.of(Duration.millis(2))));
+            .apply(
+                Window.<KV<String, Integer>>into(
+                    SlidingWindows.of(Duration.millis(2)).every(Duration.millis(1L))));
 
     PCollection<Integer> globallyInput = perKeyInput.apply(Values.<Integer>create());
 
@@ -355,20 +359,30 @@ public class CombineTest implements Serializable {
             .withoutDefaults()
             .withSideInputs(globallySumView));
 
-    PAssert.that(sum).containsInAnyOrder(1, 2, 1, 4, 5, 14, 13);
-    PAssert.that(combinePerKeyWithContext)
-        .containsInAnyOrder(
-            Arrays.asList(
-                KV.of("a", "1:1"),
-                KV.of("a", "2:11"),
-                KV.of("a", "1:1"),
-                KV.of("a", "4:4"),
-                KV.of("a", "5:4"),
-                KV.of("b", "5:1"),
-                KV.of("b", "14:113"),
-                KV.of("b", "13:13")));
-    PAssert.that(combineGloballyWithContext).containsInAnyOrder(
-      "1:1", "2:11", "1:1", "4:4", "5:14", "14:113", "13:13");
+    LoggerFactory.getLogger("foo").info("bar");
+    PAssert.that("All expected total sums should be present", sum)
+        .containsInAnyOrder(1, 2, 1, 4, 5, 14, 13);
+    PAssert.that("Window [1, 3)", combinePerKeyWithContext)
+        .inWindow(new IntervalWindow(new Instant(1L), Duration.millis(2L)))
+        .containsInAnyOrder(KV.of("a", "1:1"));
+    PAssert.that("Window [2, 4)", combinePerKeyWithContext)
+        .inWindow(new IntervalWindow(new Instant(2L), Duration.millis(2L)))
+        .containsInAnyOrder(KV.of("a", "2:11"));
+    PAssert.that("Window [3, 5)", combinePerKeyWithContext)
+        .inWindow(new IntervalWindow(new Instant(3L), Duration.millis(2L)))
+        .containsInAnyOrder(KV.of("a", "1:1"));
+    PAssert.that("Window [7, 9)", combinePerKeyWithContext)
+        .inWindow(new IntervalWindow(new Instant(7L), Duration.millis(2L)))
+        .containsInAnyOrder(KV.of("a", "4:4"));
+    PAssert.that("Window [8, 10)", combinePerKeyWithContext)
+        .inWindow(new IntervalWindow(new Instant(8L), Duration.millis(2L)))
+        .containsInAnyOrder(KV.of("a", "5:4"), KV.of("b", "5:1"));
+    PAssert.that("Window [9, 11)", combinePerKeyWithContext)
+        .inWindow(new IntervalWindow(new Instant(9L), Duration.millis(2L)))
+        .containsInAnyOrder(KV.of("b", "14:113"));
+    PAssert.that("Window [10, 12)", combinePerKeyWithContext)
+        .inWindow(new IntervalWindow(new Instant(10L), Duration.millis(2L)))
+        .containsInAnyOrder(KV.of("b", "13:13"));
     pipeline.run();
   }
 
@@ -949,8 +963,7 @@ public class CombineTest implements Serializable {
       public void verifyDeterministic() throws NonDeterministicException { }
 
       @Override
-      public boolean isRegisterByteSizeObserverCheap(
-          CountSum value) {
+      public boolean isRegisterByteSizeObserverCheap(CountSum value) {
         return true;
       }
 
