@@ -433,6 +433,12 @@ message WindowingStrategy {
   // (Required) The duration, in milliseconds, beyond the end of a window at
   // which the window becomes droppable.
   int64 allowed_lateness = 8;
+
+  // (Required) Whether or not the window fn assigns inputs to exactly one window
+  //
+  // This knowledge is required for some optimizations
+  bool assigns_to_one_window = 9;
+
 }
 
 // Whether or not a PCollection's WindowFn is non-merging, merging, or
