@@ -51,7 +51,9 @@ import org.apache.beam.sdk.io.GenerateSequence;
 import org.apache.beam.sdk.runners.TransformHierarchy;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
+import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.testing.UsesCustomWindowMerging;
+import org.apache.beam.sdk.testing.UsesTestStream;
 import org.apache.beam.sdk.testing.ValidatesRunner;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.transforms.Count;
@@ -581,16 +583,28 @@ public class WindowTest implements Serializable {
     assertThat(data, not(hasDisplayItem("trigger")));
     assertThat(data, not(hasDisplayItem("allowedLateness")));
   }
+
   @Test
-  @Category({ValidatesRunner.class, UsesCustomWindowMerging.class})
+  @Category({ValidatesRunner.class, UsesTestStream.class, UsesCustomWindowMerging.class})
   public void testMergingCustomWindows() {
     Instant startInstant = new Instant(0L);
-    List<TimestampedValue<String>> input = new ArrayList<>();
-    input.add(TimestampedValue.of("big", startInstant.plus(Duration.standardSeconds(10))));
-    input.add(TimestampedValue.of("small1", startInstant.plus(Duration.standardSeconds(20))));
+//    List<TimestampedValue<String>> input = new ArrayList<>();
+//    input.add(TimestampedValue.of("big", startInstant.plus(Duration.standardSeconds(10))));
+//    input.add(TimestampedValue.of("small1", startInstant.plus(Duration.standardSeconds(20))));
     //    This one will be outside of bigWindow thus not merged
-    input.add(TimestampedValue.of("small2", startInstant.plus(Duration.standardSeconds(39))));
-    PCollection<String> inputCollection = pipeline.apply(Create.timestamped(input));
+//    input.add(TimestampedValue.of("small2", startInstant.plus(Duration.standardSeconds(39))));
+    //    PCollection<String> inputCollection = pipeline.apply(Create.timestamped(input));
+    PCollection<String> inputCollection =
+        pipeline.apply(
+            TestStream.create(StringUtf8Coder.of())
+                .advanceWatermarkTo(startInstant.plus(Duration.standardSeconds(10L)))
+                .addElements("big")
+                .advanceWatermarkTo(startInstant.plus(Duration.standardSeconds(20L)))
+                .addElements("small1")
+                .advanceWatermarkTo(startInstant.plus(Duration.standardSeconds(39L)))
+                .addElements("small2")
+                .advanceWatermarkTo(startInstant.plus(Duration.standardSeconds(250L)))
+                .advanceWatermarkToInfinity());
     PCollection<String> windowedCollection = inputCollection
         .apply(Window.into(new CustomWindowFn<String>()));
     PCollection<Long> count = windowedCollection
@@ -608,18 +622,19 @@ public class WindowTest implements Serializable {
   public void testMergingCustomWindowsKeyedCollection() {
     Instant startInstant = new Instant(0L);
     List<TimestampedValue<KV<Integer, String>>> input = new ArrayList<>();
-    input
-        .add(TimestampedValue.of(KV.of(0, "big"), startInstant.plus(Duration.standardSeconds(10))));
+    input.add(
+        TimestampedValue.of(KV.of(0, "big"), startInstant.plus(Duration.standardSeconds(10))));
     input.add(
         TimestampedValue.of(KV.of(1, "small1"), startInstant.plus(Duration.standardSeconds(20))));
     //    This one will be outside of bigWindow thus not merged
     input.add(
         TimestampedValue.of(KV.of(2, "small2"), startInstant.plus(Duration.standardSeconds(39))));
     PCollection<KV<Integer, String>> inputCollection = pipeline.apply(Create.timestamped(input));
-    PCollection<KV<Integer, String>> windowedCollection = inputCollection
-        .apply(Window.into(new CustomWindowFn<KV<Integer, String>>()));
-    PCollection<Long> count = windowedCollection
-        .apply(Combine.globally(Count.<KV<Integer, String>>combineFn()).withoutDefaults());
+    PCollection<KV<Integer, String>> windowedCollection =
+        inputCollection.apply(Window.into(new CustomWindowFn<KV<Integer, String>>()));
+    PCollection<Long> count =
+        windowedCollection.apply(
+            Combine.globally(Count.<KV<Integer, String>>combineFn()).withoutDefaults());
     // "small1" and "big" elements merged into bigWindow "small2" not merged
     // because timestamp is not in bigWindow
     PAssert.that("Wrong number of elements in output collection", count).containsInAnyOrder(2L, 1L);
@@ -627,21 +642,15 @@ public class WindowTest implements Serializable {
   }
 
   private static class CustomWindow extends IntervalWindow {
-
     private boolean isBig;
-
-
-    CustomWindow(Instant start, Instant end) {
-      super(start, end);
-      this.isBig = false;
-    }
 
     CustomWindow(Instant start, Instant end, boolean isBig) {
       super(start, end);
       this.isBig = isBig;
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
       if (this == o) {
         return true;
       }
@@ -652,16 +661,16 @@ public class WindowTest implements Serializable {
         return false;
       }
       CustomWindow that = (CustomWindow) o;
-      return isBig == that.isBig;
+      return super.equals(o) && isBig == that.isBig;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
       return Objects.hash(super.hashCode(), isBig);
     }
   }
 
-  private static class CustomWindowCoder extends
-      CustomCoder<CustomWindow> {
+  private static class CustomWindowCoder extends CustomCoder<CustomWindow> {
 
     private static final CustomWindowCoder INSTANCE = new CustomWindowCoder();
     private static final Coder<IntervalWindow> INTERVAL_WINDOW_CODER = IntervalWindow.getCoder();
@@ -672,8 +681,7 @@ public class WindowTest implements Serializable {
     }
 
     @Override
-    public void encode(CustomWindow window, OutputStream outStream)
-        throws IOException {
+    public void encode(CustomWindow window, OutputStream outStream) throws IOException {
       INTERVAL_WINDOW_CODER.encode(window, outStream);
       VAR_INT_CODER.encode(window.isBig ? 1 : 0, outStream);
     }
@@ -706,12 +714,12 @@ public class WindowTest implements Serializable {
       // put big elements in windows of 30s and small ones in windows of 5s
       if ("big".equals(element)) {
         return Collections.singletonList(
-            new CustomWindow(c.timestamp(), c.timestamp().plus(Duration.standardSeconds(30)),
-                true));
+            new CustomWindow(
+                c.timestamp(), c.timestamp().plus(Duration.standardSeconds(30)), true));
       } else {
         return Collections.singletonList(
-            new CustomWindow(c.timestamp(), c.timestamp().plus(Duration.standardSeconds(5)),
-                false));
+            new CustomWindow(
+                c.timestamp(), c.timestamp().plus(Duration.standardSeconds(5)), false));
       }
     }
 
