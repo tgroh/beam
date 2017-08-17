@@ -18,11 +18,19 @@
 
 package org.apache.beam.runners.direct;
 
+import com.google.common.base.Function;
+import com.google.common.base.Throwables;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import com.google.common.collect.Iterators;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.beam.runners.core.construction.JobNotFoundException;
 import org.apache.beam.runners.core.construction.PipelineManager;
+import org.apache.beam.runners.core.construction.PipelineManager.PipelineMessage.Importance;
 import org.apache.beam.runners.direct.DirectRunner.DirectPipelineResult;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult.State;
@@ -37,6 +45,15 @@ class DirectPipelineManager implements PipelineManager {
   }
 
   private final ConcurrentMap<String, DirectPipelineResult> results;
+  private final LoadingCache<String, AtomicLong> messageIds =
+      CacheBuilder.newBuilder()
+          .build(
+              new CacheLoader<String, AtomicLong>() {
+                @Override
+                public AtomicLong load(String key) throws Exception {
+                  return new AtomicLong();
+                }
+              });
 
   private DirectPipelineManager() {
     results = new ConcurrentHashMap<>();
@@ -60,8 +77,26 @@ class DirectPipelineManager implements PipelineManager {
   }
 
   @Override
-  public Iterator<StateOrMessage> getUpdateStream(String jobId) throws JobNotFoundException {
-    throw new UnsupportedOperationException("Not yet implemented");
+  public Iterator<StateOrMessage> getUpdateStream(final String jobId) throws JobNotFoundException {
+    return Iterators.transform(
+        getResult(jobId).getUpdates(),
+        new Function<Message, StateOrMessage>() {
+          @Override
+          public StateOrMessage apply(Message input) {
+            if (input.getNewState() != null) {
+              return StateOrMessage.state(input.getNewState());
+            }
+            long id = messageIds.getUnchecked(jobId).getAndIncrement();
+            if (input.getThrown() != null) {
+              String stackTrace = Throwables.getStackTraceAsString(input.getThrown());
+              return StateOrMessage.message(
+                  PipelineMessage.of(
+                      Long.toString(id), input.getTimestamp(), Importance.ERROR, stackTrace));
+            }
+            throw new IllegalStateException(
+                String.format("Unknown contents of %s: %s", Message.class.getSimpleName(), input));
+          }
+        });
   }
 
   private DirectPipelineResult getResult(String jobId) throws JobNotFoundException {

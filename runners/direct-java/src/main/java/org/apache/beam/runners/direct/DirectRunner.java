@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -349,6 +350,10 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
         }
       }
       return this.state;
+    }
+
+    public Iterator<Message> getUpdates() {
+      throw new UnsupportedOperationException("Not yet supported");
     }
   }
 
