@@ -22,15 +22,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.auto.value.AutoValue;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-import java.io.IOException;
 import java.util.Iterator;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.core.construction.JobNotFoundException;
 import org.apache.beam.runners.core.construction.PipelineManager;
 import org.apache.beam.runners.core.construction.PipelineManager.PipelineMessage;
-import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
-import org.apache.beam.runners.core.construction.PipelineTranslation;
-import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.PipelineResult.State;
 import org.apache.beam.sdk.common.runner.v1.JobApi;
@@ -42,10 +38,7 @@ import org.apache.beam.sdk.common.runner.v1.JobApi.JobMessage.MessageImportance;
 import org.apache.beam.sdk.common.runner.v1.JobApi.JobMessagesRequest;
 import org.apache.beam.sdk.common.runner.v1.JobApi.JobMessagesResponse;
 import org.apache.beam.sdk.common.runner.v1.JobApi.JobState.JobStateType;
-import org.apache.beam.sdk.common.runner.v1.JobApi.SubmitJobRequest;
-import org.apache.beam.sdk.common.runner.v1.JobApi.SubmitJobResponse;
 import org.apache.beam.sdk.common.runner.v1.JobServiceGrpc.JobServiceImplBase;
-import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.util.common.ReflectHelpers;
 import org.joda.time.format.ISODateTimeFormat;
 import org.slf4j.Logger;
@@ -65,18 +58,13 @@ public class PipelineManagerJobService extends JobServiceImplBase {
   }
 
   @Override
-  public void run(SubmitJobRequest request, StreamObserver<SubmitJobResponse> responseObserver) {
-    LOG.trace("{} {}", SubmitJobRequest.class.getSimpleName(), request);
-    try {
-      Pipeline pipeline = PipelineTranslation.fromProto(request.getPipeline());
-      PipelineOptions options = PipelineOptionsTranslation.fromProto(request.getPipelineOptions());
-      String executionId = runner.run(request.getJobName(), pipeline, options);
-      responseObserver.onNext(SubmitJobResponse.newBuilder().setJobId(executionId).build());
-      responseObserver.onCompleted();
-    } catch (IOException e) {
-      responseObserver.onError(e);
-    }
-  }
+  public void prepare(
+      JobApi.PrepareJobRequest request,
+      StreamObserver<JobApi.PrepareJobResponse> responseObserver) {}
+
+  @Override
+  public void run(
+      JobApi.RunJobRequest request, StreamObserver<JobApi.RunJobResponse> responseObserver) {}
 
   @Override
   public void getState(
