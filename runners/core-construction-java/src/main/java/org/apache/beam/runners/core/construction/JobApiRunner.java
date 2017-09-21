@@ -18,9 +18,6 @@
 
 package org.apache.beam.runners.core.construction;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
-import io.grpc.ManagedChannelBuilder;
 import java.io.IOException;
 import java.util.Iterator;
 import org.apache.beam.runners.core.construction.JobApiRunner.JobApiPipelineResult;
@@ -31,8 +28,10 @@ import org.apache.beam.sdk.common.runner.v1.JobApi.CancelJobRequest;
 import org.apache.beam.sdk.common.runner.v1.JobApi.GetJobStateRequest;
 import org.apache.beam.sdk.common.runner.v1.JobApi.GetJobStateResponse;
 import org.apache.beam.sdk.common.runner.v1.JobApi.JobState.JobStateType;
-import org.apache.beam.sdk.common.runner.v1.JobApi.SubmitJobRequest;
-import org.apache.beam.sdk.common.runner.v1.JobApi.SubmitJobResponse;
+import org.apache.beam.sdk.common.runner.v1.JobApi.PrepareJobRequest;
+import org.apache.beam.sdk.common.runner.v1.JobApi.PrepareJobResponse;
+import org.apache.beam.sdk.common.runner.v1.JobApi.RunJobRequest;
+import org.apache.beam.sdk.common.runner.v1.JobApi.RunJobResponse;
 import org.apache.beam.sdk.common.runner.v1.JobServiceGrpc;
 import org.apache.beam.sdk.common.runner.v1.JobServiceGrpc.JobServiceBlockingStub;
 import org.apache.beam.sdk.metrics.MetricResults;
@@ -59,35 +58,23 @@ public class JobApiRunner extends PipelineRunner<JobApiPipelineResult> {
   }
 
   private JobServiceBlockingStub createBlockingStub(BeamJobApiOptions jobApiOptions) {
-    // TODO: make this easier to manage
-    ManagedChannelBuilder<?> channelBuilder;
-    if (jobApiOptions.getJobServiceTarget() == null) {
-      checkArgument(
-          jobApiOptions.getJobServiceHost() != null,
-          "JobServiceHost must be provided if JobServiceTarget is not set");
-      checkArgument(
-          jobApiOptions.getJobServicePort() != null,
-          "JobServicePort must be provided if JobServiceTarget is not set");
-      channelBuilder =
-          ManagedChannelBuilder.forAddress(
-              jobApiOptions.getJobServiceHost(), jobApiOptions.getJobServicePort());
-    } else {
-      channelBuilder = ManagedChannelBuilder.forTarget(jobApiOptions.getJobServiceTarget());
-    }
-    channelBuilder.usePlaintext(true);
-    return JobServiceGrpc.newBlockingStub(channelBuilder.build());
+    return JobServiceGrpc.newBlockingStub(jobApiOptions.getJobApiChannel());
   }
 
   @Override
   public JobApiPipelineResult run(Pipeline pipeline) {
-    SubmitJobResponse submittedJob =
-        service.run(
-            SubmitJobRequest.newBuilder()
+    PrepareJobResponse submittedJob =
+        service.prepare(
+            PrepareJobRequest.newBuilder()
                 .setPipeline(PipelineTranslation.toProto(pipeline))
                 .setPipelineOptions(PipelineOptionsTranslation.toProto(options))
                 .setJobName(options.getJobName())
                 .build());
-    return new JobApiPipelineResult(service, submittedJob.getJobId());
+    // TODO: Ensure the environment is fully set up
+    RunJobResponse runningJob =
+        service.run(
+            RunJobRequest.newBuilder().setPreparationId(submittedJob.getPreparationId()).build());
+    return new JobApiPipelineResult(service, runningJob.getJobId());
   }
 
   /**

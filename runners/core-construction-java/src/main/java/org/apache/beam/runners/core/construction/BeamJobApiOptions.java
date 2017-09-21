@@ -18,6 +18,14 @@
 
 package org.apache.beam.runners.core.construction;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
+import io.grpc.Channel;
+import io.grpc.ManagedChannelBuilder;
+import org.apache.beam.sdk.annotations.Internal;
+import org.apache.beam.sdk.options.Default;
+import org.apache.beam.sdk.options.DefaultValueFactory;
+import org.apache.beam.sdk.options.Hidden;
 import org.apache.beam.sdk.options.PipelineOptions;
 
 /**
@@ -32,4 +40,37 @@ public interface BeamJobApiOptions extends PipelineOptions {
 
   String getJobServiceTarget();
   void setJobServiceTarget(String jobServiceTarget);
+
+  @Hidden
+  @Internal
+  @Default.InstanceFactory(ChannelInstanceFactory.class)
+  Channel getJobApiChannel();
+  void setJobApiChannel();
+
+  /**
+   * A {@link DefaultValueFactory} which creates a {@link Channel} for use by the Job API from the
+   * options in {@link BeamJobApiOptions}.
+   */
+  class ChannelInstanceFactory implements DefaultValueFactory<Channel> {
+    @Override
+    public Channel create(PipelineOptions options) {
+      ManagedChannelBuilder<?> channelBuilder;
+      BeamJobApiOptions jobApiOptions = options.as(BeamJobApiOptions.class);
+      if (jobApiOptions.getJobServiceTarget() == null) {
+        checkArgument(
+            jobApiOptions.getJobServiceHost() != null,
+            "JobServiceHost must be provided if JobServiceTarget is not set");
+        checkArgument(
+            jobApiOptions.getJobServicePort() != null,
+            "JobServicePort must be provided if JobServiceTarget is not set");
+        channelBuilder =
+            ManagedChannelBuilder.forAddress(
+                jobApiOptions.getJobServiceHost(), jobApiOptions.getJobServicePort());
+      } else {
+        channelBuilder = ManagedChannelBuilder.forTarget(jobApiOptions.getJobServiceTarget());
+      }
+      channelBuilder.usePlaintext(true);
+      return channelBuilder.build();
+    }
+  }
 }
