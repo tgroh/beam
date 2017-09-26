@@ -48,6 +48,16 @@
     </dependency>
 
     <dependency>
+      <groupId>org.apache.beam</groupId>
+      <artifactId>beam-runners-core-construction-java</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.beam</groupId>
+      <artifactId>beam-sdks-java-core</artifactId>
+    </dependency>
+
+    <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-core</artifactId>
     </dependency>
@@ -144,11 +154,5 @@
       <scope>test</scope>
     </dependency>
 
-    <dependency>
-      <groupId>org.apache.beam</groupId>
-      <artifactId>beam-sdks-common-fn-api</artifactId>
-      <type>test-jar</type>
-      <scope>test</scope>
-    </dependency>
   </dependencies>
 </project>
