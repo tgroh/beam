@@ -29,6 +29,7 @@ option java_package = "org.apache.beam.sdk.common.runner.v1";
 option java_outer_classname = "JobApi";
 
 import "beam_runner_api.proto";
+import "beam_fn_api.proto";
 import "google/protobuf/struct.proto";
 
 
@@ -69,6 +70,11 @@ message PrepareJobResponse {
   // (required) The ID used to associate calls made while preparing the job. preparationId is used
   // to run the job, as well as in other pre-execution APIs such as Artifact staging.
   string preparation_id = 1;
+
+  // (required) A descriptor describing the endpoint for Artifact Staging calls. The caller should
+  // stage any artifacts that will be required at execution time at this endpoint.
+  // TODO: Factor the Fn API APIServiceDescriptor into a common location and use that
+  string artifact_endpoint_url = 2;
 }
 
 
