@@ -24,6 +24,13 @@ import java.io.IOException;
 
 /** A program that runs a {@link ReferenceRunnerJobService}. */
 public class ReferenceRunnerJobServer {
+  public static Process runServer(int port) throws IOException {
+    // TODO: Find the JAR that contains this class. This has to be a fat JAR.
+    // TODO: Make sure that JAR is accessible.
+    // TODO: Run the
+    return new ProcessBuilder().command("foo").start();
+  }
+
   public static void main(String[] args) throws IOException, InterruptedException {
     if (args.length != 1) {
       System.out.println(
