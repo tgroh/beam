@@ -23,7 +23,7 @@ import io.grpc.stub.StreamObserver;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
-import org.apache.beam.runners.reference.ULOptions.RunnerHarnessType;
+import org.apache.beam.runners.reference.job.ReferenceRunnerJobServer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.PipelineRunner;
@@ -32,6 +32,8 @@ import org.apache.beam.sdk.common.runner.v1.JobApi.PrepareJobResponse;
 import org.apache.beam.sdk.common.runner.v1.JobServiceGrpc;
 import org.apache.beam.sdk.common.runner.v1.JobServiceGrpc.JobServiceStub;
 import org.apache.beam.sdk.options.PipelineOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link PipelineRunner} capable of executing an arbitrary Beam {@link Pipeline} using the Beam
@@ -41,9 +43,9 @@ import org.apache.beam.sdk.options.PipelineOptions;
  * provides a Job API endpoint. It then communicates with that process via GRPC, providing a Java
  * {@link PipelineResult} to interact with.
  */
-// Exists in the same module as the actual Runner Backend to make sure both will be on the classpath
-// for the Java-subprocess invocation
 public class ULRunner extends PipelineRunner<ULResult> {
+  private static final Logger LOG = LoggerFactory.getLogger(ULRunner.class);
+
   private final PipelineOptions options;
   private final JobServiceStub stub;
   private final Channel jobApiChannel;
@@ -54,7 +56,7 @@ public class ULRunner extends PipelineRunner<ULResult> {
 
   private ULRunner(PipelineOptions options) {
     this.options = options;
-    this.jobApiChannel = createRunnerProcess(options.as(ULOptions.class).getHarnessType());
+    this.jobApiChannel = startJobApiEndpoint();
     this.stub = JobServiceGrpc.newStub(jobApiChannel);
   }
 
@@ -89,10 +91,12 @@ public class ULRunner extends PipelineRunner<ULResult> {
     return String.format("ReferenceRunner-JavaPipeline-%s", ThreadLocalRandom.current().nextLong());
   }
 
-  private Channel createRunnerProcess(RunnerHarnessType harnessType) {
-    switch (harnessType) {
-      default:
-        throw new UnsupportedOperationException();
-    }
+  private Channel startJobApiEndpoint() {
+    LOG.info("Starting {} via {}",
+        ReferenceRunnerJobServer.class.getSimpleName(),
+        "Not yet starting");
+    // TODO: Make this configurable (e.g. Docker vs Java vs...), and actually run
+    new ProcessBuilder().command("java", "-cp", "blah", "blah", "blah");
+    return null;
   }
 }

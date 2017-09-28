@@ -21,21 +21,55 @@
 
   <parent>
     <groupId>org.apache.beam</groupId>
-    <artifactId>beam-runners-parent</artifactId>
+    <artifactId>beam-runners-reference-parent</artifactId>
     <version>2.2.0-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <artifactId>beam-runners-reference-parent</artifactId>
+  <artifactId>beam-runners-reference-job-orchestrator</artifactId>
 
-  <name>Apache Beam :: Runners :: Reference</name>
-  <description>A Pipeline Runner which executes on the local machine using the
-  Beam portability framework to execute an arbitrary Pipeline.</description>
+  <name>Apache Beam :: Runners :: Reference :: Job Orchestrator</name>
 
-  <packaging>pom</packaging>
+  <packaging>jar</packaging>
 
-  <modules>
-    <module>java</module>
-    <module>job-server</module>
-  </modules>
+  <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+      </resource>
+    </resources>
+  </build>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.beam</groupId>
+      <artifactId>beam-sdks-common-runner-api</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-core</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-stub</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-netty</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>args4j</groupId>
+      <artifactId>args4j</artifactId>
+    </dependency>
+  </dependencies>
 </project>
