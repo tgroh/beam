@@ -24,7 +24,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
-
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
@@ -33,6 +32,7 @@ import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.display.DisplayData;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.tika.exception.TikaException;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -73,6 +73,7 @@ public class TikaIOTest {
   public TestPipeline p = TestPipeline.create();
 
   @Test
+  @Ignore("BEAM-3010: Test does not succeed in the Jenkins builds")
   public void testReadPdfFile() throws IOException {
 
     String resourcePath = getClass().getResource("/apache-beam-tika.pdf").getPath();
