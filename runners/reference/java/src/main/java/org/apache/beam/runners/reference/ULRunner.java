@@ -25,6 +25,7 @@ import io.grpc.stub.StreamObserver;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
+import org.apache.beam.runners.reference.job.ReferenceRunnerJobServer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.PipelineRunner;
@@ -77,7 +78,9 @@ public class ULRunner extends PipelineRunner<ULResult> {
           }
 
           @Override
-          public void onError(Throwable t) {}
+          public void onError(Throwable t) {
+            System.err.println(String.format("Failed to prepare job: %s", t));
+          }
 
           @Override
           public void onCompleted() {}
@@ -89,6 +92,11 @@ public class ULRunner extends PipelineRunner<ULResult> {
             .setPipelineOptions(PipelineOptionsTranslation.toProto(options))
             .build(),
         stageFilesAndRunObserver);
+    try {
+      Thread.sleep(5000L);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
     throw new UnsupportedOperationException();
   }
 
@@ -99,9 +107,12 @@ public class ULRunner extends PipelineRunner<ULResult> {
   private Channel startJobApiEndpoint(PipelineOptions options) {
     ULOptions myOptions = options.as(ULOptions.class);
     switch (myOptions.getJobServerType()) {
-      case LOCAL_PROCESS:
+      case EXISTING_EXTERNAL_PROCESS:
         return getChannelForExistingServer(myOptions.getJobServerPort());
       default:
+        LOG.info(
+            "TODO: Instantiate an external implementation of {}",
+            ReferenceRunnerJobServer.class.getSimpleName());
         throw new IllegalArgumentException(
             String.format("Unknown Job API Endpoint Type: %s", myOptions.getJobServerType()));
     }

@@ -20,12 +20,13 @@ package org.apache.beam.runners.reference;
 
 import org.apache.beam.sdk.options.PipelineOptions;
 
-/**
- * Created by tgroh on 10/9/17.
- */
+/** Options for the {@link ULRunner }. */
 public interface ULOptions extends PipelineOptions {
+  /**
+   * The method to run the JobServer.
+   */
   enum JobServerType {
-    LOCAL_PROCESS;
+    EXISTING_EXTERNAL_PROCESS;
   }
 
   JobServerType getJobServerType();

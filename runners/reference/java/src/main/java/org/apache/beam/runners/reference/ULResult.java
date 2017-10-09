@@ -23,7 +23,6 @@ import java.io.IOException;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.common.runner.v1.JobApi.CancelJobRequest;
 import org.apache.beam.sdk.common.runner.v1.JobApi.GetJobStateRequest;
-import org.apache.beam.sdk.common.runner.v1.JobApi.JobState.JobStateType;
 import org.apache.beam.sdk.common.runner.v1.JobServiceGrpc;
 import org.apache.beam.sdk.common.runner.v1.JobServiceGrpc.JobServiceBlockingStub;
 import org.apache.beam.sdk.metrics.MetricResults;
@@ -46,14 +45,14 @@ public class ULResult implements PipelineResult {
 
   @Override
   public State getState() {
-    return toJavaState(
-        runnerStub.getState(GetJobStateRequest.newBuilder().setJobId(jobId).build()).getState());
+    runnerStub.getState(GetJobStateRequest.newBuilder().setJobId(jobId).build()).getState();
+    return State.UNKNOWN;
   }
 
   @Override
   public State cancel() throws IOException {
-    return toJavaState(
-        runnerStub.cancel(CancelJobRequest.newBuilder().setJobId(jobId).build()).getState());
+        runnerStub.cancel(CancelJobRequest.newBuilder().setJobId(jobId).build()).getState();
+        return State.UNKNOWN;
   }
 
   @Override
@@ -69,12 +68,5 @@ public class ULResult implements PipelineResult {
   @Override
   public MetricResults metrics() {
     throw new UnsupportedOperationException();
-  }
-
-  private State toJavaState(JobStateType state) {
-    switch (state) {
-      default:
-        throw new UnsupportedOperationException();
-    }
   }
 }
