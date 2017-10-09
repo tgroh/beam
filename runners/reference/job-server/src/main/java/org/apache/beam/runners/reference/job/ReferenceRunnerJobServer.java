@@ -24,15 +24,12 @@ import java.io.IOException;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** A program that runs a {@link ReferenceRunnerJobService}. */
 public class ReferenceRunnerJobServer {
-  public static Process runServer(int port) throws IOException {
-    // TODO: Find the JAR that contains this class. This has to be a fat JAR.
-    // TODO: Make sure that JAR is accessible.
-    // TODO: Run the
-    return new ProcessBuilder().command("foo").start();
-  }
+  private static final Logger LOG = LoggerFactory.getLogger(ReferenceRunnerJobService.class);
 
   public static void main(String[] args) throws IOException, InterruptedException {
     ServerConfiguration configuration = new ServerConfiguration();
@@ -60,13 +57,18 @@ public class ReferenceRunnerJobServer {
     ReferenceRunnerJobService service = ReferenceRunnerJobService.create();
     Server server = ServerBuilder.forPort(configuration.port).addService(service).build();
     server.start();
+    System.out.println(
+        String.format(
+            "Started %s on port %s",
+            ReferenceRunnerJobService.class.getSimpleName(), configuration.port));
     server.awaitTermination();
+    System.out.println("Server shut down, exiting");
   }
 
   private static class ServerConfiguration {
     @Option(
-      name = "p",
-      aliases = {"port"},
+      name = "-p",
+      aliases = {"--port"},
       required = true,
       usage = "The local port to expose the server on"
     )
