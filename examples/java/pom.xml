@@ -54,6 +54,18 @@
       </dependencies>
     </profile>
 
+    <!-- Include the Java Reference Runner with -P reference-runner -->
+    <profile>
+      <id>reference-runner</id>
+      <dependencies>
+        <dependency>
+          <groupId>org.apache.beam</groupId>
+          <artifactId>beam-runners-reference-java</artifactId>
+          <scope>runtime</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+
     <!-- Include the Apache Apex runner with -P apex-runner -->
     <profile>
       <id>apex-runner</id>
