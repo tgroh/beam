@@ -19,11 +19,12 @@
 package org.apache.beam.runners.reference;
 
 import io.grpc.Channel;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
-import org.apache.beam.runners.reference.job.ReferenceRunnerJobServer;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.PipelineRunner;
@@ -50,13 +51,17 @@ public class ULRunner extends PipelineRunner<ULResult> {
   private final JobServiceStub stub;
   private final Channel jobApiChannel;
 
+  /**
+   * Create a new {@link ULRunner} from the provided options.
+   */
+  @SuppressWarnings("unused")
   public static ULRunner fromOptions(PipelineOptions options) {
     return new ULRunner(options);
   }
 
   private ULRunner(PipelineOptions options) {
     this.options = options;
-    this.jobApiChannel = startJobApiEndpoint();
+    this.jobApiChannel = startJobApiEndpoint(options);
     this.stub = JobServiceGrpc.newStub(jobApiChannel);
   }
 
@@ -91,12 +96,21 @@ public class ULRunner extends PipelineRunner<ULResult> {
     return String.format("ReferenceRunner-JavaPipeline-%s", ThreadLocalRandom.current().nextLong());
   }
 
-  private Channel startJobApiEndpoint() {
-    LOG.info("Starting {} via {}",
-        ReferenceRunnerJobServer.class.getSimpleName(),
-        "Not yet starting");
-    // TODO: Make this configurable (e.g. Docker vs Java vs...), and actually run
-    new ProcessBuilder().command("java", "-cp", "blah", "blah", "blah");
-    return null;
+  private Channel startJobApiEndpoint(PipelineOptions options) {
+    ULOptions myOptions = options.as(ULOptions.class);
+    switch (myOptions.getJobServerType()) {
+      case LOCAL_PROCESS:
+        return getChannelForExistingServer(myOptions.getJobServerPort());
+      default:
+        throw new IllegalArgumentException(
+            String.format("Unknown Job API Endpoint Type: %s", myOptions.getJobServerType()));
+    }
+  }
+
+  private ManagedChannel getChannelForExistingServer(int port) {
+    return ManagedChannelBuilder.forAddress("127.0.0.1", port)
+        .usePlaintext(true)
+        .directExecutor()
+        .build();
   }
 }
