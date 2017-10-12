@@ -63,6 +63,7 @@
         <jdk>[1.8,)</jdk>
       </activation>
       <modules>
+        <module>harness-java</module>
         <module>gearpump</module>
       </modules>
     </profile>
