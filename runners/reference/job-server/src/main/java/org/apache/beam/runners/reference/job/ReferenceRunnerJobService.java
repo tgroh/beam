@@ -18,8 +18,15 @@
 
 package org.apache.beam.runners.reference.job;
 
+import io.grpc.ServerBuilder;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import java.io.File;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import org.apache.beam.artifact.local.LocalFileSystemArtifactStagerService;
+import org.apache.beam.portability.v1.Endpoints.ApiServiceDescriptor;
 import org.apache.beam.sdk.common.runner.v1.JobApi;
 import org.apache.beam.sdk.common.runner.v1.JobApi.CancelJobRequest;
 import org.apache.beam.sdk.common.runner.v1.JobApi.CancelJobResponse;
@@ -45,9 +52,34 @@ public class ReferenceRunnerJobService extends JobServiceImplBase {
   public void prepare(
       JobApi.PrepareJobRequest request,
       StreamObserver<JobApi.PrepareJobResponse> responseObserver) {
+    try {
     LOG.trace("{} {}", PrepareJobResponse.class.getSimpleName(), request);
     System.err.println("Preparation Job Blah");
-    responseObserver.onError(Status.UNIMPLEMENTED.asException());
+    String preparationId = "foo";
+      responseObserver.onNext(
+          PrepareJobResponse.newBuilder()
+              .setPreparationId(preparationId)
+              .setArtifactStagingEndpoint(createArtifactStagingService(preparationId))
+              .build());
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      responseObserver.onError(Status.INTERNAL.withCause(e).asException());
+    }
+  }
+
+  private ApiServiceDescriptor createArtifactStagingService(String preparationId)
+      throws IOException {
+    File tempDir = File.createTempFile("reference-runner-staging", preparationId);
+    if (!tempDir.mkdir() && (!tempDir.exists() || !tempDir.isDirectory())) {
+      throw new IllegalStateException("Could not create local staging directory");
+    }
+    LocalFileSystemArtifactStagerService service =
+        LocalFileSystemArtifactStagerService.withRootDirectory(tempDir);
+    int port = new ServerSocket().getLocalPort();
+    ServerBuilder.forPort(port).addService(service).build();
+    return ApiServiceDescriptor.newBuilder()
+        .setUrl(InetAddress.getLoopbackAddress() + ":" + port)
+        .build();
   }
 
   @Override

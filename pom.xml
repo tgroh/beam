@@ -646,6 +646,12 @@
 
       <dependency>
         <groupId>org.apache.beam</groupId>
+        <artifactId>beam-local-artifact-service-java</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.beam</groupId>
         <artifactId>beam-runners-direct-java</artifactId>
         <version>${project.version}</version>
       </dependency>
@@ -1961,7 +1967,7 @@
             <configuration>
               <rules>
                 <enforceBytecodeVersion>
-                  <maxJdkVersion>1.7</maxJdkVersion>
+                  <maxJdkVersion>1.8</maxJdkVersion>
                   <excludes>
                     <!--
                       Supplied by the user JDK and compiled with matching
