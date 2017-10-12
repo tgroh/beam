@@ -22,7 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.TextFormat;
 import java.io.PrintStream;
 import java.util.EnumMap;
-import org.apache.beam.fn.harness.channel.ManagedChannelFactory;
+import java.util.List;
 import org.apache.beam.fn.harness.control.BeamFnControlClient;
 import org.apache.beam.fn.harness.control.ProcessBundleHandler;
 import org.apache.beam.fn.harness.control.RegisterHandler;
@@ -32,7 +32,9 @@ import org.apache.beam.fn.harness.logging.BeamFnLoggingClient;
 import org.apache.beam.fn.harness.state.BeamFnStateGrpcClientCache;
 import org.apache.beam.fn.harness.stream.StreamObserverFactory;
 import org.apache.beam.fn.v1.BeamFnApi;
+import org.apache.beam.harness.channel.ManagedChannelFactory;
 import org.apache.beam.portability.v1.Endpoints;
+import org.apache.beam.runners.dataflow.options.DataflowPipelineDebugOptions;
 import org.apache.beam.sdk.extensions.gcp.options.GcsOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.util.common.ReflectHelpers;
@@ -91,7 +93,13 @@ public class FnHarness {
   public static void main(PipelineOptions options,
       Endpoints.ApiServiceDescriptor loggingApiServiceDescriptor,
       Endpoints.ApiServiceDescriptor controlApiServiceDescriptor) throws Exception {
-    ManagedChannelFactory channelFactory = ManagedChannelFactory.from(options);
+    ManagedChannelFactory channelFactory;
+    List<String> experiments = options.as(DataflowPipelineDebugOptions.class).getExperiments();
+    if (experiments != null && experiments.contains("beam_fn_api_epoll")) {
+      channelFactory = ManagedChannelFactory.createEpoll();
+    } else {
+      channelFactory = ManagedChannelFactory.createDefault();
+    }
     StreamObserverFactory streamObserverFactory = StreamObserverFactory.fromOptions(options);
     PrintStream originalErrStream = System.err;
 

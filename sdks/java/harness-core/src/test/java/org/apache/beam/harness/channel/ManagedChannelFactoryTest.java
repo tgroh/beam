@@ -16,14 +16,12 @@
  * limitations under the License.
  */
 
-package org.apache.beam.fn.harness.channel;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assume.assumeTrue;
+package org.apache.beam.harness.channel;
 
 import io.grpc.ManagedChannel;
 import org.apache.beam.portability.v1.Endpoints.ApiServiceDescriptor;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -40,35 +38,35 @@ public class ManagedChannelFactoryTest {
     ApiServiceDescriptor apiServiceDescriptor = ApiServiceDescriptor.newBuilder()
         .setUrl("localhost:123")
         .build();
-    ManagedChannel channel = ManagedChannelFactory.from(PipelineOptionsFactory.create())
-        .forDescriptor(apiServiceDescriptor);
-    assertEquals("localhost:123", channel.authority());
+    ManagedChannel channel =
+        ManagedChannelFactory.createDefault().forDescriptor(apiServiceDescriptor);
+    Assert.assertEquals("localhost:123", channel.authority());
     channel.shutdownNow();
   }
 
   @Test
   public void testEpollHostPortChannel() {
-    assumeTrue(io.netty.channel.epoll.Epoll.isAvailable());
+    Assume.assumeTrue(io.netty.channel.epoll.Epoll.isAvailable());
     ApiServiceDescriptor apiServiceDescriptor = ApiServiceDescriptor.newBuilder()
         .setUrl("localhost:123")
         .build();
-    ManagedChannel channel = ManagedChannelFactory.from(
-        PipelineOptionsFactory.fromArgs(new String[]{ "--experiments=beam_fn_api_epoll" }).create())
+    ManagedChannel channel = ManagedChannelFactory.createEpoll()
         .forDescriptor(apiServiceDescriptor);
-    assertEquals("localhost:123", channel.authority());
+    Assert.assertEquals("localhost:123", channel.authority());
     channel.shutdownNow();
   }
 
   @Test
   public void testEpollDomainSocketChannel() throws Exception {
-    assumeTrue(io.netty.channel.epoll.Epoll.isAvailable());
-    ApiServiceDescriptor apiServiceDescriptor = ApiServiceDescriptor.newBuilder()
-        .setUrl("unix://" + tmpFolder.newFile().getAbsolutePath())
-        .build();
-    ManagedChannel channel = ManagedChannelFactory.from(
-        PipelineOptionsFactory.fromArgs(new String[]{ "--experiments=beam_fn_api_epoll" }).create())
-        .forDescriptor(apiServiceDescriptor);
-    assertEquals(apiServiceDescriptor.getUrl().substring("unix://".length()), channel.authority());
+    Assume.assumeTrue(io.netty.channel.epoll.Epoll.isAvailable());
+    ApiServiceDescriptor apiServiceDescriptor =
+        ApiServiceDescriptor.newBuilder()
+            .setUrl("unix://" + tmpFolder.newFile().getAbsolutePath())
+            .build();
+    ManagedChannel channel =
+        ManagedChannelFactory.createEpoll().forDescriptor(apiServiceDescriptor);
+    Assert.assertEquals(
+        apiServiceDescriptor.getUrl().substring("unix://".length()), channel.authority());
     channel.shutdownNow();
   }
 }
