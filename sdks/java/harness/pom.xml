@@ -136,6 +136,11 @@
 
     <dependency>
       <groupId>org.apache.beam</groupId>
+      <artifactId>beam-sdks-java-fn-execution</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.beam</groupId>
       <artifactId>beam-sdks-java-core</artifactId>
     </dependency>
 
@@ -150,6 +155,14 @@
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-sdks-java-extensions-google-cloud-platform-core</artifactId>
+    </dependency>
+
+    <!-- test dependencies -->
+    <dependency>
+      <groupId>org.apache.beam</groupId>
+      <artifactId>beam-sdks-java-fn-execution</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
     </dependency>
 
     <dependency>
@@ -208,6 +221,7 @@
     <dependency>
       <groupId>io.grpc</groupId>
       <artifactId>grpc-netty</artifactId>
+      <scope>runtime</scope>
     </dependency>
 
     <dependency>
@@ -219,6 +233,7 @@
       <groupId>io.netty</groupId>
       <artifactId>netty-transport-native-epoll</artifactId>
       <classifier>linux-x86_64</classifier>
+      <scope>runtime</scope>
     </dependency>
 
     <dependency>
