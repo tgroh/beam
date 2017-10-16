@@ -18,8 +18,16 @@
 
 package org.apache.beam.runners.reference.job;
 
+import com.google.common.base.Supplier;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import java.io.File;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.beam.artifact.local.LocalFileSystemArtifactStagerService;
 import org.apache.beam.model.jobmanagement.v1.JobApi;
 import org.apache.beam.model.jobmanagement.v1.JobApi.CancelJobRequest;
 import org.apache.beam.model.jobmanagement.v1.JobApi.CancelJobResponse;
@@ -28,6 +36,8 @@ import org.apache.beam.model.jobmanagement.v1.JobApi.GetJobStateResponse;
 import org.apache.beam.model.jobmanagement.v1.JobApi.PrepareJobResponse;
 import org.apache.beam.model.jobmanagement.v1.JobApi.RunJobRequest;
 import org.apache.beam.model.jobmanagement.v1.JobServiceGrpc.JobServiceImplBase;
+import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
+import org.apache.beam.runners.harness.ServerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,18 +46,53 @@ public class ReferenceRunnerJobService extends JobServiceImplBase {
   private static final Logger LOG = LoggerFactory.getLogger(ReferenceRunnerJobService.class);
 
   public static ReferenceRunnerJobService create() {
-    return new ReferenceRunnerJobService();
+    return new ReferenceRunnerJobService(ServerFactory.createDefault());
   }
 
-  private ReferenceRunnerJobService() {}
+  private final Supplier<String> jobIdSupplier;
+  private final LoadingCache<String, PipelineJob> activeJobs;
+  private final ServerFactory serverFactory;
+
+  private ReferenceRunnerJobService(ServerFactory serverFactory) {
+    this.jobIdSupplier = new Supplier<String>() {
+      final AtomicInteger sequenceNumber = new AtomicInteger(ThreadLocalRandom.current().nextInt());
+
+      @Override
+      public String get() {
+        return "reference_runner_job_" + sequenceNumber.getAndIncrement();
+      }
+    };
+    this.activeJobs = CacheBuilder.newBuilder().build(new CacheLoader<String, PipelineJob>() {
+      @Override
+      public PipelineJob load(String key) throws Exception {
+        File stagingDir = File.createTempFile("reference-runner-staging", key);
+        return PipelineJob.builder().setStagingLocation(stagingDir).build();
+      }
+    });
+    this.serverFactory = serverFactory;
+  }
 
   @Override
   public void prepare(
       JobApi.PrepareJobRequest request,
       StreamObserver<JobApi.PrepareJobResponse> responseObserver) {
-    LOG.trace("{} {}", PrepareJobResponse.class.getSimpleName(), request);
-    System.err.println("Preparation Job Blah");
-    responseObserver.onError(Status.UNIMPLEMENTED.asException());
+    try {
+      String jobId = jobIdSupplier.get();
+      PipelineJob job = activeJobs.get(jobId);
+      LOG.trace("{} {}", PrepareJobResponse.class.getSimpleName(), request);
+      ApiServiceDescriptor.Builder artifactApiServiceDescriptor = ApiServiceDescriptor.newBuilder();
+      serverFactory.allocatePortAndCreate(
+          LocalFileSystemArtifactStagerService.withRootDirectory(job.getStagingLocation()),
+          artifactApiServiceDescriptor);
+      responseObserver.onNext(
+          PrepareJobResponse.newBuilder()
+              .setPreparationId(jobId)
+              .setArtifactStagingEndpoint(artifactApiServiceDescriptor)
+              .build());
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      responseObserver.onError(Status.INTERNAL.withCause(e).asException());
+    }
   }
 
   @Override
