@@ -515,6 +515,16 @@ public class PipelineOptionsFactory {
         ImmutableMap.builder();
     for (PipelineRunnerRegistrar registrar : pipelineRunnerRegistrars) {
       for (Class<? extends PipelineRunner<?>> klass : registrar.getPipelineRunners()) {
+        if (registrar
+            .getClass()
+            .getCanonicalName()
+            .startsWith("org.apache.beam.fn.harness.private")) {
+          LOG.debug(
+              "Skipping over repackaged {} {}",
+              PipelineRunnerRegistrar.class.getSimpleName(),
+              registrar.getClass().getSimpleName());
+          continue;
+        }
         String runnerName = klass.getSimpleName().toLowerCase();
         builder.put(runnerName, klass);
         if (runnerName.endsWith("runner")) {
@@ -574,6 +584,16 @@ public class PipelineOptionsFactory {
         Lists.newArrayList(ServiceLoader.load(PipelineOptionsRegistrar.class, CLASS_LOADER)));
     for (PipelineOptionsRegistrar registrar : pipelineOptionsRegistrars) {
       for (Class<? extends PipelineOptions> klass : registrar.getPipelineOptions()) {
+        if (registrar
+            .getClass()
+            .getCanonicalName()
+            .startsWith("org.apache.beam.fn.harness.private")) {
+          LOG.debug(
+              "Skipping over repackaged {} {}",
+              PipelineOptionsRegistrar.class.getSimpleName(),
+              registrar.getClass().getSimpleName());
+          continue;
+        }
         register(klass);
       }
     }
