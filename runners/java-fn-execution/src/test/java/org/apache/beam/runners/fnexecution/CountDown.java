@@ -18,18 +18,20 @@
 
 package org.apache.beam.runners.fnexecution;
 
-import io.grpc.BindableService;
+import java.util.concurrent.CountDownLatch;
 
-/** An interface sharing common behavior with services used during execution of user Fns. */
-public interface FnService extends AutoCloseable, BindableService {
-  /**
-   * {@inheritDoc}.
-   *
-   * <p>There should be no more calls to any service method by the time a call to {@link #close()}
-   * begins. Specifically, this means that a {@link io.grpc.Server} that this service is bound to
-   * should be have completed a call to the {@link io.grpc.Server#shutdown()} method called on it,
-   * which will reject all future incoming calls.
-   */
+/**
+ * A {@link Runnable} that calls {@link CountDownLatch#countDown()} on a {@link CountDownLatch}.
+ */
+public class CountDown implements Runnable {
+  private final CountDownLatch latch;
+
+  public CountDown(CountDownLatch latch) {
+    this.latch = latch;
+  }
+
   @Override
-  void close() throws Exception;
+  public void run() {
+    latch.countDown();
+  }
 }
