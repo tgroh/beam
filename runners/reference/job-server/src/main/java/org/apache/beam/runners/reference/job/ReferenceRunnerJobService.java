@@ -28,11 +28,12 @@ import org.apache.beam.model.jobmanagement.v1.JobApi.GetJobStateResponse;
 import org.apache.beam.model.jobmanagement.v1.JobApi.PrepareJobResponse;
 import org.apache.beam.model.jobmanagement.v1.JobApi.RunJobRequest;
 import org.apache.beam.model.jobmanagement.v1.JobServiceGrpc.JobServiceImplBase;
+import org.apache.beam.runners.fnexecution.FnService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** The ReferenceRunner uses the portability framework to execute a Pipeline on a single machine. */
-public class ReferenceRunnerJobService extends JobServiceImplBase {
+public class ReferenceRunnerJobService extends JobServiceImplBase implements FnService {
   private static final Logger LOG = LoggerFactory.getLogger(ReferenceRunnerJobService.class);
 
   public static ReferenceRunnerJobService create() {
@@ -46,7 +47,6 @@ public class ReferenceRunnerJobService extends JobServiceImplBase {
       JobApi.PrepareJobRequest request,
       StreamObserver<JobApi.PrepareJobResponse> responseObserver) {
     LOG.trace("{} {}", PrepareJobResponse.class.getSimpleName(), request);
-    System.err.println("Preparation Job Blah");
     responseObserver.onError(Status.UNIMPLEMENTED.asException());
   }
 
@@ -54,7 +54,6 @@ public class ReferenceRunnerJobService extends JobServiceImplBase {
   public void run(
       JobApi.RunJobRequest request, StreamObserver<JobApi.RunJobResponse> responseObserver) {
     LOG.trace("{} {}", RunJobRequest.class.getSimpleName(), request);
-    System.err.println("Run Job Blah");
     responseObserver.onError(Status.UNIMPLEMENTED.asException());
   }
 
@@ -75,5 +74,10 @@ public class ReferenceRunnerJobService extends JobServiceImplBase {
         Status.NOT_FOUND
             .withDescription(String.format("Unknown Job ID %s", request.getJobId()))
             .asException());
+  }
+
+  @Override
+  public void close() {
+    // TODO: Close active Jobs, etc
   }
 }

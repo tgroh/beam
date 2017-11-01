@@ -18,9 +18,9 @@
 
 package org.apache.beam.runners.reference.job;
 
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import java.io.IOException;
+import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
+import org.apache.beam.runners.fnexecution.GrpcFnServer;
+import org.apache.beam.runners.fnexecution.ServerFactory;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
 public class ReferenceRunnerJobServer {
   private static final Logger LOG = LoggerFactory.getLogger(ReferenceRunnerJobService.class);
 
-  public static void main(String[] args) throws IOException, InterruptedException {
+  public static void main(String[] args) throws Exception {
     ServerConfiguration configuration = new ServerConfiguration();
     CmdLineParser parser = new CmdLineParser(configuration);
     try {
@@ -52,16 +52,20 @@ public class ReferenceRunnerJobServer {
     System.err.println();
   }
 
-  private static void runServer(ServerConfiguration configuration)
-      throws IOException, InterruptedException {
+  private static void runServer(ServerConfiguration configuration) throws Exception {
     ReferenceRunnerJobService service = ReferenceRunnerJobService.create();
-    Server server = ServerBuilder.forPort(configuration.port).addService(service).build();
-    server.start();
-    System.out.println(
-        String.format(
-            "Started %s on port %s",
-            ReferenceRunnerJobService.class.getSimpleName(), configuration.port));
-    server.awaitTermination();
+    ApiServiceDescriptor endpoint =
+        ApiServiceDescriptor.newBuilder()
+            .setUrl(String.format("localhost:%s", configuration.port))
+            .build();
+    try (GrpcFnServer<ReferenceRunnerJobService> server =
+        GrpcFnServer.create(service, endpoint, ServerFactory.createDefault())) {
+      System.out.println(
+          String.format(
+              "Started %s on port %s",
+              ReferenceRunnerJobService.class.getSimpleName(), configuration.port));
+      server.awaitTermination();
+    }
     System.out.println("Server shut down, exiting");
   }
 
