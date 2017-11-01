@@ -56,6 +56,11 @@
       <artifactId>beam-model-job-management</artifactId>
     </dependency>
 
+    <dependency>
+      <groupId>org.apache.beam</groupId>
+      <artifactId>beam-runners-java-fn-execution</artifactId>
+    </dependency>
+
     <!-- build dependencies -->
 
     <dependency>

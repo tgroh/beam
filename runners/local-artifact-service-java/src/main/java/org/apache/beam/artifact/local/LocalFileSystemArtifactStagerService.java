@@ -34,12 +34,13 @@ import java.util.Collection;
 import javax.annotation.Nullable;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi;
 import org.apache.beam.model.jobmanagement.v1.ArtifactStagingServiceGrpc;
+import org.apache.beam.runners.fnexecution.FnService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** An {@code ArtifactStagingService} which stages files to a local temp directory. */
 public class LocalFileSystemArtifactStagerService
-    extends ArtifactStagingServiceGrpc.ArtifactStagingServiceImplBase {
+    extends ArtifactStagingServiceGrpc.ArtifactStagingServiceImplBase implements FnService {
   private static final Logger LOG =
       LoggerFactory.getLogger(LocalFileSystemArtifactStagerService.class);
 
@@ -120,6 +121,11 @@ public class LocalFileSystemArtifactStagerService
 
   File getArtifactFile(String artifactName) {
     return new File(artifactsBase, artifactName);
+  }
+
+  @Override
+  public void close() throws Exception {
+    // TODO: anything?
   }
 
   private class CreateAndWriteFileObserver
