@@ -18,6 +18,7 @@
 
 package org.apache.beam.runners.reference.job;
 
+import java.io.File;
 import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.ServerFactory;
@@ -53,13 +54,19 @@ public class ReferenceRunnerJobServer {
   }
 
   private static void runServer(ServerConfiguration configuration) throws Exception {
-    ReferenceRunnerJobService service = ReferenceRunnerJobService.create();
+    File tempFile = File.createTempFile(ReferenceRunnerJobServer.class.getSimpleName(), "workdir");
+    if (!tempFile.mkdirs() && !(tempFile.exists() && tempFile.isDirectory())) {
+      throw new IllegalStateException(
+          String.format("Couldn't create staging directory at %s", tempFile));
+    }
+    ServerFactory serverFactory = ServerFactory.createDefault();
+    ReferenceRunnerJobService service = ReferenceRunnerJobService.create(tempFile, serverFactory);
     ApiServiceDescriptor endpoint =
         ApiServiceDescriptor.newBuilder()
             .setUrl(String.format("localhost:%s", configuration.port))
             .build();
     try (GrpcFnServer<ReferenceRunnerJobService> server =
-        GrpcFnServer.create(service, endpoint, ServerFactory.createDefault())) {
+        GrpcFnServer.create(service, endpoint, serverFactory)) {
       System.out.println(
           String.format(
               "Started %s on port %s",
