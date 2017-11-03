@@ -108,8 +108,7 @@ public class FnHarness {
         channelFactory::forDescriptor)) {
 
       LOG.info("Fn Harness started");
-      EnumMap<
-              BeamFnApi.InstructionRequest.RequestCase,
+      EnumMap<BeamFnApi.InstructionRequest.RequestCase,
               ThrowingFunction<InstructionRequest, Builder>>
           handlers = new EnumMap<>(BeamFnApi.InstructionRequest.RequestCase.class);
 
