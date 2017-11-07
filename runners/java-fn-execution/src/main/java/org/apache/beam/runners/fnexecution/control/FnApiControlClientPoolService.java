@@ -17,21 +17,31 @@
  */
 package org.apache.beam.runners.fnexecution.control;
 
+import com.google.common.collect.ImmutableSet;
 import io.grpc.stub.StreamObserver;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.BeamFnControlGrpc;
+import org.apache.beam.runners.fnexecution.FnService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** A Fn API control service which adds incoming SDK harness connections to a pool. */
-public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnControlImplBase {
+public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnControlImplBase
+    implements FnService {
   private static final Logger LOGGER = LoggerFactory.getLogger(FnApiControlClientPoolService.class);
 
   private final BlockingQueue<FnApiControlClient> clientPool;
+  /**
+   * The collection of clients that have been created by this {@link FnApiControlClientPoolService}.
+   */
+  private final Set<FnApiControlClient> activeClients;
 
   private FnApiControlClientPoolService(BlockingQueue<FnApiControlClient> clientPool) {
     this.clientPool = clientPool;
+    activeClients = new HashSet<>();
   }
 
   /**
@@ -55,6 +65,9 @@ public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnContr
       StreamObserver<BeamFnApi.InstructionRequest> requestObserver) {
     LOGGER.info("Beam Fn Control client connected.");
     FnApiControlClient newClient = FnApiControlClient.forRequestObserver(requestObserver);
+    synchronized (activeClients) {
+      activeClients.add(newClient);
+    }
     try {
       clientPool.put(newClient);
     } catch (InterruptedException e) {
@@ -62,5 +75,27 @@ public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnContr
       throw new RuntimeException(e);
     }
     return newClient.asResponseObserver();
+  }
+
+  @Override
+  public void close() throws Exception {
+    Set<FnApiControlClient> toCleanUp;
+    // Copy the active clients to ensure that we have a consistent view and are insulated from any
+    // concurrent modifications.
+    synchronized (activeClients) {
+      toCleanUp = ImmutableSet.copyOf(activeClients);
+    }
+    for (FnApiControlClient activeClient : toCleanUp) {
+      // Close all clients, swallowing any exceptions that closing those clients produce
+      try {
+        activeClient.close();
+      } catch (Exception e) {
+        LOGGER.warn(
+            "Exception while closing down {} {}",
+            FnApiControlClient.class.getSimpleName(),
+            activeClient,
+            e);
+      }
+    }
   }
 }
