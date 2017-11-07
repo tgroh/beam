@@ -53,10 +53,7 @@ public class SdkHarnessClient {
     }
   }
 
-  /**
-   * An active bundle for a particular {@link
-   * BeamFnApi.ProcessBundleDescriptor}.
-   */
+  /** An active bundle for a particular {@link BeamFnApi.ProcessBundleDescriptor}. */
   @AutoValue
   public abstract static class ActiveBundle<InputT> {
     public abstract String getBundleId();
@@ -88,7 +85,7 @@ public class SdkHarnessClient {
    * that these correspond to the same SDK harness, so control plane and data plane messages can be
    * correctly associated.
    */
-  public static SdkHarnessClient usingFnApiClient(FnApiControlClient fnApiControlClient) {
+  static SdkHarnessClient usingFnApiClient(FnApiControlClient fnApiControlClient) {
     return new SdkHarnessClient(fnApiControlClient, new CountingIdGenerator());
   }
 
