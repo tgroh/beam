@@ -65,12 +65,13 @@ class FnApiControlClient implements Closeable {
    * <p>It is the responsibility of the caller to register this object as an observer of incoming
    * responses (this will generally be done as part of fulfilling the contract of a gRPC service).
    */
-  public static FnApiControlClient forRequestObserver(
-      FnApiControlClientPoolService enclosing, StreamObserver<InstructionRequest> requestObserver) {
-    return new FnApiControlClient(enclosing, requestObserver);
+  static FnApiControlClient forRequestObserver(
+      FnApiControlClientPoolService parentPool,
+      StreamObserver<InstructionRequest> requestObserver) {
+    return new FnApiControlClient(parentPool, requestObserver);
   }
 
-  public synchronized ListenableFuture<BeamFnApi.InstructionResponse> handle(
+  synchronized ListenableFuture<BeamFnApi.InstructionResponse> handle(
       BeamFnApi.InstructionRequest request) {
     LOG.debug("Sending InstructionRequest {}", request);
     SettableFuture<BeamFnApi.InstructionResponse> resultFuture = SettableFuture.create();
