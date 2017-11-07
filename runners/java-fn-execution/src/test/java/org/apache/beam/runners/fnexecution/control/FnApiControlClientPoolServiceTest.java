@@ -18,6 +18,7 @@
 package org.apache.beam.runners.fnexecution.control;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isA;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -28,13 +29,20 @@ import io.grpc.stub.StreamObserver;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
+import org.apache.beam.model.fnexecution.v1.BeamFnApi.InstructionRequest;
+import org.apache.beam.model.fnexecution.v1.BeamFnApi.InstructionResponse;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import org.mockito.Mockito;
 
 /** Unit tests for {@link FnApiControlClientPoolService}. */
 @RunWith(JUnit4.class)
 public class FnApiControlClientPoolServiceTest {
+  @Rule
+  public ExpectedException thrown = ExpectedException.none();
 
   // For ease of straight-line testing, we use a LinkedBlockingQueue; in practice a SynchronousQueue
   // for matching incoming connections and server threads is likely.
@@ -61,5 +69,24 @@ public class FnApiControlClientPoolServiceTest {
     responseObserver.onNext(
         BeamFnApi.InstructionResponse.newBuilder().setInstructionId(id).build());
     responseFuture.get();
+  }
+
+  @Test
+  public void testCloseClosesClients() throws Exception {
+    StreamObserver<BeamFnApi.InstructionRequest> requestObserver = mock(StreamObserver.class);
+    StreamObserver<BeamFnApi.InstructionResponse> responseObserver =
+        controlService.control(requestObserver);
+
+    FnApiControlClient client = pool.take();
+    ListenableFuture<InstructionResponse> response =
+        client.handle(InstructionRequest.newBuilder().setInstructionId("req").build());
+
+    controlService.close();
+
+    assertThat(response.isDone(), is(true));
+    verify(requestObserver).onError(Mockito.any(IllegalStateException.class));
+
+    thrown.expectCause(isA(IllegalStateException.class));
+    response.get();
   }
 }

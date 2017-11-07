@@ -28,6 +28,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import io.grpc.stub.StreamObserver;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.junit.Before;
 import org.junit.Rule;
@@ -44,13 +45,17 @@ public class FnApiControlClientTest {
 
   @Rule public ExpectedException thrown = ExpectedException.none();
 
+  private FnApiControlClientPoolService owningPool =
+      FnApiControlClientPoolService.offeringClientsToPool(
+          new LinkedBlockingQueue<FnApiControlClient>());
+
   @Mock public StreamObserver<BeamFnApi.InstructionRequest> mockObserver;
   private FnApiControlClient client;
 
   @Before
   public void setup() {
     MockitoAnnotations.initMocks(this);
-    client = FnApiControlClient.forRequestObserver(mockObserver);
+    client = FnApiControlClient.forRequestObserver(owningPool, mockObserver);
   }
 
   @Test

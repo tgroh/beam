@@ -53,7 +53,8 @@ class FnApiControlClient implements Closeable {
   private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
   private FnApiControlClient(
-      FnApiControlClientPoolService parentPool, StreamObserver<InstructionRequest> requestReceiver) {
+      FnApiControlClientPoolService parentPool,
+      StreamObserver<InstructionRequest> requestReceiver) {
     this.parentPool = parentPool;
     this.requestReceiver = requestReceiver;
     this.outstandingRequests = new ConcurrentHashMap<>();
