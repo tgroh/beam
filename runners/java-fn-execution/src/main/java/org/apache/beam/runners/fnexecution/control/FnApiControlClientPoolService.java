@@ -36,6 +36,8 @@ public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnContr
   private final BlockingQueue<FnApiControlClient> clientPool;
   /**
    * The collection of clients that have been created by this {@link FnApiControlClientPoolService}.
+   *
+   * <p>Access to this field must by synchronized.
    */
   private final Set<FnApiControlClient> activeClients;
 
@@ -64,7 +66,7 @@ public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnContr
   public StreamObserver<BeamFnApi.InstructionResponse> control(
       StreamObserver<BeamFnApi.InstructionRequest> requestObserver) {
     LOGGER.info("Beam Fn Control client connected.");
-    FnApiControlClient newClient = FnApiControlClient.forRequestObserver(requestObserver);
+    FnApiControlClient newClient = FnApiControlClient.forRequestObserver(this, requestObserver);
     synchronized (activeClients) {
       activeClients.add(newClient);
     }
@@ -96,6 +98,12 @@ public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnContr
             activeClient,
             e);
       }
+    }
+  }
+
+  void clientClosed(FnApiControlClient fnApiControlClient) {
+    synchronized (activeClients) {
+      activeClients.remove(fnApiControlClient);
     }
   }
 }

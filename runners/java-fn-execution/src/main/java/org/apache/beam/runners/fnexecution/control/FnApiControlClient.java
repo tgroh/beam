@@ -25,7 +25,9 @@ import io.grpc.stub.StreamObserver;
 import java.io.Closeable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
+import org.apache.beam.model.fnexecution.v1.BeamFnApi.InstructionRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,27 +45,29 @@ import org.slf4j.LoggerFactory;
 class FnApiControlClient implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(FnApiControlClient.class);
 
+  private final FnApiControlClientPoolService parentPool;
   // All writes to this StreamObserver need to be synchronized.
   private final StreamObserver<BeamFnApi.InstructionRequest> requestReceiver;
   private final ResponseStreamObserver responseObserver = new ResponseStreamObserver();
   private final Map<String, SettableFuture<BeamFnApi.InstructionResponse>> outstandingRequests;
-  private volatile boolean isClosed;
+  private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
-  private FnApiControlClient(StreamObserver<BeamFnApi.InstructionRequest> requestReceiver) {
+  private FnApiControlClient(
+      FnApiControlClientPoolService parentPool, StreamObserver<InstructionRequest> requestReceiver) {
+    this.parentPool = parentPool;
     this.requestReceiver = requestReceiver;
     this.outstandingRequests = new ConcurrentHashMap<>();
   }
 
   /**
-   * Returns a {@link FnApiControlClient} which will submit its requests to the provided
-   * observer.
+   * Returns a {@link FnApiControlClient} which will submit its requests to the provided observer.
    *
    * <p>It is the responsibility of the caller to register this object as an observer of incoming
    * responses (this will generally be done as part of fulfilling the contract of a gRPC service).
    */
   public static FnApiControlClient forRequestObserver(
-      StreamObserver<BeamFnApi.InstructionRequest> requestObserver) {
-    return new FnApiControlClient(requestObserver);
+      FnApiControlClientPoolService enclosing, StreamObserver<InstructionRequest> requestObserver) {
+    return new FnApiControlClient(enclosing, requestObserver);
   }
 
   public synchronized ListenableFuture<BeamFnApi.InstructionResponse> handle(
@@ -86,15 +90,15 @@ class FnApiControlClient implements Closeable {
 
   /** Closes this client and terminates any outstanding requests exceptionally. */
   private synchronized void closeAndTerminateOutstandingRequests(Throwable cause) {
-    if (isClosed) {
+    if (isClosed.getAndSet(true)) {
       return;
     }
+    parentPool.clientClosed(this);
 
     // Make a copy of the map to make the view of the outstanding requests consistent.
     Map<String, SettableFuture<BeamFnApi.InstructionResponse>> outstandingRequestsCopy =
         new ConcurrentHashMap<>(outstandingRequests);
     outstandingRequests.clear();
-    isClosed = true;
 
     if (outstandingRequestsCopy.isEmpty()) {
       requestReceiver.onCompleted();
