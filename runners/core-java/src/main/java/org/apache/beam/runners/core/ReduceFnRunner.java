@@ -217,7 +217,7 @@ public class ReduceFnRunner<K, InputT, OutputT, W extends BoundedWindow> {
       OutputWindowedValue<KV<K, OutputT>> outputter,
       SideInputReader sideInputReader,
       ReduceFn<K, InputT, OutputT, W> reduceFn,
-      PipelineOptions options) {
+      @Nullable PipelineOptions options) {
     this.key = key;
     this.timerInternals = timerInternals;
     this.paneInfoTracker = new PaneInfoTracker(timerInternals);

@@ -54,6 +54,7 @@ class ReduceFnContextFactory<K, InputT, OutputT, W extends BoundedWindow> {
   private final ActiveWindowSet<W> activeWindows;
   private final TimerInternals timerInternals;
   private final SideInputReader sideInputReader;
+  @Nullable
   private final PipelineOptions options;
 
   ReduceFnContextFactory(
@@ -64,7 +65,7 @@ class ReduceFnContextFactory<K, InputT, OutputT, W extends BoundedWindow> {
       ActiveWindowSet<W> activeWindows,
       TimerInternals timerInternals,
       SideInputReader sideInputReader,
-      PipelineOptions options) {
+      @Nullable PipelineOptions options) {
     this.key = key;
     this.reduceFn = reduceFn;
     this.windowingStrategy = windowingStrategy;

@@ -78,12 +78,14 @@ public class SdkHarnessClient {
 
   private final IdGenerator idGenerator;
   private final FnApiControlClient fnApiControlClient;
+  private final FnDataService dataService;
 
   private SdkHarnessClient(
       FnApiControlClient fnApiControlClient,
-      IdGenerator idGenerator) {
+      IdGenerator idGenerator, FnDataService dataService) {
     this.idGenerator = idGenerator;
     this.fnApiControlClient = fnApiControlClient;
+    this.dataService = dataService;
   }
 
   /**
@@ -92,11 +94,12 @@ public class SdkHarnessClient {
    * correctly associated.
    */
   public static SdkHarnessClient usingFnApiClient(FnApiControlClient fnApiControlClient) {
-    return new SdkHarnessClient(fnApiControlClient, new CountingIdGenerator());
+    return new SdkHarnessClient(
+        fnApiControlClient, new CountingIdGenerator(), new EmptyDataService());
   }
 
   public SdkHarnessClient withIdGenerator(IdGenerator idGenerator) {
-    return new SdkHarnessClient(fnApiControlClient, idGenerator);
+    return new SdkHarnessClient(fnApiControlClient, idGenerator, dataService);
   }
 
   /**
