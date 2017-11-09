@@ -17,20 +17,21 @@
  */
 package org.apache.beam.runners.fnexecution.control;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import io.grpc.stub.StreamObserver;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.BeamFnControlGrpc;
-import org.apache.beam.runners.fnexecution.FnService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** A Fn API control service which adds incoming SDK harness connections to a pool. */
 public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnControlImplBase
-    implements FnService {
+    implements BeamFnControlService {
   private static final Logger LOGGER = LoggerFactory.getLogger(FnApiControlClientPoolService.class);
 
   private final BlockingQueue<FnApiControlClient> clientPool;
@@ -47,10 +48,19 @@ public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnContr
   }
 
   /**
+   * Creates a new {@link FnApiControlClientPoolService} which uses a {@link SynchronousQueue} as
+   * its pool of available clients.
+   */
+  public static FnApiControlClientPoolService synchronousPool() {
+    return offeringClientsToPool(new SynchronousQueue<FnApiControlClient>());
+  }
+
+  /**
    * Creates a new {@link FnApiControlClientPoolService} which will enqueue and vend new SDK harness
    * connections.
    */
-  public static FnApiControlClientPoolService offeringClientsToPool(
+  @VisibleForTesting
+  static FnApiControlClientPoolService offeringClientsToPool(
       BlockingQueue<FnApiControlClient> clientPool) {
     return new FnApiControlClientPoolService(clientPool);
   }
@@ -105,5 +115,10 @@ public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnContr
     synchronized (activeClients) {
       activeClients.remove(fnApiControlClient);
     }
+  }
+
+  @Override
+  public SdkHarnessClient takeClient() throws InterruptedException {
+    return SdkHarnessClient.usingFnApiClient(clientPool.take());
   }
 }
