@@ -25,15 +25,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import org.apache.beam.fn.harness.fn.CloseableThrowingConsumer;
-import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.BeamFnDataGrpc;
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.fn.data.BeamFnDataBufferingOutboundObserver;
+import org.apache.beam.sdk.fn.data.CloseableFnDataReceiver;
+import org.apache.beam.sdk.fn.data.FnDataReceiver;
+import org.apache.beam.sdk.fn.data.LogicalEndpoint;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.util.WindowedValue;
-import org.apache.beam.sdk.values.KV;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,12 +77,12 @@ public class BeamFnDataGrpcClient implements BeamFnDataClient {
   @Override
   public <T> CompletableFuture<Void> forInboundConsumer(
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
-      KV<String, BeamFnApi.Target> inputLocation,
+      LogicalEndpoint inputLocation,
       Coder<WindowedValue<T>> coder,
-      ThrowingConsumer<WindowedValue<T>> consumer) {
+      FnDataReceiver<WindowedValue<T>> consumer) {
     LOG.debug("Registering consumer for instruction {} and target {}",
-        inputLocation.getKey(),
-        inputLocation.getValue());
+        inputLocation.getInstructionId(),
+        inputLocation.getTarget());
 
     CompletableFuture<Void> readFuture = new CompletableFuture<>();
     BeamFnDataGrpcMultiplexer client = getClientFor(apiServiceDescriptor);
@@ -101,16 +102,16 @@ public class BeamFnDataGrpcClient implements BeamFnDataClient {
    * <p>The returned closeable consumer is not thread safe.
    */
   @Override
-  public <T> CloseableThrowingConsumer<WindowedValue<T>> forOutboundConsumer(
+  public <T> CloseableFnDataReceiver<WindowedValue<T>> forOutboundConsumer(
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
-      KV<String, BeamFnApi.Target> outputLocation,
+      LogicalEndpoint outputLocation,
       Coder<WindowedValue<T>> coder) {
     BeamFnDataGrpcMultiplexer client = getClientFor(apiServiceDescriptor);
 
     LOG.debug("Creating output consumer for instruction {} and target {}",
-        outputLocation.getKey(),
-        outputLocation.getValue());
-    return new BeamFnDataBufferingOutboundObserver<>(
+        outputLocation.getInstructionId(),
+        outputLocation.getTarget());
+    return new BeamFnDataBufferingOutboundObserver<T>(
         options, outputLocation, coder, client.getOutboundObserver());
   }
 

@@ -15,13 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.runners.fnexecution.data;
-
-import java.io.Closeable;
 
 /**
- * A receiver of streamed data.
+ * Utilities to interact over the {@link org.apache.beam.model.fnexecution.v1.BeamFnDataGrpc Beam Fn
+ * Data Service}.
  */
-public interface FnDataReceiver<T> extends Closeable {
-  void accept(T input) throws Exception;
-}
+package org.apache.beam.sdk.fn.data;

@@ -25,13 +25,13 @@ import java.io.IOException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
-import org.apache.beam.runners.fnexecution.data.FnDataReceiver;
+import org.apache.beam.sdk.fn.data.CloseableFnDataReceiver;
 
 /**
  * A high-level client for an SDK harness.
  *
  * <p>This provides a Java-friendly wrapper around {@link FnApiControlClient} and {@link
- * FnDataReceiver}, which handle lower-level gRPC message wrangling.
+ * CloseableFnDataReceiver}, which handle lower-level gRPC message wrangling.
  */
 public class SdkHarnessClient {
 
@@ -63,12 +63,12 @@ public class SdkHarnessClient {
 
     public abstract Future<BeamFnApi.ProcessBundleResponse> getBundleResponse();
 
-    public abstract FnDataReceiver<InputT> getInputReceiver();
+    public abstract CloseableFnDataReceiver<InputT> getInputReceiver();
 
     public static <InputT> ActiveBundle<InputT> create(
         String bundleId,
         Future<BeamFnApi.ProcessBundleResponse> response,
-        FnDataReceiver<InputT> dataReceiver) {
+        CloseableFnDataReceiver<InputT> dataReceiver) {
       return new AutoValue_SdkHarnessClient_ActiveBundle(bundleId, response, dataReceiver);
     }
   }
@@ -138,7 +138,7 @@ public class SdkHarnessClient {
     String bundleId = idGenerator.getId();
 
     // TODO: acquire an input receiver from appropriate FnDataService
-    FnDataReceiver dataReceiver = new FnDataReceiver() {
+    CloseableFnDataReceiver dataReceiver = new CloseableFnDataReceiver() {
       @Override
       public void accept(Object input) throws Exception {
         throw new UnsupportedOperationException("Placeholder FnDataReceiver cannot accept data.");

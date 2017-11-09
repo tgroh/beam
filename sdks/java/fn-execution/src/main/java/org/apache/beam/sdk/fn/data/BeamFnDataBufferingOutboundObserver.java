@@ -15,26 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.fn.harness.data;
+package org.apache.beam.sdk.fn.data;
 
 import com.google.protobuf.ByteString;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
-import org.apache.beam.fn.harness.fn.CloseableThrowingConsumer;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.options.ExperimentalOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.util.WindowedValue;
-import org.apache.beam.sdk.values.KV;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A buffering outbound {@link Consumer} for the Beam Fn Data API.
+ * A buffering outbound {@link CloseableFnDataReceiver} for the Beam Fn Data API.
  *
  * <p>Encodes individually consumed elements with the provided {@link Coder} producing
  * a single {@link BeamFnApi.Elements} message when the buffer threshold
@@ -50,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * a marker, detect on the input side that no bytes were read and force reading a single byte.
  */
 public class BeamFnDataBufferingOutboundObserver<T>
-    implements CloseableThrowingConsumer<WindowedValue<T>> {
+    implements CloseableFnDataReceiver<WindowedValue<T>> {
   private static final String BEAM_FN_API_DATA_BUFFER_LIMIT = "beam_fn_api_data_buffer_limit=";
   private static final int DEFAULT_BUFFER_LIMIT_BYTES = 1_000_000;
   private static final Logger LOG =
@@ -60,13 +57,13 @@ public class BeamFnDataBufferingOutboundObserver<T>
   private long counter;
   private final int bufferLimit;
   private final Coder<WindowedValue<T>> coder;
-  private final KV<String, BeamFnApi.Target> outputLocation;
+  private final LogicalEndpoint outputLocation;
   private final StreamObserver<BeamFnApi.Elements> outboundObserver;
   private final ByteString.Output bufferedElements;
 
   public BeamFnDataBufferingOutboundObserver(
       PipelineOptions options,
-      KV<String, BeamFnApi.Target> outputLocation,
+      LogicalEndpoint outputLocation,
       Coder<WindowedValue<T>> coder,
       StreamObserver<BeamFnApi.Elements> outboundObserver) {
     this.bufferLimit = getBufferLimit(options);
@@ -95,13 +92,13 @@ public class BeamFnDataBufferingOutboundObserver<T>
     BeamFnApi.Elements.Builder elements = convertBufferForTransmission();
     // This will add an empty data block representing the end of stream.
     elements.addDataBuilder()
-        .setInstructionReference(outputLocation.getKey())
-        .setTarget(outputLocation.getValue());
+        .setInstructionReference(outputLocation.getInstructionId())
+        .setTarget(outputLocation.getTarget());
 
     LOG.debug("Closing stream for instruction {} and "
         + "target {} having transmitted {} values {} bytes",
-        outputLocation.getKey(),
-        outputLocation.getValue(),
+        outputLocation.getInstructionId(),
+        outputLocation.getTarget(),
         counter,
         byteCounter);
     outboundObserver.onNext(elements.build());
@@ -123,8 +120,8 @@ public class BeamFnDataBufferingOutboundObserver<T>
     }
 
     elements.addDataBuilder()
-        .setInstructionReference(outputLocation.getKey())
-        .setTarget(outputLocation.getValue())
+        .setInstructionReference(outputLocation.getInstructionId())
+        .setTarget(outputLocation.getTarget())
         .setData(bufferedElements.toByteString());
 
     byteCounter += bufferedElements.size();

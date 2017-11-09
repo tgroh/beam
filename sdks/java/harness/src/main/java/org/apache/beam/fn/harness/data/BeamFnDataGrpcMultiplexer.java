@@ -28,7 +28,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.pipeline.v1.Endpoints;
-import org.apache.beam.sdk.values.KV;
+import org.apache.beam.sdk.fn.data.LogicalEndpoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,9 +51,9 @@ public class BeamFnDataGrpcMultiplexer {
   private final Endpoints.ApiServiceDescriptor apiServiceDescriptor;
   private final StreamObserver<BeamFnApi.Elements> inboundObserver;
   private final StreamObserver<BeamFnApi.Elements> outboundObserver;
+
   @VisibleForTesting
-  final ConcurrentMap<
-          KV<String, BeamFnApi.Target>, CompletableFuture<Consumer<BeamFnApi.Elements.Data>>>
+  final ConcurrentMap<LogicalEndpoint, CompletableFuture<Consumer<BeamFnApi.Elements.Data>>>
       consumers;
 
   public BeamFnDataGrpcMultiplexer(
@@ -83,10 +83,8 @@ public class BeamFnDataGrpcMultiplexer {
   }
 
   public CompletableFuture<Consumer<BeamFnApi.Elements.Data>> futureForKey(
-      KV<String, BeamFnApi.Target> key) {
-    return consumers.computeIfAbsent(
-        key,
-        (KV<String, BeamFnApi.Target> unused) -> new CompletableFuture<>());
+      LogicalEndpoint key) {
+    return consumers.computeIfAbsent(key, (LogicalEndpoint unused) -> new CompletableFuture<>());
   }
 
   /**
@@ -102,16 +100,16 @@ public class BeamFnDataGrpcMultiplexer {
     public void onNext(BeamFnApi.Elements value) {
       for (BeamFnApi.Elements.Data data : value.getDataList()) {
         try {
-          KV<String, BeamFnApi.Target> key =
-              KV.of(data.getInstructionReference(), data.getTarget());
-          CompletableFuture<Consumer<BeamFnApi.Elements.Data>> consumer = futureForKey(key);
+          LogicalEndpoint endpoint =
+              LogicalEndpoint.of(data.getInstructionReference(), data.getTarget());
+          CompletableFuture<Consumer<BeamFnApi.Elements.Data>> consumer = futureForKey(endpoint);
           if (!consumer.isDone()) {
-            LOG.debug("Received data for key {} without consumer ready. "
-                + "Waiting for consumer to be registered.", key);
+            LOG.debug("Received data for endpoint {} without consumer ready. "
+                + "Waiting for consumer to be registered.", endpoint);
           }
           consumer.get().accept(data);
           if (data.getData().isEmpty()) {
-            consumers.remove(key);
+            consumers.remove(endpoint);
           }
         /*
          * TODO: On failure we should fail any bundles that were impacted eagerly
