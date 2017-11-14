@@ -21,10 +21,7 @@ package org.apache.beam.runners.local;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.joda.time.Instant;
 
-/**
- * An immutable collection of elements which are part of a {@link
- * org.apache.beam.model.pipeline.v1.RunnerApi.PCollection}.
- */
+/** An immutable collection of elements which are part of a {@code PCollection}. */
 public interface Bundle<T> extends Iterable<WindowedValue<T>> {
   /**
    * Return the minimum timestamp among elements in this bundle.
