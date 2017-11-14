@@ -35,7 +35,7 @@ import org.joda.time.Instant;
  * <p>Every transform evaluator has a defined input type, but {@link ParDo} has multiple outputs
  * so there is not necesssarily a defined output type.
  */
-interface TransformResult<InputT> {
+interface TransformResult<ElemT> {
   /**
    * Returns the {@link AppliedPTransform} that produced this result.
    *
@@ -57,7 +57,7 @@ interface TransformResult<InputT> {
    * Returns elements that were provided to the {@link TransformEvaluator} as input but were not
    * processed.
    */
-  Iterable<? extends WindowedValue<InputT>> getUnprocessedElements();
+  Iterable<? extends WindowedValue<ElemT>> getUnprocessedElements();
 
   /**
    * Returns the logical metric updates.
@@ -99,5 +99,5 @@ interface TransformResult<InputT> {
    * Returns a new TransformResult based on this one but overwriting any existing logical metric
    * updates with {@code metricUpdates}.
    */
-  TransformResult<InputT> withLogicalMetricUpdates(MetricUpdates metricUpdates);
+  TransformResult<ElemT> withLogicalMetricUpdates(MetricUpdates metricUpdates);
 }

@@ -397,7 +397,9 @@ public class DirectTransformExecutorTest {
     task.get();
   }
 
-  private static class RegisteringCompletionCallback implements CompletionCallback {
+  private static class RegisteringCompletionCallback
+      implements CompletionCallback<
+          CommittedBundle<?>, AppliedPTransform<?, ?, ?>, TransformResult<?>> {
     private TransformResult<?> handledResult = null;
     private boolean handledEmpty = false;
     private Exception handledException = null;

@@ -17,29 +17,29 @@
  */
 package org.apache.beam.runners.direct;
 
-import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.runners.local.Bundle;
 
 /**
  * A callback for completing a bundle of input.
  */
-interface CompletionCallback {
+interface CompletionCallback<InputT extends Bundle<?>, ExecutableT, ResultT> {
   /**
    * Handle a successful result, returning the committed outputs of the result.
    */
   CommittedResult handleResult(
-      CommittedBundle<?> inputBundle, TransformResult<?> result);
+      InputT inputBundle, ResultT result);
 
   /**
    * Handle an input bundle that did not require processing.
    *
    * <p>This occurs when a Source has no splits that can currently produce outputs.
    */
-  void handleEmpty(AppliedPTransform<?, ?, ?> transform);
+  void handleEmpty(ExecutableT transform);
 
   /**
    * Handle a result that terminated abnormally due to the provided {@link Exception}.
    */
-  void handleException(CommittedBundle<?> inputBundle, Exception t);
+  void handleException(InputT inputBundle, Exception t);
 
   /**
    * Handle a result that terminated abnormally due to the provided {@link Error}. The pipeline

@@ -20,19 +20,8 @@ package org.apache.beam.runners.direct;
 
 import org.apache.beam.runners.local.Bundle;
 
-/**
- * A Factory for creating {@link TransformExecutor Transform Executors} on an input.
- *
- * @param <InputT> the type consumed as input
- * @param <ExecutableT> The type this Factory can create {@link TransformExecutor Transform
- *     Executors} to execute.
- * @param <ResultT> the type of result that will be produced after executing and provided to the
- *     {@link CompletionCallback}
- */
-interface TransformExecutorFactory<InputT extends Bundle<?>, ExecutableT, ResultT> {
-  TransformExecutor create(
-      InputT bundle,
-      ExecutableT executable,
-      CompletionCallback<InputT, ExecutableT, ResultT> onComplete,
-      TransformExecutorService executorService);
+interface BundleExecutor<BundleT extends Bundle<?>, ExecutableT> {
+  @SuppressWarnings("unchecked")
+  void scheduleConsumption(
+      ExecutableT consumer, BundleT bundle, CompletionCallback<BundleT, ExecutableT, ?> onComplete);
 }
