@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.beam.runners.local.PipelineGraph;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.values.PCollection;
@@ -35,7 +36,7 @@ import org.apache.beam.sdk.values.PValue;
  * Methods for interacting with the underlying structure of a {@link Pipeline} that is being
  * executed with the {@link DirectRunner}.
  */
-class DirectGraph {
+class DirectGraph implements PipelineGraph<PCollection<?>, AppliedPTransform<?, ?, ?>> {
   private final Map<PCollection<?>, AppliedPTransform<?, ?, ?>> producers;
   private final Map<PCollectionView<?>, AppliedPTransform<?, ?, ?>> viewWriters;
   private final ListMultimap<PInput, AppliedPTransform<?, ?, ?>> perElementConsumers;
@@ -79,24 +80,24 @@ class DirectGraph {
     }
   }
 
-  AppliedPTransform<?, ?, ?> getProducer(PCollection<?> produced) {
+  public AppliedPTransform<?, ?, ?> getProducer(PCollection<?> produced) {
     return producers.get(produced);
+  }
+
+  public List<AppliedPTransform<?, ?, ?>> getPerElementConsumers(PCollection<?> consumed) {
+    return perElementConsumers.get(consumed);
+  }
+
+  public List<AppliedPTransform<?, ?, ?>> getAllConsumers(PCollection<?> consumed) {
+    return allConsumers.get(consumed);
+  }
+
+  public Set<AppliedPTransform<?, ?, ?>> getRootTransforms() {
+    return rootTransforms;
   }
 
   AppliedPTransform<?, ?, ?> getWriter(PCollectionView<?> view) {
     return viewWriters.get(view);
-  }
-
-  List<AppliedPTransform<?, ?, ?>> getPerElementConsumers(PValue consumed) {
-    return perElementConsumers.get(consumed);
-  }
-
-  List<AppliedPTransform<?, ?, ?>> getAllConsumers(PValue consumed) {
-    return allConsumers.get(consumed);
-  }
-
-  Set<AppliedPTransform<?, ?, ?>> getRootTransforms() {
-    return rootTransforms;
   }
 
   Set<PCollection<?>> getPCollections() {
