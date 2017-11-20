@@ -18,11 +18,6 @@
 package org.apache.beam.runners.direct;
 
 import com.google.common.base.Optional;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -43,7 +38,6 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult.State;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.util.UserCodeException;
-import org.apache.beam.sdk.values.PValue;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.slf4j.Logger;
@@ -62,12 +56,11 @@ final class ExecutorServiceParallelExecutor
   private final ExecutorService executorService;
 
   private final TransformEvaluatorRegistry registry;
-
   private final EvaluationContext evaluationContext;
 
   private final TransformExecutorFactory executorFactory;
-  private final TransformExecutorService parallelExecutorService;
-  private final LoadingCache<StepAndKey, TransformExecutorService> serialExecutorServices;
+  private final TransformExecutorServiceProvider<CommittedBundle<?>, AppliedPTransform<?, ?, ?>>
+      executorServiceProvider;
 
   private final QueueMessageReceiver visibleUpdates;
 
@@ -87,6 +80,7 @@ final class ExecutorServiceParallelExecutor
       TransformEvaluatorRegistry registry,
       Map<String, Collection<ModelEnforcementFactory>> transformEnforcements,
       EvaluationContext context) {
+    this.evaluationContext = context;
     this.targetParallelism = targetParallelism;
     // Don't use Daemon threads for workers. The Pipeline should continue to execute even if there
     // are no other active threads (for example, because waitUntilFinish was not called)
@@ -97,45 +91,13 @@ final class ExecutorServiceParallelExecutor
                 .setThreadFactory(MoreExecutors.platformThreadFactory())
                 .setNameFormat("direct-runner-worker")
                 .build());
+    executorServiceProvider =
+        KeyCheckingExecutorServiceProvider.create(evaluationContext, executorService);
     this.registry = registry;
-    this.evaluationContext = context;
-
-    // Weak Values allows TransformExecutorServices that are no longer in use to be reclaimed.
-    // Executing TransformExecutorServices have a strong reference to their TransformExecutorService
-    // which stops the TransformExecutorServices from being prematurely garbage collected
-    serialExecutorServices =
-        CacheBuilder.newBuilder()
-            .weakValues()
-            .removalListener(shutdownExecutorServiceListener())
-            .build(serialTransformExecutorServiceCacheLoader());
 
     this.visibleUpdates = new QueueMessageReceiver();
 
-    parallelExecutorService = TransformExecutorServices.parallel(executorService);
     executorFactory = new DirectTransformExecutor.Factory(context, registry, transformEnforcements);
-  }
-
-  private CacheLoader<StepAndKey, TransformExecutorService>
-      serialTransformExecutorServiceCacheLoader() {
-    return new CacheLoader<StepAndKey, TransformExecutorService>() {
-      @Override
-      public TransformExecutorService load(StepAndKey stepAndKey) throws Exception {
-        return TransformExecutorServices.serial(executorService);
-      }
-    };
-  }
-
-  private RemovalListener<StepAndKey, TransformExecutorService> shutdownExecutorServiceListener() {
-    return new RemovalListener<StepAndKey, TransformExecutorService>() {
-      @Override
-      public void onRemoval(
-          RemovalNotification<StepAndKey, TransformExecutorService> notification) {
-        TransformExecutorService service = notification.getValue();
-        if (service != null) {
-          service.shutdown();
-        }
-      }
-    };
   }
 
   @Override
@@ -200,29 +162,14 @@ final class ExecutorServiceParallelExecutor
       final AppliedPTransform<?, ?, ?> transform,
       final CommittedBundle<T> bundle,
       final CompletionCallback onComplete) {
-    TransformExecutorService transformExecutor;
-
-    if (isKeyed(bundle.getPCollection())) {
-      final StepAndKey stepAndKey = StepAndKey.of(transform, bundle.getKey());
-      // This executor will remain reachable until it has executed all scheduled transforms.
-      // The TransformExecutors keep a strong reference to the Executor, the ExecutorService keeps
-      // a reference to the scheduled DirectTransformExecutor callable. Follow-up TransformExecutors
-      // (scheduled due to the completion of another DirectTransformExecutor) are provided to the
-      // ExecutorService before the Earlier DirectTransformExecutor callable completes.
-      transformExecutor = serialExecutorServices.getUnchecked(stepAndKey);
-    } else {
-      transformExecutor = parallelExecutorService;
-    }
+    TransformExecutorService transformExecutor =
+        executorServiceProvider.getExecutor(transform, bundle, bundle.getKey());
 
     TransformExecutor callable =
         executorFactory.create(bundle, transform, onComplete, transformExecutor);
     if (!pipelineState.get().isTerminal()) {
       transformExecutor.schedule(callable);
     }
-  }
-
-  private boolean isKeyed(PValue pvalue) {
-    return evaluationContext.isKeyed(pvalue);
   }
 
   @Override
@@ -281,9 +228,11 @@ final class ExecutorServiceParallelExecutor
     pipelineState.compareAndSet(State.RUNNING, newState);
     // Stop accepting new work before shutting down the executor. This ensures that thread don't try
     // to add work to the shutdown executor.
-    serialExecutorServices.invalidateAll();
-    serialExecutorServices.cleanUp();
-    parallelExecutorService.shutdown();
+    try {
+      executorServiceProvider.close();
+    } catch (Exception e) {
+      visibleUpdates.failed(e);
+    }
     executorService.shutdown();
     try {
       registry.cleanup();
