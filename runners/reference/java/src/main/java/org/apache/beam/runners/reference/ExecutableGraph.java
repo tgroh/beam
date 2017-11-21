@@ -16,23 +16,31 @@
  * limitations under the License.
  */
 
-apply from: project(":").file("build_rules.gradle")
-applyJavaNature()
+package org.apache.beam.runners.reference;
 
-description = "Apache Beam :: Runners :: Reference :: Java"
+import java.util.Collection;
+import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
+import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
+/**
+ * A graph that contains all of the information required to be executable by the {@link
+ * ReferenceRunner}.
+ */
+public class ExecutableGraph {
+  public static ExecutableGraph from(Pipeline p) {
+    return new ExecutableGraph(p);
+  }
 
-dependencies {
-  shadow project(path: ":beam-model-parent:beam-model-pipeline", configuration: "shadow")
-  shadow project(path: ":beam-runners-parent:beam-runners-core-construction-java", configuration: "shadow")
-  compile project(path: ":beam-runners-parent:beam-java-fn-execution")
-  compile project(path: ":beam-runners-parent:beam-runners-local-java-core")
-  shadow library.java.slf4j_api
-  testCompile library.java.junit
+  private ExecutableGraph(Pipeline p) {
+    // TODO: Fusion, Other stuff
+  }
+
+  public Collection<PipelineStage> getRoots() {
+    throw new UnsupportedOperationException("TODO: Implement");
+  }
+
+  public Collection<PipelineStage> getPerElementConsumers(PCollection pcollection) {
+    throw new UnsupportedOperationException("TODO: Implement");
+  }
+
+  interface Fuser {}
 }
-
-task packageTests(type: Jar) {
-  from sourceSets.test.output
-  classifier = "tests"
-}
-
-artifacts.archives packageTests

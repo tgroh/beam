@@ -21,6 +21,7 @@ import com.google.auto.value.AutoValue;
 import com.google.common.base.Function;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.protobuf.ByteString;
 import java.io.IOException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
@@ -134,7 +135,7 @@ public class SdkHarnessClient {
    * <p>The input channels for the returned {@link ActiveBundle} are derived from the
    * instructions in the {@link BeamFnApi.ProcessBundleDescriptor}.
    */
-  public ActiveBundle newBundle(String processBundleDescriptorId) {
+  public ActiveBundle<ByteString> newBundle(String processBundleDescriptorId) {
     String bundleId = idGenerator.getId();
 
     // TODO: acquire an input receiver from appropriate FnDataService
@@ -168,6 +169,6 @@ public class SdkHarnessClient {
               }
             });
 
-    return ActiveBundle.create(bundleId, specificResponse, dataReceiver);
+    return ActiveBundle.<ByteString>create(bundleId, specificResponse, dataReceiver);
   }
 }

@@ -23,6 +23,7 @@ import static org.mockito.Mockito.verify;
 
 import com.google.common.util.concurrent.MoreExecutors;
 import java.util.concurrent.ExecutorService;
+import org.apache.beam.runners.local.TransformExecutorService;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;

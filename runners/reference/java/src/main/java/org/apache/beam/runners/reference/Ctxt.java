@@ -16,7 +16,23 @@
  * limitations under the License.
  */
 
-package org.apache.beam.runners.direct;
+package org.apache.beam.runners.reference;
 
-/** A {@link Runnable} that will execute a {@code PTransform} on some bundle of input. */
-public interface TransformExecutor extends Runnable {}
+import com.google.protobuf.Struct;
+
+/**
+ * Runtime global pipeline state.
+ */
+public class Ctxt {
+  public static Ctxt create(Struct options, ExecutableGraph graph) {
+    return new Ctxt(options, graph);
+  }
+
+  private final Struct options;
+  private final ExecutableGraph graph;
+
+  private Ctxt(Struct options, ExecutableGraph graph) {
+    this.options = options;
+    this.graph = graph;
+  }
+}

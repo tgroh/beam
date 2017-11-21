@@ -24,6 +24,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.beam.runners.local.TransformExecutor;
+import org.apache.beam.runners.local.TransformExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

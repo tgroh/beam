@@ -15,27 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.runners.direct;
+
+package org.apache.beam.runners.local;
 
 /**
- * Schedules and completes {@link TransformExecutor TransformExecutors}, controlling concurrency as
- * appropriate for the {@link StepAndKey} the executor exists for.
+ * A Factory for creating {@link TransformExecutor Transform Executors} on an input.
  */
-interface TransformExecutorService {
-  /**
-   * Schedule the provided work to be eventually executed.
-   */
-  void schedule(TransformExecutor work);
-
-  /**
-   * Finish executing the provided work. This may cause additional
-   * {@link DirectTransformExecutor TransformExecutors} to be evaluated.
-   */
-  void complete(TransformExecutor completed);
-
-  /**
-   * Cancel any outstanding work, if possible. Any future calls to schedule should ignore any
-   * work.
-   */
-  void shutdown();
+public interface TransformExecutorFactory<BundleT extends Bundle<?>, ExecutableT, CallbackT> {
+  TransformExecutor create(
+      BundleT bundle,
+      ExecutableT transform,
+      CallbackT onComplete,
+      TransformExecutorService executorService);
 }

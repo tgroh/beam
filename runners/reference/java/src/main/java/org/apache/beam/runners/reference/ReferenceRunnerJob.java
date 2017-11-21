@@ -16,17 +16,24 @@
  * limitations under the License.
  */
 
-package org.apache.beam.runners.direct;
+package org.apache.beam.runners.reference;
 
-import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.runners.local.PipelineExecutor;
+import org.apache.beam.runners.local.PipelineExecutor.ExecutionMessageReceiver;
 
-/**
- * A Factory for creating {@link TransformExecutor Transform Executors} on an input.
- */
-interface TransformExecutorFactory {
-  TransformExecutor create(
-      CommittedBundle<?> bundle,
-      AppliedPTransform<?, ?, ?> transform,
-      CompletionCallback onComplete,
-      TransformExecutorService executorService);
+/** A handle to a job that is executing on the {@link ReferenceRunner}. */
+public class ReferenceRunnerJob {
+  static ReferenceRunnerJob forExecutingPipeline(PipelineExecutor<?> executor) {
+    return new ReferenceRunnerJob(executor);
+  }
+
+  private final PipelineExecutor<?> executor;
+
+  private ReferenceRunnerJob(PipelineExecutor<?> executor) {
+    this.executor = executor;
+  }
+
+  void subscribeToMessages(ExecutionMessageReceiver receiver) {
+    executor.subscribeToMessages(receiver);
+  }
 }

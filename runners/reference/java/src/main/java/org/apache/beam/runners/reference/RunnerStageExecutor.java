@@ -16,23 +16,15 @@
  * limitations under the License.
  */
 
-apply from: project(":").file("build_rules.gradle")
-applyJavaNature()
+package org.apache.beam.runners.reference;
 
-description = "Apache Beam :: Runners :: Reference :: Java"
+import org.apache.beam.runners.local.TransformExecutor;
 
-dependencies {
-  shadow project(path: ":beam-model-parent:beam-model-pipeline", configuration: "shadow")
-  shadow project(path: ":beam-runners-parent:beam-runners-core-construction-java", configuration: "shadow")
-  compile project(path: ":beam-runners-parent:beam-java-fn-execution")
-  compile project(path: ":beam-runners-parent:beam-runners-local-java-core")
-  shadow library.java.slf4j_api
-  testCompile library.java.junit
+/**
+ * A {@link TransformExecutor} that executes a {@link PipelineStage} directly by the runner.
+ */
+public class RunnerStageExecutor implements TransformExecutor {
+  @Override
+  public void run() {
+  }
 }
-
-task packageTests(type: Jar) {
-  from sourceSets.test.output
-  classifier = "tests"
-}
-
-artifacts.archives packageTests

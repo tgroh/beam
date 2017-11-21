@@ -15,24 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.beam.runners.local;
 
-apply from: project(":").file("build_rules.gradle")
-applyJavaNature()
+/**
+ * Schedules and completes {@link TransformExecutor TransformExecutors}, controlling concurrency as
+ * appropriate for the executable stage the executor exists for.
+ */
+public interface TransformExecutorService {
+  /**
+   * Schedule the provided work to be eventually executed.
+   */
+  void schedule(TransformExecutor work);
 
-description = "Apache Beam :: Runners :: Reference :: Java"
+  /**
+   * Finish executing the provided work. This may cause additional
+   * {@link TransformExecutor TransformExecutors} to be evaluated.
+   */
+  void complete(TransformExecutor completed);
 
-dependencies {
-  shadow project(path: ":beam-model-parent:beam-model-pipeline", configuration: "shadow")
-  shadow project(path: ":beam-runners-parent:beam-runners-core-construction-java", configuration: "shadow")
-  compile project(path: ":beam-runners-parent:beam-java-fn-execution")
-  compile project(path: ":beam-runners-parent:beam-runners-local-java-core")
-  shadow library.java.slf4j_api
-  testCompile library.java.junit
+  /**
+   * Cancel any outstanding work, if possible. Any future calls to schedule should ignore any
+   * work.
+   */
+  void shutdown();
 }
-
-task packageTests(type: Jar) {
-  from sourceSets.test.output
-  classifier = "tests"
-}
-
-artifacts.archives packageTests

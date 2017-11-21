@@ -16,23 +16,22 @@
  * limitations under the License.
  */
 
-apply from: project(":").file("build_rules.gradle")
-applyJavaNature()
+package org.apache.beam.runners.reference;
 
-description = "Apache Beam :: Runners :: Reference :: Java"
+import org.apache.beam.model.fnexecution.v1.BeamFnApi.ProcessBundleDescriptor;
+import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 
-dependencies {
-  shadow project(path: ":beam-model-parent:beam-model-pipeline", configuration: "shadow")
-  shadow project(path: ":beam-runners-parent:beam-runners-core-construction-java", configuration: "shadow")
-  compile project(path: ":beam-runners-parent:beam-java-fn-execution")
-  compile project(path: ":beam-runners-parent:beam-runners-local-java-core")
-  shadow library.java.slf4j_api
-  testCompile library.java.junit
+/**
+ * A collection of {@link PTransform PTransforms} that can be executed as a single unit, their
+ * inputs, outputs, and other associated data.
+ */
+public class PipelineStage {
+  private PipelineStage() {}
+
+  /**
+   * Returns a {@link ProcessBundleDescriptor} containing all of the transforms in this stage.
+   */
+  public ProcessBundleDescriptor toProcessBundleDescriptor() {
+    throw new UnsupportedOperationException("TODO");
+  }
 }
-
-task packageTests(type: Jar) {
-  from sourceSets.test.output
-  classifier = "tests"
-}
-
-artifacts.archives packageTests
