@@ -15,27 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.runners.direct;
 
-/**
- * Schedules and completes {@link TransformExecutor TransformExecutors}, controlling concurrency as
- * appropriate for the {@link StepAndKey} the executor exists for.
- */
-interface TransformExecutorService {
-  /**
-   * Schedule the provided work to be eventually executed.
-   */
-  void schedule(TransformExecutor work);
+package org.apache.beam.runners.local;
 
-  /**
-   * Finish executing the provided work. This may cause additional
-   * {@link DirectTransformExecutor TransformExecutors} to be evaluated.
-   */
-  void complete(TransformExecutor completed);
-
-  /**
-   * Cancel any outstanding work, if possible. Any future calls to schedule should ignore any
-   * work.
-   */
-  void shutdown();
-}
+/** A {@link Runnable} that will execute a {@code PTransform} on some bundle of input. */
+public interface TransformExecutor extends Runnable {}

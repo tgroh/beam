@@ -16,7 +16,15 @@
  * limitations under the License.
  */
 
-package org.apache.beam.runners.direct;
+package org.apache.beam.runners.local;
 
-/** A {@link Runnable} that will execute a {@code PTransform} on some bundle of input. */
-public interface TransformExecutor extends Runnable {}
+/**
+ * A Factory for creating {@link TransformExecutor Transform Executors} on an input.
+ */
+public interface TransformExecutorFactory<BundleT extends Bundle<?>, ExecutableT, CallbackT> {
+  TransformExecutor create(
+      BundleT bundle,
+      ExecutableT transform,
+      CallbackT onComplete,
+      TransformExecutorService executorService);
+}

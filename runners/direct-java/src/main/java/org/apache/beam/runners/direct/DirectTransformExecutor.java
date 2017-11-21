@@ -28,6 +28,9 @@ import java.util.concurrent.Callable;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.metrics.MetricUpdates;
 import org.apache.beam.runners.core.metrics.MetricsContainerImpl;
+import org.apache.beam.runners.local.TransformExecutor;
+import org.apache.beam.runners.local.TransformExecutorFactory;
+import org.apache.beam.runners.local.TransformExecutorService;
 import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.util.WindowedValue;
@@ -42,7 +45,9 @@ import org.slf4j.LoggerFactory;
 class DirectTransformExecutor<T> implements TransformExecutor {
   private static final Logger LOG = LoggerFactory.getLogger(DirectTransformExecutor.class);
 
-  static class Factory implements TransformExecutorFactory {
+  static class Factory
+      implements TransformExecutorFactory<
+          CommittedBundle<?>, AppliedPTransform<?, ?, ?>, CompletionCallback> {
     private final EvaluationContext context;
     private final TransformEvaluatorRegistry registry;
     private final Map<String, Collection<ModelEnforcementFactory>> transformEnforcements;
