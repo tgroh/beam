@@ -27,9 +27,42 @@ import org.apache.beam.runners.core.construction.PipelineTranslation;
  * A {@code PipelineRunner} that executes a job via the Beam portability framework.
  */
 public class ReferenceRunner {
-  public static void run(Pipeline p, Struct options, Path stagingLocation) throws Exception {
+
+  /** Run the provided {@link Pipeline} with the {@link ReferenceRunner}. */
+  public static ReferenceRunnerJob run(Pipeline p, Struct options, Path stagingLocation)
+      throws Exception {
     // Validate that the pipeline is well-formed.
-    PipelineTranslation.fromProto(p);
-    throw new UnsupportedOperationException("Not implemented");
+    try {
+      PipelineTranslation.fromProto(p);
+    } catch (RuntimeException e) {
+      throw new IllegalArgumentException(
+          "Could not construct a Java Pipeline from the provided Pipeline", e);
+    }
+    /*
+    docker run -v WORKER_PERSIST_DIR:SEMI_PERSIST_DIR
+      <sdk-harness-container-image> \
+      --id=ID \
+      --logging_endpoint=LOGGING_ENDPOINT \
+      --artifact_endpoint=ARTIFACT_ENDPOINT \
+      --provision_endpoint=PROVISION_ENDPOINT \
+      --control_endpoint=CONTROL_ENDPOINT \
+      --semi_persist_dir=SEMI_PERSIST_DIR
+     */
+    //    ServerFactory serverFactory = ServerFactory.createDefault();
+//     TODO: Perform graph surgeries, if required.
+//    ExecutableGraph graph = ExecutableGraph.from(p);
+    //    FnServerManager serviceManager = FnServerManager.create(serverFactory);
+    //    Ctxt context = Ctxt.create(options, graph);
+
+    // TODO: The runner is responsbile for performing the "Impulse" action
+    //    RootProviderRegistry rootInputProvider = null;
+    //    EvaluatorRegistry evaluatorRegistry = null;
+
+    // TODO
+    //    PipelineExecutor<PipelineStage> executor = null;
+//    executor.start(graph.getRoots());
+//
+//    return ReferenceRunnerJob.forExecutingPipeline(executor);
+    return ReferenceRunnerJob.forExecutingPipeline(null);
   }
 }
