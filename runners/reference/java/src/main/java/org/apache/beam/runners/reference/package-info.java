@@ -16,20 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.beam.runners.reference;
-
-import com.google.protobuf.Struct;
-import java.nio.file.Path;
-import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
-import org.apache.beam.runners.core.construction.PipelineTranslation;
-
 /**
- * A {@code PipelineRunner} that executes a job via the Beam portability framework.
+ * Support for executing a pipeline locally over the Beam fn API.
  */
-public class ReferenceRunner {
-  public static void run(Pipeline p, Struct options, Path stagingLocation) throws Exception {
-    // Validate that the pipeline is well-formed.
-    PipelineTranslation.fromProto(p);
-    throw new UnsupportedOperationException("Not implemented");
-  }
-}
+package org.apache.beam.runners.reference;
