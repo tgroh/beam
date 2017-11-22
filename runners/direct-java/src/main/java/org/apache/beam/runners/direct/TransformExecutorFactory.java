@@ -18,15 +18,15 @@
 
 package org.apache.beam.runners.direct;
 
-import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.runners.local.Bundle;
 
 /**
  * A Factory for creating {@link TransformExecutor Transform Executors} on an input.
  */
-interface TransformExecutorFactory {
+interface TransformExecutorFactory<BundleT extends Bundle<?>, ExecutableT, CallbackT> {
   TransformExecutor create(
-      CommittedBundle<?> bundle,
-      AppliedPTransform<?, ?, ?> transform,
-      CompletionCallback onComplete,
+      BundleT bundle,
+      ExecutableT transform,
+      CallbackT onComplete,
       TransformExecutorService executorService);
 }

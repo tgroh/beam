@@ -193,6 +193,7 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
         ExecutorServiceParallelExecutor.create(
             options.getTargetParallelism(),
             registry,
+            KeyCheckingExecutorServiceProvider.create(context),
             Enforcement.defaultModelEnforcements(enabledEnforcements),
             context);
     executor.start(graph, RootProviderRegistry.defaultRegistry(context));

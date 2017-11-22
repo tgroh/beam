@@ -31,6 +31,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
+import org.apache.beam.runners.local.Bundle;
 import org.apache.beam.runners.local.ExecutionDriver;
 import org.apache.beam.runners.local.ExecutionDriver.DriverState;
 import org.apache.beam.runners.local.PipelineMessageReceiver;
@@ -47,9 +48,8 @@ import org.slf4j.LoggerFactory;
  * An {@link PipelineExecutor} that uses an underlying {@link ExecutorService} and {@link
  * EvaluationContext} to execute a {@link Pipeline}.
  */
-final class ExecutorServiceParallelExecutor
-    implements PipelineExecutor,
-        BundleExecutor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> {
+final class ExecutorServiceParallelExecutor<BundleT extends Bundle<?>, ExecutableT, CallbackT>
+    implements PipelineExecutor, BundleExecutor<BundleT, ExecutableT, CallbackT> {
   private static final Logger LOG = LoggerFactory.getLogger(ExecutorServiceParallelExecutor.class);
 
   private final int targetParallelism;
@@ -58,26 +58,35 @@ final class ExecutorServiceParallelExecutor
   private final TransformEvaluatorRegistry registry;
   private final EvaluationContext evaluationContext;
 
-  private final TransformExecutorFactory executorFactory;
-  private final TransformExecutorServiceProvider<CommittedBundle<?>, AppliedPTransform<?, ?, ?>>
-      executorServiceProvider;
+  private final TransformExecutorFactory<BundleT, ExecutableT, CallbackT> executorFactory;
+  private final TransformExecutorServiceProvider<BundleT, ExecutableT> executorServiceProvider;
 
   private final QueueMessageReceiver visibleUpdates;
 
   private AtomicReference<State> pipelineState = new AtomicReference<>(State.RUNNING);
 
-  public static ExecutorServiceParallelExecutor create(
-      int targetParallelism,
-      TransformEvaluatorRegistry registry,
-      Map<String, Collection<ModelEnforcementFactory>> transformEnforcements,
-      EvaluationContext context) {
-    return new ExecutorServiceParallelExecutor(
-        targetParallelism, registry, transformEnforcements, context);
+  public static <BundleT extends Bundle<?>, ExecutableT, CallbackT>
+      ExecutorServiceParallelExecutor<BundleT, ExecutableT, CallbackT> create(
+          int targetParallelism,
+          TransformEvaluatorRegistry registry,
+          TransformExecutorServiceProvider<BundleT, ExecutableT> executorServiceProvider,
+          TransformExecutorFactory<BundleT, ExecutableT, CallbackT> executorFactory,
+          Map<String, Collection<ModelEnforcementFactory>> transformEnforcements,
+          EvaluationContext context) {
+    return new ExecutorServiceParallelExecutor<>(
+        targetParallelism,
+        registry,
+        executorServiceProvider,
+        executorFactory,
+        transformEnforcements,
+        context);
   }
 
   private ExecutorServiceParallelExecutor(
       int targetParallelism,
       TransformEvaluatorRegistry registry,
+      TransformExecutorServiceProvider<BundleT, ExecutableT> executorServiceProvider,
+      TransformExecutorFactory executorFactory,
       Map<String, Collection<ModelEnforcementFactory>> transformEnforcements,
       EvaluationContext context) {
     this.evaluationContext = context;
@@ -91,13 +100,12 @@ final class ExecutorServiceParallelExecutor
                 .setThreadFactory(MoreExecutors.platformThreadFactory())
                 .setNameFormat("direct-runner-worker")
                 .build());
-    executorServiceProvider =
-        KeyCheckingExecutorServiceProvider.create(evaluationContext, executorService);
+    this.executorServiceProvider = executorServiceProvider;
     this.registry = registry;
 
     this.visibleUpdates = new QueueMessageReceiver();
 
-    executorFactory = new DirectTransformExecutor.Factory(context, registry, transformEnforcements);
+    this.executorFactory = executorFactory;
   }
 
   @Override
@@ -152,21 +160,14 @@ final class ExecutorServiceParallelExecutor
   @SuppressWarnings("unchecked")
   @Override
   public void execute(
-      CommittedBundle<?> bundle,
-      AppliedPTransform<?, ?, ?> consumer,
-      CompletionCallback onComplete) {
-    evaluateBundle(consumer, bundle, onComplete);
-  }
-
-  private <T> void evaluateBundle(
-      final AppliedPTransform<?, ?, ?> transform,
-      final CommittedBundle<T> bundle,
-      final CompletionCallback onComplete) {
+      BundleT bundle,
+      ExecutableT consumer,
+      CallbackT onComplete) {
     TransformExecutorService transformExecutor =
-        executorServiceProvider.getExecutor(transform, bundle, bundle.getKey());
+        executorServiceProvider.getExecutor(consumer, bundle);
 
     TransformExecutor callable =
-        executorFactory.create(bundle, transform, onComplete, transformExecutor);
+        executorFactory.create(bundle, consumer, onComplete, transformExecutor);
     if (!pipelineState.get().isTerminal()) {
       transformExecutor.schedule(callable);
     }

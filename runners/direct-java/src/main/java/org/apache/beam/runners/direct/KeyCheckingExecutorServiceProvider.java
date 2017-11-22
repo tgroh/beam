@@ -24,7 +24,6 @@ import com.google.common.cache.LoadingCache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import java.util.concurrent.ExecutorService;
-import org.apache.beam.runners.local.StructuralKey;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.values.PCollection;
 
@@ -84,7 +83,7 @@ public class KeyCheckingExecutorServiceProvider
 
   @Override
   public TransformExecutorService getExecutor(
-      AppliedPTransform<?, ?, ?> transform, CommittedBundle<?> bundle, StructuralKey<?> key) {
+      AppliedPTransform<?, ?, ?> transform, CommittedBundle<?> bundle) {
     if (evaluationContext.isKeyed(bundle.getPCollection())) {
       final StepAndKey stepAndKey = StepAndKey.of(transform, bundle.getKey());
       // This executor will remain reachable until it has executed all scheduled transforms.

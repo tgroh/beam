@@ -19,12 +19,11 @@
 package org.apache.beam.runners.direct;
 
 import org.apache.beam.runners.local.Bundle;
-import org.apache.beam.runners.local.StructuralKey;
 
 /**
  * A closeable provider of executor services.
  */
 public interface TransformExecutorServiceProvider<BundleT extends Bundle<?>, ExecutableT>
     extends AutoCloseable {
-  TransformExecutorService getExecutor(ExecutableT transform, BundleT bundle, StructuralKey<?> key);
+  TransformExecutorService getExecutor(ExecutableT transform, BundleT bundle);
 }

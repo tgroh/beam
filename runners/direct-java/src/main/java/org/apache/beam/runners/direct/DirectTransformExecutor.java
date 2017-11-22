@@ -42,7 +42,9 @@ import org.slf4j.LoggerFactory;
 class DirectTransformExecutor<T> implements TransformExecutor {
   private static final Logger LOG = LoggerFactory.getLogger(DirectTransformExecutor.class);
 
-  static class Factory implements TransformExecutorFactory {
+  static class Factory
+      implements TransformExecutorFactory<
+          CommittedBundle<?>, AppliedPTransform<?, ?, ?>, CompletionCallback> {
     private final EvaluationContext context;
     private final TransformEvaluatorRegistry registry;
     private final Map<String, Collection<ModelEnforcementFactory>> transformEnforcements;
