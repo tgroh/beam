@@ -66,7 +66,7 @@ class DoFnLifecycleManager {
     outstanding.invalidate(currentThread);
     // Block until the invalidate is fully completed
     outstanding.cleanUp();
-    // Remove to try too avoid reporting the same teardown exception twice. May still double-failed,
+    // Remove to try too avoid reporting the same teardown exception twice. May still double-report,
     // but the second will be suppressed.
     Exception thrown = thrownOnTeardown.remove(currentThread);
     if (thrown != null) {
