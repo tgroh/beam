@@ -25,6 +25,7 @@ import io.grpc.stub.StreamObserver;
 import java.io.Closeable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +48,7 @@ class FnApiControlClient implements Closeable {
   private final StreamObserver<BeamFnApi.InstructionRequest> requestReceiver;
   private final ResponseStreamObserver responseObserver = new ResponseStreamObserver();
   private final Map<String, SettableFuture<BeamFnApi.InstructionResponse>> outstandingRequests;
-  private volatile boolean isClosed;
+  private final AtomicBoolean isClosed = new AtomicBoolean();
 
   private FnApiControlClient(StreamObserver<BeamFnApi.InstructionRequest> requestReceiver) {
     this.requestReceiver = requestReceiver;
@@ -79,6 +80,11 @@ class FnApiControlClient implements Closeable {
     return responseObserver;
   }
 
+  /**
+   * {@inheritDoc}.
+   *
+   * <p>{@link #close()} is idempotent.
+   */
   @Override
   public void close() {
     closeAndTerminateOutstandingRequests(new IllegalStateException("Runner closed connection"));
@@ -86,7 +92,7 @@ class FnApiControlClient implements Closeable {
 
   /** Closes this client and terminates any outstanding requests exceptionally. */
   private synchronized void closeAndTerminateOutstandingRequests(Throwable cause) {
-    if (isClosed) {
+    if (isClosed.getAndSet(true)) {
       return;
     }
 
@@ -94,7 +100,6 @@ class FnApiControlClient implements Closeable {
     Map<String, SettableFuture<BeamFnApi.InstructionResponse>> outstandingRequestsCopy =
         new ConcurrentHashMap<>(outstandingRequests);
     outstandingRequests.clear();
-    isClosed = true;
 
     if (outstandingRequestsCopy.isEmpty()) {
       requestReceiver.onCompleted();
