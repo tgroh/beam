@@ -17,28 +17,36 @@
  */
 package org.apache.beam.runners.fnexecution.control;
 
+import com.google.common.collect.ImmutableList;
 import io.grpc.stub.StreamObserver;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
+import org.apache.beam.model.fnexecution.v1.BeamFnApi.InstructionResponse;
 import org.apache.beam.model.fnexecution.v1.BeamFnControlGrpc;
+import org.apache.beam.runners.fnexecution.FnService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** A Fn API control service which adds incoming SDK harness connections to a pool. */
-public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnControlImplBase {
+public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnControlImplBase
+    implements FnService {
   private static final Logger LOGGER = LoggerFactory.getLogger(FnApiControlClientPoolService.class);
 
   private final BlockingQueue<FnApiControlClient> clientPool;
+  private final ConcurrentMap<StreamObserver<InstructionResponse>, FnApiControlClient> clients;
 
   private FnApiControlClientPoolService(BlockingQueue<FnApiControlClient> clientPool) {
     this.clientPool = clientPool;
+    clients = new ConcurrentHashMap<>();
   }
 
   /**
    * Creates a new {@link FnApiControlClientPoolService} which will enqueue and vend new SDK harness
    * connections.
    */
-  public static FnApiControlClientPoolService offeringClientsToPool(
+  static FnApiControlClientPoolService offeringClientsToPool(
       BlockingQueue<FnApiControlClient> clientPool) {
     return new FnApiControlClientPoolService(clientPool);
   }
@@ -55,6 +63,7 @@ public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnContr
       StreamObserver<BeamFnApi.InstructionRequest> requestObserver) {
     LOGGER.info("Beam Fn Control client connected.");
     FnApiControlClient newClient = FnApiControlClient.forRequestObserver(requestObserver);
+    clients.put(newClient.asResponseObserver(), newClient);
     try {
       clientPool.put(newClient);
     } catch (InterruptedException e) {
@@ -62,5 +71,17 @@ public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnContr
       throw new RuntimeException(e);
     }
     return newClient.asResponseObserver();
+  }
+
+  @Override
+  public void close() throws Exception {
+    for (FnApiControlClient client : ImmutableList.copyOf(clients.values())) {
+      try {
+        // The close method of FnApiControlClient is idempotent
+        client.close();
+      } catch (Exception e) {
+        LOGGER.warn("Exception while closing client {}", client, e);
+      }
+    }
   }
 }
