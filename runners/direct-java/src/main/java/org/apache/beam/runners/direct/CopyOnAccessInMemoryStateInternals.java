@@ -38,6 +38,8 @@ import org.apache.beam.runners.core.StateNamespace;
 import org.apache.beam.runners.core.StateTable;
 import org.apache.beam.runners.core.StateTag;
 import org.apache.beam.runners.core.StateTag.StateBinder;
+import org.apache.beam.runners.local.StructuralKey;
+import org.apache.beam.runners.local.WatermarkHold;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.state.BagState;
 import org.apache.beam.sdk.state.CombiningState;
@@ -63,19 +65,19 @@ import org.joda.time.Instant;
 class CopyOnAccessInMemoryStateInternals<K> implements StateInternals {
   private final CopyOnAccessInMemoryStateTable table;
 
-  private K key;
+  private final StructuralKey<K> key;
 
   /**
    * Creates a new {@link CopyOnAccessInMemoryStateInternals} with the underlying (possibly null)
    * StateInternals.
    */
   public static <K> CopyOnAccessInMemoryStateInternals withUnderlying(
-      K key, @Nullable CopyOnAccessInMemoryStateInternals underlying) {
+      StructuralKey<K> key, @Nullable CopyOnAccessInMemoryStateInternals underlying) {
     return new CopyOnAccessInMemoryStateInternals<>(key, underlying);
   }
 
   private CopyOnAccessInMemoryStateInternals(
-      K key, CopyOnAccessInMemoryStateInternals underlying) {
+      StructuralKey<K> key, CopyOnAccessInMemoryStateInternals underlying) {
     this.key = key;
     table =
         new CopyOnAccessInMemoryStateTable(underlying == null ? null : underlying.table);
@@ -106,14 +108,14 @@ class CopyOnAccessInMemoryStateInternals<K> implements StateInternals {
    * <p>Must be called after this state has been committed. Will throw an
    * {@link IllegalStateException} if the state has not been committed.
    */
-  public Instant getEarliestWatermarkHold() {
+  public WatermarkHold getEarliestWatermarkHold() {
     // After commit, the watermark hold is always present, but may be
     // BoundedWindow#TIMESTAMP_MAX_VALUE if there is no hold set.
     checkState(
         table.earliestWatermarkHold.isPresent(),
         "Can't get the earliest watermark hold in a %s before it is committed",
         getClass().getSimpleName());
-    return table.earliestWatermarkHold.get();
+    return WatermarkHold.of(key, table.earliestWatermarkHold.get());
   }
 
   @Override
@@ -129,7 +131,7 @@ class CopyOnAccessInMemoryStateInternals<K> implements StateInternals {
 
   @Override
   public Object getKey() {
-    return key;
+    return key.getKey();
   }
 
   public boolean isEmpty() {

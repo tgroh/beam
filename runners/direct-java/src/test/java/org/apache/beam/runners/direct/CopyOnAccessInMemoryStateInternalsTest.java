@@ -35,6 +35,8 @@ import org.apache.beam.runners.core.StateNamespaceForTest;
 import org.apache.beam.runners.core.StateNamespaces;
 import org.apache.beam.runners.core.StateTag;
 import org.apache.beam.runners.core.StateTags;
+import org.apache.beam.runners.local.StructuralKey;
+import org.apache.beam.runners.local.WatermarkHold;
 import org.apache.beam.sdk.coders.CannotProvideCoderException;
 import org.apache.beam.sdk.coders.CoderRegistry;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
@@ -68,7 +70,7 @@ public class CopyOnAccessInMemoryStateInternalsTest {
   public final TestPipeline pipeline = TestPipeline.create();
   @Rule
   public ExpectedException thrown = ExpectedException.none();
-  private String key = "foo";
+  private StructuralKey<String> key = StructuralKey.of("foo", StringUtf8Coder.of());
 
   @Test
   public void testGetWithEmpty() {
@@ -480,7 +482,7 @@ public class CopyOnAccessInMemoryStateInternalsTest {
       }
     };
     CopyOnAccessInMemoryStateInternals<String> internals =
-        CopyOnAccessInMemoryStateInternals.withUnderlying("foo", null);
+        CopyOnAccessInMemoryStateInternals.withUnderlying(key, null);
 
     StateTag<WatermarkHoldState> firstHoldAddress =
         StateTags.watermarkStateInternal("foo", TimestampCombiner.EARLIEST);
@@ -495,7 +497,8 @@ public class CopyOnAccessInMemoryStateInternalsTest {
     secondHold.add(new Instant(2L));
 
     internals.commit();
-    assertThat(internals.getEarliestWatermarkHold(), equalTo(new Instant(2L)));
+    assertThat(
+        internals.getEarliestWatermarkHold(), equalTo(WatermarkHold.of(key, new Instant(2L))));
   }
 
   @Test
@@ -513,7 +516,7 @@ public class CopyOnAccessInMemoryStateInternalsTest {
       }
     };
     CopyOnAccessInMemoryStateInternals<String> underlying =
-        CopyOnAccessInMemoryStateInternals.withUnderlying("foo", null);
+        CopyOnAccessInMemoryStateInternals.withUnderlying(key, null);
     StateTag<WatermarkHoldState> firstHoldAddress =
         StateTags.watermarkStateInternal("foo", TimestampCombiner.EARLIEST);
     WatermarkHoldState firstHold =
@@ -521,7 +524,7 @@ public class CopyOnAccessInMemoryStateInternalsTest {
     firstHold.add(new Instant(22L));
 
     CopyOnAccessInMemoryStateInternals<String> internals =
-        CopyOnAccessInMemoryStateInternals.withUnderlying("foo", underlying.commit());
+        CopyOnAccessInMemoryStateInternals.withUnderlying(key, underlying.commit());
 
     StateTag<WatermarkHoldState> secondHoldAddress =
         StateTags.watermarkStateInternal("foo", TimestampCombiner.EARLIEST);
@@ -530,7 +533,8 @@ public class CopyOnAccessInMemoryStateInternalsTest {
     secondHold.add(new Instant(244L));
 
     internals.commit();
-    assertThat(internals.getEarliestWatermarkHold(), equalTo(new Instant(22L)));
+    assertThat(
+        internals.getEarliestWatermarkHold(), equalTo(WatermarkHold.of(key, new Instant(22L))));
   }
 
   @Test
@@ -550,7 +554,7 @@ public class CopyOnAccessInMemoryStateInternalsTest {
           }
         };
     CopyOnAccessInMemoryStateInternals<String> underlying =
-        CopyOnAccessInMemoryStateInternals.withUnderlying("foo", null);
+        CopyOnAccessInMemoryStateInternals.withUnderlying(key, null);
     StateTag<WatermarkHoldState> firstHoldAddress =
         StateTags.watermarkStateInternal("foo", TimestampCombiner.EARLIEST);
     WatermarkHoldState firstHold =
@@ -558,7 +562,7 @@ public class CopyOnAccessInMemoryStateInternalsTest {
     firstHold.add(new Instant(224L));
 
     CopyOnAccessInMemoryStateInternals<String> internals =
-        CopyOnAccessInMemoryStateInternals.withUnderlying("foo", underlying.commit());
+        CopyOnAccessInMemoryStateInternals.withUnderlying(key, underlying.commit());
 
     StateTag<WatermarkHoldState> secondHoldAddress =
         StateTags.watermarkStateInternal("foo", TimestampCombiner.EARLIEST);
@@ -567,7 +571,8 @@ public class CopyOnAccessInMemoryStateInternalsTest {
     secondHold.add(new Instant(24L));
 
     internals.commit();
-    assertThat(internals.getEarliestWatermarkHold(), equalTo(new Instant(24L)));
+    assertThat(
+        internals.getEarliestWatermarkHold(), equalTo(WatermarkHold.of(key, new Instant(24L))));
   }
 
   @Test

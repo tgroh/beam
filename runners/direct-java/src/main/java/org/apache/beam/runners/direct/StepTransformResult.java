@@ -25,11 +25,12 @@ import java.util.EnumSet;
 import java.util.Set;
 import org.apache.beam.runners.core.metrics.MetricUpdates;
 import org.apache.beam.runners.direct.CommittedResult.OutputType;
-import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate;
+import org.apache.beam.runners.local.StructuralKey;
+import org.apache.beam.runners.local.TimerUpdate;
+import org.apache.beam.runners.local.WatermarkHold;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.util.WindowedValue;
-import org.joda.time.Instant;
 
 /**
  * An immutable {@link TransformResult}.
@@ -38,13 +39,13 @@ import org.joda.time.Instant;
 abstract class StepTransformResult<InputT> implements TransformResult<InputT> {
 
   public static <InputT> Builder<InputT> withHold(
-      AppliedPTransform<?, ?, ?> transform, Instant watermarkHold) {
+      AppliedPTransform<?, ?, ?> transform, WatermarkHold watermarkHold) {
     return new Builder(transform, watermarkHold);
   }
 
-  public static <InputT> Builder<InputT> withoutHold(
-      AppliedPTransform<?, ?, ?> transform) {
-    return new Builder(transform, BoundedWindow.TIMESTAMP_MAX_VALUE);
+  public static <InputT> Builder<InputT> withoutHold(AppliedPTransform<?, ?, ?> transform) {
+    return new Builder(
+        transform, WatermarkHold.of(StructuralKey.empty(), BoundedWindow.TIMESTAMP_MAX_VALUE));
   }
 
   @Override
@@ -71,15 +72,15 @@ abstract class StepTransformResult<InputT> implements TransformResult<InputT> {
     private CopyOnAccessInMemoryStateInternals state;
     private TimerUpdate timerUpdate;
     private final Set<OutputType> producedOutputs;
-    private final Instant watermarkHold;
+    private final WatermarkHold watermarkHold;
 
-    private Builder(AppliedPTransform<?, ?, ?> transform, Instant watermarkHold) {
+    private Builder(AppliedPTransform<?, ?, ?> transform, WatermarkHold watermarkHold) {
       this.transform = transform;
       this.watermarkHold = watermarkHold;
       this.bundlesBuilder = ImmutableList.builder();
       this.producedOutputs = EnumSet.noneOf(OutputType.class);
       this.unprocessedElementsBuilder = ImmutableList.builder();
-      this.timerUpdate = TimerUpdate.builder(null).build();
+      this.timerUpdate = TimerUpdate.builder(StructuralKey.empty()).build();
       this.metricUpdates = MetricUpdates.EMPTY;
     }
 

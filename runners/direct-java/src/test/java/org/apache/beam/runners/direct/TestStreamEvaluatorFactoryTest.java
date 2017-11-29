@@ -171,7 +171,8 @@ public class TestStreamEvaluatorFactoryTest {
             WindowedValue.valueInGlobalWindow(6)));
 
     assertThat(fifthResult.getOutputBundles(), Matchers.emptyIterable());
-    assertThat(fifthResult.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
+    assertThat(
+        fifthResult.getWatermarkHold().getHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
     assertThat(fifthResult.getUnprocessedElements(), Matchers.emptyIterable());
   }
 }

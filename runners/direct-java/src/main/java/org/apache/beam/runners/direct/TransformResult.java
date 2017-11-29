@@ -21,13 +21,13 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.core.metrics.MetricUpdates;
 import org.apache.beam.runners.direct.CommittedResult.OutputType;
-import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate;
+import org.apache.beam.runners.local.TimerUpdate;
+import org.apache.beam.runners.local.WatermarkHold;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.util.WindowedValue;
-import org.joda.time.Instant;
 
 /**
  * The result of evaluating an {@link AppliedPTransform} with a {@link TransformEvaluator}.
@@ -70,7 +70,7 @@ interface TransformResult<InputT> {
    * <p>If the transform does not set any watermark hold, returns
    * {@link BoundedWindow#TIMESTAMP_MAX_VALUE}.
    */
-  Instant getWatermarkHold();
+   WatermarkHold getWatermarkHold();
 
   /**
    * Returns the State used by the transform.

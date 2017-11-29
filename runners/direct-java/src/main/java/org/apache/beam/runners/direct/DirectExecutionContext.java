@@ -21,9 +21,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.apache.beam.runners.core.StepContext;
 import org.apache.beam.runners.core.TimerInternals;
-import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate;
 import org.apache.beam.runners.direct.WatermarkManager.TransformWatermarks;
 import org.apache.beam.runners.local.StructuralKey;
+import org.apache.beam.runners.local.TimerUpdate;
 
 /**
  * Execution Context for the {@link DirectRunner}.

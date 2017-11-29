@@ -38,8 +38,9 @@ import org.apache.beam.runners.core.StateTags;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
 import org.apache.beam.runners.direct.DirectExecutionContext.DirectStepContext;
 import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
-import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate;
 import org.apache.beam.runners.local.StructuralKey;
+import org.apache.beam.runners.local.TimerUpdate;
+import org.apache.beam.runners.local.WatermarkHold;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.IterableCoder;
 import org.apache.beam.sdk.coders.KvCoder;
@@ -310,7 +311,8 @@ public class EvaluationContextTest {
         downstream, GlobalWindow.INSTANCE, WindowingStrategy.globalDefault(), callback);
 
     TransformResult<?> result =
-        StepTransformResult.withHold(createdProducer, new Instant(0))
+        StepTransformResult.withHold(
+                createdProducer, WatermarkHold.of(StructuralKey.empty(), new Instant(0)))
             .build();
 
     context.handleResult(null, ImmutableList.<TimerData>of(), result);
@@ -348,12 +350,12 @@ public class EvaluationContextTest {
 
   @Test
   public void extractFiredTimersExtractsTimers() {
+    StructuralKey<?> key = StructuralKey.of("foo".length(), VarIntCoder.of());
     TransformResult<?> holdResult =
-        StepTransformResult.withHold(createdProducer, new Instant(0))
+        StepTransformResult.withHold(createdProducer, WatermarkHold.of(key, new Instant(0)))
             .build();
     context.handleResult(null, ImmutableList.<TimerData>of(), holdResult);
 
-    StructuralKey<?> key = StructuralKey.of("foo".length(), VarIntCoder.of());
     TimerData toFire =
         TimerData.of(StateNamespaces.global(), new Instant(100L), TimeDomain.EVENT_TIME);
     TransformResult<?> timerResult =

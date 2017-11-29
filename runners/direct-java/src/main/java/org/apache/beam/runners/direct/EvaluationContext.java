@@ -182,7 +182,7 @@ class EvaluationContext {
         completedBundle,
         result.getTimerUpdate().withCompletedTimers(completedTimers),
         committedResult,
-        result.getWatermarkHold());
+        result.getWatermarkHold().getHold());
     return committedResult;
   }
 

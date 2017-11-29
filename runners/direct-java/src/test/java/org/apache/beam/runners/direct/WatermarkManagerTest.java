@@ -18,7 +18,6 @@
 package org.apache.beam.runners.direct;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -38,10 +37,9 @@ import org.apache.beam.runners.core.StateNamespaces;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
 import org.apache.beam.runners.direct.CommittedResult.OutputType;
 import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
-import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate;
-import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate.TimerUpdateBuilder;
 import org.apache.beam.runners.direct.WatermarkManager.TransformWatermarks;
 import org.apache.beam.runners.local.StructuralKey;
+import org.apache.beam.runners.local.TimerUpdate;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarLongCoder;
@@ -67,7 +65,6 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.joda.time.ReadableInstant;
 import org.junit.Before;
@@ -1331,119 +1328,6 @@ public class WatermarkManagerTest implements Serializable {
     assertThat(secondFired.getTimers(), contains(middleTimer, lastTimer));
   }
 
-  @Test
-  public void timerUpdateBuilderBuildAddsAllAddedTimers() {
-    TimerData set = TimerData.of(StateNamespaces.global(), new Instant(10L), TimeDomain.EVENT_TIME);
-    TimerData deleted =
-        TimerData.of(StateNamespaces.global(), new Instant(24L), TimeDomain.PROCESSING_TIME);
-    TimerData completedOne = TimerData.of(
-        StateNamespaces.global(), new Instant(1024L), TimeDomain.SYNCHRONIZED_PROCESSING_TIME);
-    TimerData completedTwo =
-        TimerData.of(StateNamespaces.global(), new Instant(2048L), TimeDomain.EVENT_TIME);
-
-    TimerUpdate update =
-        TimerUpdate.builder(StructuralKey.of("foo", StringUtf8Coder.of()))
-            .withCompletedTimers(ImmutableList.of(completedOne, completedTwo))
-            .setTimer(set)
-            .deletedTimer(deleted)
-            .build();
-
-    assertThat(update.getCompletedTimers(), containsInAnyOrder(completedOne, completedTwo));
-    assertThat(update.getSetTimers(), contains(set));
-    assertThat(update.getDeletedTimers(), contains(deleted));
-  }
-
-  @Test
-  public void timerUpdateBuilderWithSetAtEndOfTime() {
-    Instant timerStamp = BoundedWindow.TIMESTAMP_MAX_VALUE;
-    TimerData tooFar = TimerData.of(StateNamespaces.global(), timerStamp, TimeDomain.EVENT_TIME);
-
-    TimerUpdateBuilder builder = TimerUpdate.builder(StructuralKey.empty());
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage(timerStamp.toString());
-    builder.setTimer(tooFar);
-  }
-
-  @Test
-  public void timerUpdateBuilderWithSetPastEndOfTime() {
-    Instant timerStamp = BoundedWindow.TIMESTAMP_MAX_VALUE.plus(Duration.standardMinutes(2));
-    TimerData tooFar = TimerData.of(StateNamespaces.global(), timerStamp, TimeDomain.EVENT_TIME);
-
-    TimerUpdateBuilder builder = TimerUpdate.builder(StructuralKey.empty());
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage(timerStamp.toString());
-    builder.setTimer(tooFar);
-  }
-
-  @Test
-  public void timerUpdateBuilderWithSetThenDeleteHasOnlyDeleted() {
-    TimerUpdateBuilder builder = TimerUpdate.builder(null);
-    TimerData timer = TimerData.of(StateNamespaces.global(), Instant.now(), TimeDomain.EVENT_TIME);
-
-    TimerUpdate built = builder.setTimer(timer).deletedTimer(timer).build();
-
-    assertThat(built.getSetTimers(), emptyIterable());
-    assertThat(built.getDeletedTimers(), contains(timer));
-  }
-
-  @Test
-  public void timerUpdateBuilderWithDeleteThenSetHasOnlySet() {
-    TimerUpdateBuilder builder = TimerUpdate.builder(null);
-    TimerData timer = TimerData.of(StateNamespaces.global(), Instant.now(), TimeDomain.EVENT_TIME);
-
-    TimerUpdate built = builder.deletedTimer(timer).setTimer(timer).build();
-
-    assertThat(built.getSetTimers(), contains(timer));
-    assertThat(built.getDeletedTimers(), emptyIterable());
-  }
-
-  @Test
-  public void timerUpdateBuilderWithSetAfterBuildNotAddedToBuilt() {
-    TimerUpdateBuilder builder = TimerUpdate.builder(null);
-    TimerData timer = TimerData.of(StateNamespaces.global(), Instant.now(), TimeDomain.EVENT_TIME);
-
-    TimerUpdate built = builder.build();
-    builder.setTimer(timer);
-    assertThat(built.getSetTimers(), emptyIterable());
-    builder.build();
-    assertThat(built.getSetTimers(), emptyIterable());
-  }
-
-  @Test
-  public void timerUpdateBuilderWithDeleteAfterBuildNotAddedToBuilt() {
-    TimerUpdateBuilder builder = TimerUpdate.builder(null);
-    TimerData timer = TimerData.of(StateNamespaces.global(), Instant.now(), TimeDomain.EVENT_TIME);
-
-    TimerUpdate built = builder.build();
-    builder.deletedTimer(timer);
-    assertThat(built.getDeletedTimers(), emptyIterable());
-    builder.build();
-    assertThat(built.getDeletedTimers(), emptyIterable());
-  }
-
-  @Test
-  public void timerUpdateBuilderWithCompletedAfterBuildNotAddedToBuilt() {
-    TimerUpdateBuilder builder = TimerUpdate.builder(null);
-    TimerData timer = TimerData.of(StateNamespaces.global(), Instant.now(), TimeDomain.EVENT_TIME);
-
-    TimerUpdate built = builder.build();
-    builder.withCompletedTimers(ImmutableList.of(timer));
-    assertThat(built.getCompletedTimers(), emptyIterable());
-    builder.build();
-    assertThat(built.getCompletedTimers(), emptyIterable());
-  }
-
-  @Test
-  public void timerUpdateWithCompletedTimersNotAddedToExisting() {
-    TimerUpdateBuilder builder = TimerUpdate.builder(null);
-    TimerData timer = TimerData.of(StateNamespaces.global(), Instant.now(), TimeDomain.EVENT_TIME);
-
-    TimerUpdate built = builder.build();
-    assertThat(built.getCompletedTimers(), emptyIterable());
-    assertThat(
-        built.withCompletedTimers(ImmutableList.of(timer)).getCompletedTimers(), contains(timer));
-    assertThat(built.getCompletedTimers(), emptyIterable());
-  }
 
   private static Matcher<Instant> earlierThan(final Instant laterInstant) {
     return new BaseMatcher<Instant>() {

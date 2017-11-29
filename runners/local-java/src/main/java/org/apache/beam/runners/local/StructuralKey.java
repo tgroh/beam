@@ -27,6 +27,12 @@ import org.apache.beam.sdk.util.CoderUtils;
  * {@link Coder#structuralValue(Object)}) to perform equality and hashing.
  */
 public abstract class StructuralKey<K> {
+  private static final StructuralKey<Object> EMPTY_KEY = new StructuralKey<Object>() {
+    @Override
+    public Object getKey() {
+      return this;
+    }
+  };
 
   private StructuralKey() {
     // Prevents extending outside of this class
@@ -38,16 +44,11 @@ public abstract class StructuralKey<K> {
   public abstract K getKey();
 
   /**
-   * Get the empty {@link StructuralKey}. All instances of the empty key are considered equal.
+   * Get the empty {@link StructuralKey}. All instances of the empty key are considered equal, but
+   * are not equal to any non-empty key.
    */
   public static StructuralKey<?> empty() {
-    StructuralKey<Object> emptyKey = new StructuralKey<Object>() {
-      @Override
-      public Object getKey() {
-        return this;
-      }
-    };
-    return emptyKey;
+    return EMPTY_KEY;
   }
 
   /**

@@ -114,7 +114,7 @@ public class BoundedReadEvaluatorFactoryTest {
         evaluator.processElement((WindowedValue) shard);
       }
       TransformResult<?> result = evaluator.finishBundle();
-      assertThat(result.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
+      assertThat(result.getWatermarkHold().getHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
       assertThat(
           Iterables.size(result.getOutputBundles()),
           equalTo(Iterables.size(shardBundle.getElements())));
@@ -162,7 +162,7 @@ public class BoundedReadEvaluatorFactoryTest {
           evaluator.processElement((WindowedValue) shard);
         }
         TransformResult<Long> result = evaluator.finishBundle();
-        assertThat(result.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
+        assertThat(result.getWatermarkHold().getHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
         assertThat(
             Iterables.size(result.getOutputBundles()),
             equalTo(Iterables.size(shardBundle.getElements())));
@@ -210,7 +210,7 @@ public class BoundedReadEvaluatorFactoryTest {
         evaluator.processElement((WindowedValue) shard);
       }
       TransformResult<?> result = evaluator.finishBundle();
-      assertThat(result.getWatermarkHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
+      assertThat(result.getWatermarkHold().getHold(), equalTo(BoundedWindow.TIMESTAMP_MAX_VALUE));
       assertThat(
           Iterables.size(result.getOutputBundles()),
           equalTo(Iterables.size(shardBundle.getElements())));

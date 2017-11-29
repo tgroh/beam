@@ -69,7 +69,7 @@ public class SdkHarnessClient {
         String bundleId,
         Future<BeamFnApi.ProcessBundleResponse> response,
         FnDataReceiver<InputT> dataReceiver) {
-      return new AutoValue_SdkHarnessClient_ActiveBundle(bundleId, response, dataReceiver);
+      return new AutoValue_SdkHarnessClient_ActiveBundle<>(bundleId, response, dataReceiver);
     }
   }
 

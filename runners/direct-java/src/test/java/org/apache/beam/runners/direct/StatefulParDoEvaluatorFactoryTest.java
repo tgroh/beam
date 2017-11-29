@@ -43,8 +43,9 @@ import org.apache.beam.runners.core.StateTag;
 import org.apache.beam.runners.core.StateTags;
 import org.apache.beam.runners.core.construction.TransformInputs;
 import org.apache.beam.runners.direct.ParDoMultiOverrideFactory.StatefulParDo;
-import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate;
 import org.apache.beam.runners.local.StructuralKey;
+import org.apache.beam.runners.local.TimerUpdate;
+import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.runners.AppliedPTransform;
@@ -92,7 +93,8 @@ public class StatefulParDoEvaluatorFactoryTest implements Serializable {
 
   private static final String KEY = "any-key";
   private transient StateInternals stateInternals =
-      CopyOnAccessInMemoryStateInternals.<Object>withUnderlying(KEY, null);
+      CopyOnAccessInMemoryStateInternals.withUnderlying(
+          StructuralKey.<Object>of(KEY, (Coder) StringUtf8Coder.of()), null);
 
   private static final BundleFactory BUNDLE_FACTORY = ImmutableListBundleFactory.create();
 
