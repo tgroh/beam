@@ -19,13 +19,18 @@ package org.apache.beam.runners.fnexecution.control;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Function;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.runners.fnexecution.data.FnDataReceiver;
+import org.apache.beam.runners.fnexecution.data.FnDataService;
+import org.apache.beam.runners.fnexecution.data.FnDataService.LogicalEndpoint;
+import org.apache.beam.runners.fnexecution.data.OutputHandler;
 
 /**
  * A high-level client for an SDK harness.
@@ -64,23 +69,29 @@ public class SdkHarnessClient {
     public abstract Future<BeamFnApi.ProcessBundleResponse> getBundleResponse();
 
     public abstract FnDataReceiver<InputT> getInputReceiver();
+    public abstract Map<LogicalEndpoint, Future<Void>> getOuputCompletionFutures();
 
     public static <InputT> ActiveBundle<InputT> create(
         String bundleId,
         Future<BeamFnApi.ProcessBundleResponse> response,
-        FnDataReceiver<InputT> dataReceiver) {
-      return new AutoValue_SdkHarnessClient_ActiveBundle<>(bundleId, response, dataReceiver);
+        FnDataReceiver<InputT> inputReceiver,
+        Map<LogicalEndpoint, Future<Void>> outputCompletionFutures) {
+      return new AutoValue_SdkHarnessClient_ActiveBundle<>(
+          bundleId, response, inputReceiver, outputCompletionFutures);
     }
   }
 
   private final IdGenerator idGenerator;
   private final FnApiControlClient fnApiControlClient;
 
+  private final FnDataService dataService;
+
   private SdkHarnessClient(
       FnApiControlClient fnApiControlClient,
-      IdGenerator idGenerator) {
+      IdGenerator idGenerator, FnDataService dataService) {
     this.idGenerator = idGenerator;
     this.fnApiControlClient = fnApiControlClient;
+    this.dataService = dataService;
   }
 
   /**
@@ -88,12 +99,13 @@ public class SdkHarnessClient {
    * that these correspond to the same SDK harness, so control plane and data plane messages can be
    * correctly associated.
    */
-  public static SdkHarnessClient usingFnApiClient(FnApiControlClient fnApiControlClient) {
-    return new SdkHarnessClient(fnApiControlClient, new CountingIdGenerator());
+  public static SdkHarnessClient usingFnApiClientAndDataService(
+      FnApiControlClient fnApiControlClient, FnDataService dataService) {
+    return new SdkHarnessClient(fnApiControlClient, new CountingIdGenerator(), dataService);
   }
 
   public SdkHarnessClient withIdGenerator(IdGenerator idGenerator) {
-    return new SdkHarnessClient(fnApiControlClient, idGenerator);
+    return new SdkHarnessClient(fnApiControlClient, idGenerator, dataService);
   }
 
   /**
@@ -128,15 +140,23 @@ public class SdkHarnessClient {
   }
 
   /**
-   * Start a new bundle for the given {@link
-   * BeamFnApi.ProcessBundleDescriptor} identifier.
+   * Start a new bundle for the given {@link BeamFnApi.ProcessBundleDescriptor} identifier.
    *
-   * <p>The input channels for the returned {@link ActiveBundle} are derived from the
-   * instructions in the {@link BeamFnApi.ProcessBundleDescriptor}.
+   * <p>The input channels for the returned {@link ActiveBundle} are derived from the instructions
+   * in the {@link BeamFnApi.ProcessBundleDescriptor}. All of the 
    */
-  public ActiveBundle newBundle(String processBundleDescriptorId) {
+  public ActiveBundle newBundle(
+      String processBundleDescriptorId, Map<LogicalEndpoint, OutputHandler<?>> outputReceivers)
+      throws Exception {
     String bundleId = idGenerator.getId();
 
+    ImmutableMap.Builder<LogicalEndpoint, Future<Void>> endpointHandlerFutures =
+        ImmutableMap.builder();
+    for (Map.Entry<LogicalEndpoint, OutputHandler<?>> targetHandler : outputReceivers.entrySet()) {
+      endpointHandlerFutures.put(
+          targetHandler.getKey(),
+          registerEndpointHandler(targetHandler.getKey(), targetHandler.getValue()));
+    }
     // TODO: acquire an input receiver from appropriate FnDataService
     FnDataReceiver dataReceiver = new FnDataReceiver() {
       @Override
@@ -168,6 +188,12 @@ public class SdkHarnessClient {
               }
             });
 
-    return ActiveBundle.create(bundleId, specificResponse, dataReceiver);
+    return ActiveBundle.create(
+        bundleId, specificResponse, dataReceiver, endpointHandlerFutures.build());
+  }
+
+  private <T> ListenableFuture<Void> registerEndpointHandler(
+      LogicalEndpoint endpoint, OutputHandler<T> handler) throws Exception {
+    return dataService.receive(endpoint, handler.getCoder(), handler.getDataReceiver());
   }
 }

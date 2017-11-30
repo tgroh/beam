@@ -67,8 +67,8 @@ public interface FnDataService {
       throws Exception;
 
   /**
-   * Creates a receiver to which you can write data values and have them sent over this data plane
-   * service.
+   * Creates a receiver to which the caller can write data values and have them sent over this data
+   * plane service.
    *
    * <p>The provided coder is used to encode elements on the outbound stream.
    *
@@ -78,5 +78,4 @@ public interface FnDataService {
    */
   <T> FnDataReceiver<WindowedValue<T>> send(
       LogicalEndpoint outputLocation, Coder<WindowedValue<T>> coder) throws Exception;
-
 }

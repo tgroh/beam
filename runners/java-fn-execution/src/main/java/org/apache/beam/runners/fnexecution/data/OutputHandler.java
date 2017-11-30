@@ -16,23 +16,23 @@
  * limitations under the License.
  */
 
-apply from: project(":").file("build_rules.gradle")
-applyJavaNature()
+package org.apache.beam.runners.fnexecution.data;
 
-description = "Apache Beam :: Runners :: Reference :: Java"
+import com.google.auto.value.AutoValue;
+import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.util.WindowedValue;
 
-dependencies {
-  shadow project(path: ":beam-model-parent:beam-model-pipeline", configuration: "shadow")
-  shadow project(path: ":beam-runners-parent:beam-runners-core-construction-java", configuration: "shadow")
-  compile project(path: ":beam-runners-parent:beam-java-fn-execution")
-  compile project(path: ":beam-runners-parent:beam-runners-local-java-core")
-  shadow library.java.slf4j_api
-  testCompile library.java.junit
+/**
+ * A pair of a {@link FnDataReceiver} and a {@link Coder} capable of decoding elements from an
+ * incoming stream of undistinguished bytes.
+ */
+@AutoValue
+public abstract class OutputHandler<T> {
+  public abstract Coder<WindowedValue<T>> getCoder();
+  public abstract FnDataReceiver<WindowedValue<T>> getDataReceiver();
+
+  public static <T> OutputHandler<T> forEncodedElements(
+      Coder<WindowedValue<T>> coder, FnDataReceiver<WindowedValue<T>> receiver) {
+    return new AutoValue_OutputHandler<>(coder, receiver);
+  }
 }
-
-task packageTests(type: Jar) {
-  from sourceSets.test.output
-  classifier = "tests"
-}
-
-artifacts.archives packageTests

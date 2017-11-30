@@ -22,8 +22,11 @@ import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.SettableFuture;
+import java.util.Collections;
 import java.util.concurrent.Future;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
+import org.apache.beam.runners.fnexecution.data.FnDataService.LogicalEndpoint;
+import org.apache.beam.runners.fnexecution.data.OutputHandler;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,7 +45,7 @@ public class SdkHarnessClientTest {
   @Before
   public void setup() {
     MockitoAnnotations.initMocks(this);
-    sdkHarnessClient = SdkHarnessClient.usingFnApiClient(fnApiControlClient);
+    sdkHarnessClient = SdkHarnessClient.usingFnApiClientAndDataService(fnApiControlClient);
   }
 
   @Test
@@ -80,7 +83,9 @@ public class SdkHarnessClientTest {
     when(fnApiControlClient.handle(any(BeamFnApi.InstructionRequest.class)))
         .thenReturn(processBundleResponseFuture);
 
-    SdkHarnessClient.ActiveBundle activeBundle = sdkHarnessClient.newBundle(descriptorId1);
+    SdkHarnessClient.ActiveBundle activeBundle =
+        sdkHarnessClient.newBundle(
+            descriptorId1, Collections.<LogicalEndpoint, OutputHandler<?>>emptyMap());
 
     // Correlating the ProcessBundleRequest and ProcessBundleReponse is owned by the underlying
     // FnApiControlClient. The SdkHarnessClient owns just wrapping the request and unwrapping

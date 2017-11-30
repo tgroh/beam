@@ -55,6 +55,13 @@ class RemoteStageExecutor {
     // TODO: This may already be done;
     client.register(Collections.singleton(stage.toProcessBundleDescriptor()));
     ActiveBundle<?> activeBundle = client.newBundle(stage.getId());
+    // TODO: Register outputs, roughly as:
+    // for (OutputT outputTarget : stage.getOutputs()) {
+    //     LogicalEndpoint outputEndpoint = LogicalEndpoint.of(activeBundle.getBundleId(),
+    // Target.newBuilder().setName(outputTarget.getId())).build();
+    //   active
+    // }
+    activeBundle.setOutputReceiver()
     FnDataReceiver inputReceiver = activeBundle.getInputReceiver();
     for (WindowedValue<ByteString> input : bundle) {
       try {

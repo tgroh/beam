@@ -16,23 +16,20 @@
  * limitations under the License.
  */
 
-apply from: project(":").file("build_rules.gradle")
-applyJavaNature()
+package org.apache.beam.runners.fnexecution.data;
 
-description = "Apache Beam :: Runners :: Reference :: Java"
+import com.google.protobuf.ByteString;
+import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
+import org.joda.time.Instant;
 
-dependencies {
-  shadow project(path: ":beam-model-parent:beam-model-pipeline", configuration: "shadow")
-  shadow project(path: ":beam-runners-parent:beam-runners-core-construction-java", configuration: "shadow")
-  compile project(path: ":beam-runners-parent:beam-java-fn-execution")
-  compile project(path: ":beam-runners-parent:beam-runners-local-java-core")
-  shadow library.java.slf4j_api
-  testCompile library.java.junit
+/** TODO: Document */
+public class RawBoundedWindow extends BoundedWindow {
+  private final ByteString windowBytes;
+
+  @Override
+  public Instant maxTimestamp() {
+    throw new UnsupportedOperationException(
+        String.format(
+            "%s cannot inspect values of the window", RawBoundedWindow.class.getSimpleName()));
+  }
 }
-
-task packageTests(type: Jar) {
-  from sourceSets.test.output
-  classifier = "tests"
-}
-
-artifacts.archives packageTests

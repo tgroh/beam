@@ -21,16 +21,17 @@ package org.apache.beam.runners.reference;
 import java.util.Collection;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
+
 /**
  * A graph that contains all of the information required to be executable by the {@link
  * ReferenceRunner}.
  */
 public class ExecutableGraph {
   public static ExecutableGraph from(Pipeline p) {
-    return new ExecutableGraph(p);
+    return new ExecutableGraph(p, new NoOpFuser());
   }
 
-  private ExecutableGraph(Pipeline p) {
+  private ExecutableGraph(Pipeline p, Fuser fuser) {
     // TODO: Fusion, Other stuff
   }
 
@@ -43,4 +44,8 @@ public class ExecutableGraph {
   }
 
   interface Fuser {}
+
+  static class NoOpFuser implements Fuser {}
+
+  static class ProducerConsumerSameEnvironmentFuser {}
 }
