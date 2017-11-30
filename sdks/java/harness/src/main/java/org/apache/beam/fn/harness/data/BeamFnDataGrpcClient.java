@@ -20,19 +20,23 @@ package org.apache.beam.fn.harness.data;
 
 import io.grpc.ManagedChannel;
 import io.grpc.stub.StreamObserver;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import org.apache.beam.fn.harness.fn.CloseableThrowingConsumer;
-import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
+import org.apache.beam.model.fnexecution.v1.BeamFnApi.Elements;
 import org.apache.beam.model.fnexecution.v1.BeamFnDataGrpc;
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.fn.data.BeamFnDataBufferingOutboundObserver;
+import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.fn.data.LogicalEndpoint;
 import org.apache.beam.sdk.fn.stream.StreamObserverFactory.StreamObserverClientFactory;
+import org.apache.beam.sdk.options.ExperimentalOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.slf4j.Logger;
@@ -80,7 +84,7 @@ public class BeamFnDataGrpcClient implements BeamFnDataClient {
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
       LogicalEndpoint inputLocation,
       Coder<WindowedValue<T>> coder,
-      ThrowingConsumer<WindowedValue<T>> consumer) {
+      FnDataReceiver<WindowedValue<T>> consumer) {
     LOG.debug("Registering consumer for instruction {} and target {}",
         inputLocation.getInstructionId(),
         inputLocation.getTarget());
@@ -103,7 +107,7 @@ public class BeamFnDataGrpcClient implements BeamFnDataClient {
    * <p>The returned closeable consumer is not thread safe.
    */
   @Override
-  public <T> CloseableThrowingConsumer<WindowedValue<T>> forOutboundConsumer(
+  public <T> FnDataReceiver<WindowedValue<T>> forOutboundConsumer(
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
       LogicalEndpoint outputLocation,
       Coder<WindowedValue<T>> coder) {
@@ -112,8 +116,28 @@ public class BeamFnDataGrpcClient implements BeamFnDataClient {
     LOG.debug("Creating output consumer for instruction {} and target {}",
         outputLocation.getInstructionId(),
         outputLocation.getTarget());
-    return new BeamFnDataBufferingOutboundObserver<>(
-        options, outputLocation, coder, client.getOutboundObserver());
+    StreamObserver<BeamFnApi.Elements> outboundObserver = client.getOutboundObserver();
+    return getBufferingObserver(outputLocation, coder, outboundObserver);
+  }
+
+  private <T> FnDataReceiver<WindowedValue<T>> getBufferingObserver(
+      LogicalEndpoint outputLocation,
+      Coder<WindowedValue<T>> coder,
+      StreamObserver<Elements> outboundObserver) {
+    List<String> experiments = options.as(ExperimentalOptions.class).getExperiments();
+    for (String experiment : experiments == null ? Collections.<String>emptyList() : experiments) {
+      if (experiment.startsWith(
+          BeamFnDataBufferingOutboundObserver.BEAM_FN_API_DATA_BUFFER_LIMIT)) {
+        return BeamFnDataBufferingOutboundObserver.forLocationWithBufferLimit(
+            Integer.parseInt(
+                experiment.substring(
+                    BeamFnDataBufferingOutboundObserver.BEAM_FN_API_DATA_BUFFER_LIMIT.length())),
+            outputLocation,
+            coder,
+            outboundObserver);
+      }
+    }
+    return BeamFnDataBufferingOutboundObserver.forLocation(outputLocation, coder, outboundObserver);
   }
 
   private BeamFnDataGrpcMultiplexer getClientFor(

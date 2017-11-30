@@ -15,26 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.fn.harness.data;
+package org.apache.beam.sdk.fn.data;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.ByteString;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Consumer;
-import org.apache.beam.fn.harness.fn.CloseableThrowingConsumer;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.sdk.coders.Coder;
-import org.apache.beam.sdk.fn.data.LogicalEndpoint;
-import org.apache.beam.sdk.options.ExperimentalOptions;
-import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A buffering outbound {@link Consumer} for the Beam Fn Data API.
+ * A buffering outbound {@link FnDataReceiver} for the Beam Fn Data API.
  *
  * <p>Encodes individually consumed elements with the provided {@link Coder} producing
  * a single {@link BeamFnApi.Elements} message when the buffer threshold
@@ -50,11 +44,30 @@ import org.slf4j.LoggerFactory;
  * a marker, detect on the input side that no bytes were read and force reading a single byte.
  */
 public class BeamFnDataBufferingOutboundObserver<T>
-    implements CloseableThrowingConsumer<WindowedValue<T>> {
-  private static final String BEAM_FN_API_DATA_BUFFER_LIMIT = "beam_fn_api_data_buffer_limit=";
-  private static final int DEFAULT_BUFFER_LIMIT_BYTES = 1_000_000;
+    implements FnDataReceiver<WindowedValue<T>> {
+  // TODO: Consider moving this constant out of this class
+  public static final String BEAM_FN_API_DATA_BUFFER_LIMIT = "beam_fn_api_data_buffer_limit=";
+  @VisibleForTesting
+  static final int DEFAULT_BUFFER_LIMIT_BYTES = 1_000_000;
   private static final Logger LOG =
       LoggerFactory.getLogger(BeamFnDataBufferingOutboundObserver.class);
+
+  public static <T> BeamFnDataBufferingOutboundObserver<T> forLocation(
+      LogicalEndpoint endpoint,
+      Coder<WindowedValue<T>> coder,
+      StreamObserver<BeamFnApi.Elements> outboundObserver) {
+    return forLocationWithBufferLimit(
+        DEFAULT_BUFFER_LIMIT_BYTES, endpoint, coder, outboundObserver);
+  }
+
+  public static <T> BeamFnDataBufferingOutboundObserver<T> forLocationWithBufferLimit(
+      int bufferLimit,
+      LogicalEndpoint endpoint,
+      Coder<WindowedValue<T>> coder,
+      StreamObserver<BeamFnApi.Elements> outboundObserver) {
+    return new BeamFnDataBufferingOutboundObserver<>(
+        bufferLimit, endpoint, coder, outboundObserver);
+  }
 
   private long byteCounter;
   private long counter;
@@ -64,30 +77,16 @@ public class BeamFnDataBufferingOutboundObserver<T>
   private final StreamObserver<BeamFnApi.Elements> outboundObserver;
   private final ByteString.Output bufferedElements;
 
-  public BeamFnDataBufferingOutboundObserver(
-      PipelineOptions options,
+  private BeamFnDataBufferingOutboundObserver(
+      int bufferLimit,
       LogicalEndpoint outputLocation,
       Coder<WindowedValue<T>> coder,
       StreamObserver<BeamFnApi.Elements> outboundObserver) {
-    this.bufferLimit = getBufferLimit(options);
+    this.bufferLimit = bufferLimit;
     this.outputLocation = outputLocation;
     this.coder = coder;
     this.outboundObserver = outboundObserver;
     this.bufferedElements = ByteString.newOutput();
-  }
-
-  /**
-   * Returns the {@code beam_fn_api_data_buffer_limit=<int>} experiment value if set. Otherwise
-   * returns the default buffer limit.
-   */
-  private static int getBufferLimit(PipelineOptions options) {
-    List<String> experiments = options.as(ExperimentalOptions.class).getExperiments();
-    for (String experiment : experiments == null ? Collections.<String>emptyList() : experiments) {
-      if (experiment.startsWith(BEAM_FN_API_DATA_BUFFER_LIMIT)) {
-        return Integer.parseInt(experiment.substring(BEAM_FN_API_DATA_BUFFER_LIMIT.length()));
-      }
-    }
-    return DEFAULT_BUFFER_LIMIT_BYTES;
   }
 
   @Override

@@ -41,8 +41,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import org.apache.beam.fn.harness.fn.CloseableThrowingConsumer;
-import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.Elements;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.Target;
@@ -51,6 +49,7 @@ import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.LengthPrefixCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.fn.data.LogicalEndpoint;
 import org.apache.beam.sdk.fn.stream.StreamObserverFactory.StreamObserverClientFactory;
 import org.apache.beam.sdk.fn.test.Consumer;
@@ -80,7 +79,7 @@ public class BeamFnDataGrpcClientTest {
   private static final LogicalEndpoint ENDPOINT_B =
       LogicalEndpoint.of(
           "56L",
-          BeamFnApi.Target.newBuilder()
+          Target.newBuilder()
               .setPrimitiveTransformReference("78L")
               .setName("targetB")
               .build());
@@ -157,11 +156,20 @@ public class BeamFnDataGrpcClientTest {
         (Endpoints.ApiServiceDescriptor descriptor) -> channel,
         this::createStreamForTest);
 
-    CompletableFuture<Void> readFutureA = clientFactory.forInboundConsumer(
-        apiServiceDescriptor,
-        ENDPOINT_A,
-        CODER,
-        inboundValuesA::add);
+      CompletableFuture<Void> readFutureA =
+          clientFactory.forInboundConsumer(
+              apiServiceDescriptor,
+              ENDPOINT_A,
+              CODER,
+              new FnDataReceiver<WindowedValue<String>>() {
+                @Override
+                public void accept(WindowedValue<String> input) throws Exception {
+                  inboundValuesA.add(input);
+                }
+
+                @Override
+                public void close() throws Exception {}
+              });
 
       waitForClientToConnect.await();
       outboundServerObserver.get().onNext(ELEMENTS_A_1);
@@ -170,10 +178,20 @@ public class BeamFnDataGrpcClientTest {
       outboundServerObserver.get().onNext(ELEMENTS_B_1);
       Thread.sleep(100);
 
-      CompletableFuture<Void> readFutureB = clientFactory.forInboundConsumer(
-          apiServiceDescriptor, ENDPOINT_B,
-          CODER,
-          inboundValuesB::add);
+      CompletableFuture<Void> readFutureB =
+          clientFactory.forInboundConsumer(
+              apiServiceDescriptor,
+              ENDPOINT_B,
+              CODER,
+              new FnDataReceiver<WindowedValue<String>>() {
+                @Override
+                public void accept(WindowedValue<String> input) throws Exception {
+                  inboundValuesB.add(input);
+                }
+
+                @Override
+                public void close() throws Exception {}
+              });
 
       // Show that out of order stream completion can occur.
       readFutureB.get();
@@ -229,12 +247,15 @@ public class BeamFnDataGrpcClientTest {
           apiServiceDescriptor,
           ENDPOINT_A,
           CODER,
-          new ThrowingConsumer<WindowedValue<String>>() {
+          new FnDataReceiver<WindowedValue<String>>() {
             @Override
             public void accept(WindowedValue<String> t) throws Exception {
               consumerInvoked.incrementAndGet();
               throw exceptionToThrow;
             }
+
+            @Override
+            public void close() {}
           });
 
       waitForClientToConnect.await();
@@ -297,7 +318,7 @@ public class BeamFnDataGrpcClientTest {
           (Endpoints.ApiServiceDescriptor descriptor) -> channel,
           this::createStreamForTest);
 
-      try (CloseableThrowingConsumer<WindowedValue<String>> consumer =
+      try (FnDataReceiver<WindowedValue<String>> consumer =
           clientFactory.forOutboundConsumer(apiServiceDescriptor, ENDPOINT_A, CODER)) {
         consumer.accept(valueInGlobalWindow("ABC"));
         consumer.accept(valueInGlobalWindow("DEF"));

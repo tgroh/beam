@@ -31,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.beam.fn.harness.data.BeamFnDataClient;
+import org.apache.beam.fn.harness.data.MultiplexingFnDataReceiver;
 import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.fn.harness.fn.ThrowingRunnable;
 import org.apache.beam.fn.harness.state.BeamFnStateClient;
@@ -40,6 +41,7 @@ import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.runners.core.construction.RehydratedComponents;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.fn.data.LogicalEndpoint;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.util.WindowedValue;
@@ -115,7 +117,7 @@ public class BeamFnDataReadRunner<OutputT> {
   }
 
   private final Endpoints.ApiServiceDescriptor apiServiceDescriptor;
-  private final Collection<ThrowingConsumer<WindowedValue<OutputT>>> consumers;
+  private final FnDataReceiver<WindowedValue<OutputT>> dataMultiplexer;
   private final Supplier<String> processBundleInstructionIdSupplier;
   private final BeamFnDataClient beamFnDataClientFactory;
   private final Coder<WindowedValue<OutputT>> coder;
@@ -137,7 +139,7 @@ public class BeamFnDataReadRunner<OutputT> {
     this.inputTarget = inputTarget;
     this.processBundleInstructionIdSupplier = processBundleInstructionIdSupplier;
     this.beamFnDataClientFactory = beamFnDataClientFactory;
-    this.consumers = consumers;
+    this.dataMultiplexer = MultiplexingFnDataReceiver.forConsumers(consumers);
 
     @SuppressWarnings("unchecked")
     Coder<WindowedValue<OutputT>> coder =
@@ -150,22 +152,17 @@ public class BeamFnDataReadRunner<OutputT> {
   }
 
   public void registerInputLocation() {
-    this.readFuture = beamFnDataClientFactory.forInboundConsumer(
-        apiServiceDescriptor,
-        LogicalEndpoint.of(processBundleInstructionIdSupplier.get(), inputTarget),
-        coder,
-        this::multiplexToConsumers);
+    this.readFuture =
+        beamFnDataClientFactory.forInboundConsumer(
+            apiServiceDescriptor,
+            LogicalEndpoint.of(processBundleInstructionIdSupplier.get(), inputTarget),
+            coder,
+            dataMultiplexer);
   }
 
   public void blockTillReadFinishes() throws Exception {
     LOG.debug("Waiting for process bundle instruction {} and target {} to close.",
         processBundleInstructionIdSupplier.get(), inputTarget);
     readFuture.get();
-  }
-
-  private void multiplexToConsumers(WindowedValue<OutputT> value) throws Exception {
-    for (ThrowingConsumer<WindowedValue<OutputT>> consumer : consumers) {
-      consumer.accept(value);
-    }
   }
 }

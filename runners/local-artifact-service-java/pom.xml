@@ -92,6 +92,13 @@
       <artifactId>slf4j-api</artifactId>
     </dependency>
 
+    <!-- build dependencies -->
+    <dependency>
+      <groupId>com.google.auto.value</groupId>
+      <artifactId>auto-value</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
     <!-- test dependencies -->
     <dependency>
       <groupId>org.hamcrest</groupId>

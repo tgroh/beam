@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
+import org.apache.beam.model.fnexecution.v1.BeamFnApi.Target;
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.sdk.fn.data.LogicalEndpoint;
 import org.apache.beam.sdk.fn.test.TestStreams;
@@ -43,7 +44,7 @@ public class BeamFnDataGrpcMultiplexerTest {
   private static final LogicalEndpoint OUTPUT_LOCATION =
       LogicalEndpoint.of(
           "777L",
-          BeamFnApi.Target.newBuilder()
+          Target.newBuilder()
               .setName("name")
               .setPrimitiveTransformReference("888L")
               .build());

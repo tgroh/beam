@@ -19,10 +19,9 @@
 package org.apache.beam.fn.harness.data;
 
 import java.util.concurrent.CompletableFuture;
-import org.apache.beam.fn.harness.fn.CloseableThrowingConsumer;
-import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.fn.data.LogicalEndpoint;
 import org.apache.beam.sdk.util.WindowedValue;
 
@@ -46,7 +45,7 @@ public interface BeamFnDataClient {
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
       LogicalEndpoint inputLocation,
       Coder<WindowedValue<T>> coder,
-      ThrowingConsumer<WindowedValue<T>> consumer);
+      FnDataReceiver<WindowedValue<T>> consumer);
 
   /**
    * Creates a closeable consumer using the provided instruction id and target.
@@ -57,7 +56,7 @@ public interface BeamFnDataClient {
    *
    * <p>The returned closeable consumer is not thread safe.
    */
-  <T> CloseableThrowingConsumer<WindowedValue<T>> forOutboundConsumer(
+  <T> FnDataReceiver<WindowedValue<T>> forOutboundConsumer(
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
       LogicalEndpoint outputLocation,
       Coder<WindowedValue<T>> coder);

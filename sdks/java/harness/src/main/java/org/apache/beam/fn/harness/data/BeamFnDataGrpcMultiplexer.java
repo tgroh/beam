@@ -19,6 +19,7 @@ package org.apache.beam.fn.harness.data;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,14 +47,14 @@ import org.slf4j.LoggerFactory;
  * <p>TODO: Add support for multiplexing over multiple outbound observers by stickying the output
  * location with a specific outbound observer.
  */
-public class BeamFnDataGrpcMultiplexer {
+public class BeamFnDataGrpcMultiplexer implements AutoCloseable {
   private static final Logger LOG = LoggerFactory.getLogger(BeamFnDataGrpcMultiplexer.class);
   private final Endpoints.ApiServiceDescriptor apiServiceDescriptor;
   private final StreamObserver<BeamFnApi.Elements> inboundObserver;
   private final StreamObserver<BeamFnApi.Elements> outboundObserver;
+
   @VisibleForTesting
-  final ConcurrentMap<
-          LogicalEndpoint, CompletableFuture<Consumer<BeamFnApi.Elements.Data>>>
+  final ConcurrentMap<LogicalEndpoint, CompletableFuture<Consumer<BeamFnApi.Elements.Data>>>
       consumers;
 
   public BeamFnDataGrpcMultiplexer(
@@ -87,6 +88,13 @@ public class BeamFnDataGrpcMultiplexer {
     return consumers.computeIfAbsent(key, (LogicalEndpoint unused) -> new CompletableFuture<>());
   }
 
+  @Override
+  public void close() throws Exception {
+    inboundObserver.onError(Status.INTERNAL.withDescription("Server hanging up").asException());
+    outboundObserver.onError(Status.INTERNAL.withDescription("Server hanging up").asException());
+    // TODO: Clean up consumers
+  }
+
   /**
    * A multiplexing {@link StreamObserver} that selects the inbound {@link Consumer} to pass
    * the elements to.
@@ -100,16 +108,16 @@ public class BeamFnDataGrpcMultiplexer {
     public void onNext(BeamFnApi.Elements value) {
       for (BeamFnApi.Elements.Data data : value.getDataList()) {
         try {
-          LogicalEndpoint key =
+          LogicalEndpoint endpoint =
               LogicalEndpoint.of(data.getInstructionReference(), data.getTarget());
-          CompletableFuture<Consumer<BeamFnApi.Elements.Data>> consumer = futureForKey(key);
+          CompletableFuture<Consumer<BeamFnApi.Elements.Data>> consumer = futureForKey(endpoint);
           if (!consumer.isDone()) {
-            LOG.debug("Received data for key {} without consumer ready. "
-                + "Waiting for consumer to be registered.", key);
+            LOG.debug("Received data for endpoint {} without consumer ready. "
+                + "Waiting for consumer to be registered.", endpoint);
           }
           consumer.get().accept(data);
           if (data.getData().isEmpty()) {
-            consumers.remove(key);
+            consumers.remove(endpoint);
           }
         /*
          * TODO: On failure we should fail any bundles that were impacted eagerly

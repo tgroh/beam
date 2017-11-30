@@ -24,7 +24,8 @@ import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 /**
  * A logical endpoint is a pair of an instruction ID corresponding to the {@link
  * BeamFnApi.ProcessBundleRequest} and the {@link BeamFnApi.Target} within the processing graph.
- * This enables the same Data Service or Data Client to be re-used across multiple bundles.
+ *
+ * <p>This enables the same Data Service or Data Client to be re-used across multiple bundles.
  */
 @AutoValue
 public abstract class LogicalEndpoint {
