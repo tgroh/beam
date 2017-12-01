@@ -31,6 +31,7 @@ import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.BeamFnDataGrpc;
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.fn.stream.StreamObserverFactory.StreamObserverClientFactory;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.KV;
@@ -47,18 +48,19 @@ public class BeamFnDataGrpcClient implements BeamFnDataClient {
 
   private final ConcurrentMap<Endpoints.ApiServiceDescriptor, BeamFnDataGrpcMultiplexer> cache;
   private final Function<Endpoints.ApiServiceDescriptor, ManagedChannel> channelFactory;
-  private final BiFunction<Function<StreamObserver<BeamFnApi.Elements>,
-                                    StreamObserver<BeamFnApi.Elements>>,
-                           StreamObserver<BeamFnApi.Elements>,
-                           StreamObserver<BeamFnApi.Elements>> streamObserverFactory;
+  private final BiFunction<
+          StreamObserverClientFactory<BeamFnApi.Elements, BeamFnApi.Elements>,
+          StreamObserver<BeamFnApi.Elements>, StreamObserver<BeamFnApi.Elements>>
+      streamObserverFactory;
   private final PipelineOptions options;
 
   public BeamFnDataGrpcClient(
       PipelineOptions options,
       Function<Endpoints.ApiServiceDescriptor, ManagedChannel> channelFactory,
-      BiFunction<Function<StreamObserver<BeamFnApi.Elements>, StreamObserver<BeamFnApi.Elements>>,
-                 StreamObserver<BeamFnApi.Elements>,
-                 StreamObserver<BeamFnApi.Elements>> streamObserverFactory) {
+      BiFunction<
+              StreamObserverClientFactory<BeamFnApi.Elements, BeamFnApi.Elements>,
+              StreamObserver<BeamFnApi.Elements>, StreamObserver<BeamFnApi.Elements>>
+          streamObserverFactory) {
     this.options = options;
     this.channelFactory = channelFactory;
     this.streamObserverFactory = streamObserverFactory;

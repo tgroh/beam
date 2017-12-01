@@ -35,9 +35,9 @@ import org.junit.runners.JUnit4;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-/** Tests for {@link StreamObserverFactory}. */
+/** Tests for {@link HarnessStreamObserverFactoriesTest}. */
 @RunWith(JUnit4.class)
-public class StreamObserverFactoryTest {
+public class HarnessStreamObserverFactoriesTest {
   @Mock private StreamObserver<Integer> mockRequestObserver;
   @Mock private CallStreamObserver<String> mockResponseObserver;
 
@@ -49,7 +49,7 @@ public class StreamObserverFactoryTest {
   @Test
   public void testDefaultInstantiation() {
     StreamObserver<String> observer =
-        StreamObserverFactory.fromOptions(PipelineOptionsFactory.create())
+        HarnessStreamObserverFactories.fromOptions(PipelineOptionsFactory.create())
             .from(this::fakeFactory, mockRequestObserver);
     assertThat(observer, instanceOf(DirectStreamObserver.class));
   }
@@ -57,7 +57,7 @@ public class StreamObserverFactoryTest {
   @Test
   public void testBufferedStreamInstantiation() {
     StreamObserver<String> observer =
-        StreamObserverFactory.fromOptions(
+        HarnessStreamObserverFactories.fromOptions(
                 PipelineOptionsFactory.fromArgs(
                         new String[] {"--experiments=beam_fn_api_buffered_stream"})
                     .create())
@@ -68,11 +68,11 @@ public class StreamObserverFactoryTest {
   @Test
   public void testBufferedStreamWithLimitInstantiation() {
     StreamObserver<String> observer =
-        StreamObserverFactory.fromOptions(
+        HarnessStreamObserverFactories.fromOptions(
                 PipelineOptionsFactory.fromArgs(
                         new String[] {
                           "--experiments=beam_fn_api_buffered_stream,"
-                          + "beam_fn_api_buffered_stream_buffer_size=1"
+                              + "beam_fn_api_buffered_stream_buffer_size=1"
                         })
                     .create())
             .from(this::fakeFactory, mockRequestObserver);
