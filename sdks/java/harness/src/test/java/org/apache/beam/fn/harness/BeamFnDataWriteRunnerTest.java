@@ -45,7 +45,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.beam.fn.harness.PTransformRunnerFactory.Registrar;
 import org.apache.beam.fn.harness.data.BeamFnDataClient;
-import org.apache.beam.fn.harness.fn.CloseableThrowingConsumer;
 import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.fn.harness.fn.ThrowingRunnable;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
@@ -55,6 +54,7 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.MessageWithComponents;
 import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.fn.data.CloseableFnDataReceiver;
 import org.apache.beam.sdk.fn.data.LogicalEndpoint;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
@@ -143,8 +143,8 @@ public class BeamFnDataWriteRunnerTest {
 
     List<WindowedValue<String>> outputValues = new ArrayList<>();
     AtomicBoolean wasCloseCalled = new AtomicBoolean();
-    CloseableThrowingConsumer<WindowedValue<String>> outputConsumer =
-        new CloseableThrowingConsumer<WindowedValue<String>>(){
+    CloseableFnDataReceiver<WindowedValue<String>> outputConsumer =
+        new CloseableFnDataReceiver<WindowedValue<String>>() {
           @Override
           public void close() throws Exception {
             wasCloseCalled.set(true);
@@ -183,8 +183,8 @@ public class BeamFnDataWriteRunnerTest {
 
   @Test
   public void testReuseForMultipleBundles() throws Exception {
-    RecordingConsumer<WindowedValue<String>> valuesA = new RecordingConsumer<>();
-    RecordingConsumer<WindowedValue<String>> valuesB = new RecordingConsumer<>();
+    RecordingReceiver<WindowedValue<String>> valuesA = new RecordingReceiver<>();
+    RecordingReceiver<WindowedValue<String>> valuesB = new RecordingReceiver<>();
     when(mockBeamFnDataClient.forOutboundConsumer(
         any(),
         any(),
@@ -233,8 +233,8 @@ public class BeamFnDataWriteRunnerTest {
     verifyNoMoreInteractions(mockBeamFnDataClient);
   }
 
-  private static class RecordingConsumer<T> extends ArrayList<T>
-      implements CloseableThrowingConsumer<T> {
+  private static class RecordingReceiver<T> extends ArrayList<T>
+      implements CloseableFnDataReceiver<T> {
     private boolean closed;
     @Override
     public void close() throws Exception {
