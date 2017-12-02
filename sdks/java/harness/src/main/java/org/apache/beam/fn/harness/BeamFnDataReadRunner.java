@@ -150,7 +150,7 @@ public class BeamFnDataReadRunner<OutputT> {
   }
 
   public void registerInputLocation() {
-    this.readFuture = beamFnDataClientFactory.forInboundConsumer(
+    this.readFuture = beamFnDataClientFactory.receive(
         apiServiceDescriptor,
         LogicalEndpoint.of(processBundleInstructionIdSupplier.get(), inputTarget),
         coder,

@@ -156,12 +156,12 @@ public class BeamFnDataWriteRunnerTest {
           }
         };
 
-    when(mockBeamFnDataClient.forOutboundConsumer(
+    when(mockBeamFnDataClient.send(
         any(),
         any(),
         Matchers.<Coder<WindowedValue<String>>>any())).thenReturn(outputConsumer);
     Iterables.getOnlyElement(startFunctions).run();
-    verify(mockBeamFnDataClient).forOutboundConsumer(
+    verify(mockBeamFnDataClient).send(
         eq(PORT_SPEC.getApiServiceDescriptor()),
         eq(LogicalEndpoint.of(bundleId, BeamFnApi.Target.newBuilder()
             .setPrimitiveTransformReference("ptransformId")
@@ -185,7 +185,7 @@ public class BeamFnDataWriteRunnerTest {
   public void testReuseForMultipleBundles() throws Exception {
     RecordingConsumer<WindowedValue<String>> valuesA = new RecordingConsumer<>();
     RecordingConsumer<WindowedValue<String>> valuesB = new RecordingConsumer<>();
-    when(mockBeamFnDataClient.forOutboundConsumer(
+    when(mockBeamFnDataClient.send(
         any(),
         any(),
         Matchers.<Coder<WindowedValue<String>>>any())).thenReturn(valuesA).thenReturn(valuesB);
@@ -201,7 +201,7 @@ public class BeamFnDataWriteRunnerTest {
     // Process for bundle id 0
     writeRunner.registerForOutput();
 
-    verify(mockBeamFnDataClient).forOutboundConsumer(
+    verify(mockBeamFnDataClient).send(
         eq(PORT_SPEC.getApiServiceDescriptor()),
         eq(LogicalEndpoint.of(bundleId.get(), OUTPUT_TARGET)),
         eq(CODER));
@@ -219,7 +219,7 @@ public class BeamFnDataWriteRunnerTest {
     valuesB.clear();
     writeRunner.registerForOutput();
 
-    verify(mockBeamFnDataClient).forOutboundConsumer(
+    verify(mockBeamFnDataClient).send(
         eq(PORT_SPEC.getApiServiceDescriptor()),
         eq(LogicalEndpoint.of(bundleId.get(), OUTPUT_TARGET)),
         eq(CODER));

@@ -157,7 +157,7 @@ public class BeamFnDataGrpcClientTest {
         (Endpoints.ApiServiceDescriptor descriptor) -> channel,
         this::createStreamForTest);
 
-    CompletableFuture<Void> readFutureA = clientFactory.forInboundConsumer(
+    CompletableFuture<Void> readFutureA = clientFactory.receive(
         apiServiceDescriptor,
         ENDPOINT_A,
         CODER,
@@ -170,7 +170,7 @@ public class BeamFnDataGrpcClientTest {
       outboundServerObserver.get().onNext(ELEMENTS_B_1);
       Thread.sleep(100);
 
-      CompletableFuture<Void> readFutureB = clientFactory.forInboundConsumer(
+      CompletableFuture<Void> readFutureB = clientFactory.receive(
           apiServiceDescriptor, ENDPOINT_B,
           CODER,
           inboundValuesB::add);
@@ -225,7 +225,7 @@ public class BeamFnDataGrpcClientTest {
           (Endpoints.ApiServiceDescriptor descriptor) -> channel,
           this::createStreamForTest);
 
-      CompletableFuture<Void> readFuture = clientFactory.forInboundConsumer(
+      CompletableFuture<Void> readFuture = clientFactory.receive(
           apiServiceDescriptor,
           ENDPOINT_A,
           CODER,
@@ -298,7 +298,7 @@ public class BeamFnDataGrpcClientTest {
           this::createStreamForTest);
 
       try (CloseableThrowingConsumer<WindowedValue<String>> consumer =
-          clientFactory.forOutboundConsumer(apiServiceDescriptor, ENDPOINT_A, CODER)) {
+          clientFactory.send(apiServiceDescriptor, ENDPOINT_A, CODER)) {
         consumer.accept(valueInGlobalWindow("ABC"));
         consumer.accept(valueInGlobalWindow("DEF"));
         consumer.accept(valueInGlobalWindow("GHI"));

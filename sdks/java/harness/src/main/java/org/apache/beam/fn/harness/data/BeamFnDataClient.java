@@ -29,6 +29,9 @@ import org.apache.beam.sdk.util.WindowedValue;
  * The {@link BeamFnDataClient} is able to forward inbound elements to a consumer and is also a
  * consumer of outbound elements. Callers can register themselves as consumers for inbound elements
  * or can get a handle for a consumer for outbound elements.
+ *
+ * <p>See also the runner-side equivalent, {@code FnDataService}. This interface is roughly
+ * equivalent to that one, but permits the selection of an endpoint to which to send the data.
  */
 public interface BeamFnDataClient {
   /**
@@ -41,7 +44,7 @@ public interface BeamFnDataClient {
    *
    * <p>The consumer is not required to be thread safe.
    */
-  <T> CompletableFuture<Void> forInboundConsumer(
+  <T> CompletableFuture<Void> receive(
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
       LogicalEndpoint inputLocation,
       Coder<WindowedValue<T>> coder,
@@ -56,7 +59,7 @@ public interface BeamFnDataClient {
    *
    * <p>The returned closeable consumer is not thread safe.
    */
-  <T> FnDataReceiver<WindowedValue<T>> forOutboundConsumer(
+  <T> FnDataReceiver<WindowedValue<T>> send(
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
       LogicalEndpoint outputLocation,
       Coder<WindowedValue<T>> coder);

@@ -140,7 +140,7 @@ public class BeamFnDataWriteRunner<InputT> {
   }
 
   public void registerForOutput() {
-    consumer = beamFnDataClientFactory.forOutboundConsumer(
+    consumer = beamFnDataClientFactory.send(
         apiServiceDescriptor,
         LogicalEndpoint.of(processBundleInstructionIdSupplier.get(), outputTarget),
         coder);
