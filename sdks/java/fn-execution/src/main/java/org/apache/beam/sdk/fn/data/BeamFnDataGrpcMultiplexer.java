@@ -15,27 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.fn.harness.data;
+package org.apache.beam.sdk.fn.data;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
+import com.google.common.util.concurrent.SettableFuture;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
-import org.apache.beam.model.pipeline.v1.Endpoints;
-import org.apache.beam.sdk.fn.data.LogicalEndpoint;
+import org.apache.beam.sdk.fn.stream.StreamObserverFactory.StreamObserverClientFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A gRPC multiplexer for a specific {@link
- * Endpoints.ApiServiceDescriptor}.
+ * A gRPC multiplexer for a specific Fn API Data Service or Data client.
  *
  * <p>Multiplexes data for inbound consumers based upon their individual {@link
  * org.apache.beam.model.fnexecution.v1.BeamFnApi.Target}s.
@@ -49,28 +45,21 @@ import org.slf4j.LoggerFactory;
  */
 public class BeamFnDataGrpcMultiplexer implements AutoCloseable {
   private static final Logger LOG = LoggerFactory.getLogger(BeamFnDataGrpcMultiplexer.class);
-  private final Endpoints.ApiServiceDescriptor apiServiceDescriptor;
   private final StreamObserver<BeamFnApi.Elements> inboundObserver;
   private final StreamObserver<BeamFnApi.Elements> outboundObserver;
 
-  @VisibleForTesting
-  final ConcurrentMap<LogicalEndpoint, CompletableFuture<Consumer<BeamFnApi.Elements.Data>>>
-      consumers;
+  private final ConcurrentMap<LogicalEndpoint, SettableFuture<DataBytesReceiver>> consumers;
 
   public BeamFnDataGrpcMultiplexer(
-      Endpoints.ApiServiceDescriptor apiServiceDescriptor,
-      Function<StreamObserver<BeamFnApi.Elements>,
-               StreamObserver<BeamFnApi.Elements>> outboundObserverFactory) {
-    this.apiServiceDescriptor = apiServiceDescriptor;
+      StreamObserverClientFactory<BeamFnApi.Elements, BeamFnApi.Elements> outboundObserverFactory) {
     this.consumers = new ConcurrentHashMap<>();
     this.inboundObserver = new InboundObserver();
-    this.outboundObserver = outboundObserverFactory.apply(inboundObserver);
+    this.outboundObserver = outboundObserverFactory.outboundObserverFor(inboundObserver);
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("apiServiceDescriptor", apiServiceDescriptor)
         .add("consumers", consumers)
         .toString();
   }
@@ -83,9 +72,31 @@ public class BeamFnDataGrpcMultiplexer implements AutoCloseable {
     return outboundObserver;
   }
 
-  public CompletableFuture<Consumer<BeamFnApi.Elements.Data>> futureForKey(
-      LogicalEndpoint key) {
-    return consumers.computeIfAbsent(key, (LogicalEndpoint unused) -> new CompletableFuture<>());
+  private SettableFuture<DataBytesReceiver> futureForLocation(LogicalEndpoint endpoint) {
+    SettableFuture<DataBytesReceiver> future = consumers.get(endpoint);
+    if (future == null) {
+      future = SettableFuture.create();
+      SettableFuture<DataBytesReceiver> extant = consumers.putIfAbsent(endpoint, future);
+      future = extant == null ? future : extant;
+    }
+    return future;
+  }
+
+  /**
+   * Attach the provided {@link DataBytesReceiver} to consume input from the {@link
+   * LogicalEndpoint}.
+   */
+  public void attachReceiver(LogicalEndpoint inputLocation, DataBytesReceiver dataBytesReceiver) {
+    futureForLocation(inputLocation).set(dataBytesReceiver);
+  }
+
+  /**
+   * Returns if there is currently a {@link DataBytesReceiver} attached to the provided
+   * {@link LogicalEndpoint}.
+   */
+  @VisibleForTesting
+  boolean hasReceiver(LogicalEndpoint location) {
+    return consumers.containsKey(location);
   }
 
   @Override
@@ -96,10 +107,10 @@ public class BeamFnDataGrpcMultiplexer implements AutoCloseable {
   }
 
   /**
-   * A multiplexing {@link StreamObserver} that selects the inbound {@link Consumer} to pass
-   * the elements to.
+   * A multiplexing {@link StreamObserver} that selects the inbound {@link DataBytesReceiver} to
+   * pass the elements to.
    *
-   * <p>The inbound observer blocks until the {@link Consumer} is bound allowing for the
+   * <p>The inbound observer blocks until the {@link DataBytesReceiver} is bound allowing for the
    * sending harness to initiate transmitting data without needing for the receiving harness to
    * signal that it is ready to consume that data.
    */
@@ -110,14 +121,14 @@ public class BeamFnDataGrpcMultiplexer implements AutoCloseable {
         try {
           LogicalEndpoint endpoint =
               LogicalEndpoint.of(data.getInstructionReference(), data.getTarget());
-          CompletableFuture<Consumer<BeamFnApi.Elements.Data>> consumer = futureForKey(endpoint);
+          SettableFuture<DataBytesReceiver> consumer = futureForLocation(endpoint);
           if (!consumer.isDone()) {
             LOG.debug("Received data for endpoint {} without consumer ready. "
                 + "Waiting for consumer to be registered.", endpoint);
           }
-          consumer.get().accept(data);
+          consumer.get().receive(data);
           if (data.getData().isEmpty()) {
-            consumers.remove(endpoint);
+            consumers.remove(endpoint, consumer);
           }
         /*
          * TODO: On failure we should fail any bundles that were impacted eagerly
@@ -143,12 +154,12 @@ public class BeamFnDataGrpcMultiplexer implements AutoCloseable {
 
     @Override
     public void onError(Throwable t) {
-      LOG.error("Failed to handle for {}", apiServiceDescriptor, t);
+      LOG.error("{} terminating due to error", this, t);
     }
 
     @Override
     public void onCompleted() {
-      LOG.warn("Hanged up for {}.", apiServiceDescriptor);
+      LOG.warn("{} hanging up", this);
     }
   }
 }

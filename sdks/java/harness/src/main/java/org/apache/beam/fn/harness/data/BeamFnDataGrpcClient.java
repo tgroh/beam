@@ -33,6 +33,7 @@ import org.apache.beam.model.fnexecution.v1.BeamFnDataGrpc;
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.fn.data.BeamFnDataBufferingOutboundObserver;
+import org.apache.beam.sdk.fn.data.BeamFnDataGrpcMultiplexer;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.fn.data.LogicalEndpoint;
 import org.apache.beam.sdk.fn.stream.StreamObserverFactory.StreamObserverClientFactory;
@@ -91,8 +92,8 @@ public class BeamFnDataGrpcClient implements BeamFnDataClient {
 
     CompletableFuture<Void> readFuture = new CompletableFuture<>();
     BeamFnDataGrpcMultiplexer client = getClientFor(apiServiceDescriptor);
-    client.futureForKey(inputLocation).complete(
-        new BeamFnDataInboundObserver<>(coder, consumer, readFuture));
+    client.attachReceiver(
+        inputLocation, new BeamFnDataInboundObserver<>(coder, consumer, readFuture));
     return readFuture;
   }
 
@@ -144,7 +145,6 @@ public class BeamFnDataGrpcClient implements BeamFnDataClient {
       Endpoints.ApiServiceDescriptor apiServiceDescriptor) {
     return cache.computeIfAbsent(apiServiceDescriptor,
         (Endpoints.ApiServiceDescriptor descriptor) -> new BeamFnDataGrpcMultiplexer(
-            descriptor,
             (StreamObserver<BeamFnApi.Elements> inboundObserver) -> streamObserverFactory.apply(
                 BeamFnDataGrpc.newStub(channelFactory.apply(apiServiceDescriptor))::data,
                 inboundObserver)));
