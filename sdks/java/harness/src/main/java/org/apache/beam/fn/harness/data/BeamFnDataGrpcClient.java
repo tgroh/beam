@@ -76,7 +76,7 @@ public class BeamFnDataGrpcClient implements BeamFnDataClient {
    * (signaled by an empty data block), the returned future is completed successfully.
    */
   @Override
-  public <T> CompletableFuture<Void> forInboundConsumer(
+  public <T> CompletableFuture<Void> receive(
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
       LogicalEndpoint inputLocation,
       Coder<WindowedValue<T>> coder,
@@ -103,7 +103,7 @@ public class BeamFnDataGrpcClient implements BeamFnDataClient {
    * <p>The returned closeable consumer is not thread safe.
    */
   @Override
-  public <T> CloseableFnDataReceiver<WindowedValue<T>> forOutboundConsumer(
+  public <T> CloseableFnDataReceiver<WindowedValue<T>> send(
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
       LogicalEndpoint outputLocation,
       Coder<WindowedValue<T>> coder) {

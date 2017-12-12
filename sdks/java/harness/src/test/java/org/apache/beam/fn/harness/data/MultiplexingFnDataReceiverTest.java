@@ -18,6 +18,7 @@
 
 package org.apache.beam.fn.harness.data;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertThat;
 
@@ -27,6 +28,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.beam.fn.harness.fn.ThrowingConsumer;
+import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -44,20 +46,20 @@ public class MultiplexingFnDataReceiverTest {
   @Test
   public void singleConsumer() throws Exception {
     List<String> consumer = new ArrayList<>();
-    MultiplexingFnDataReceiver<String> multiplexer =
+    FnDataReceiver<String> multiplexer =
         MultiplexingFnDataReceiver.forConsumers(
             ImmutableList.<ThrowingConsumer<String>>of(consumer::add));
 
     multiplexer.accept("foo");
     multiplexer.accept("bar");
 
-    assertThat(consumer, containsInAnyOrder("foo", "bar"));
+    assertThat(consumer, contains("foo", "bar"));
   }
 
   @Test
   public void singleConsumerException() throws Exception {
     String message = "my_exception";
-    MultiplexingFnDataReceiver<Integer> multiplexer =
+    FnDataReceiver<Integer> multiplexer =
         MultiplexingFnDataReceiver.forConsumers(
             ImmutableList.<ThrowingConsumer<Integer>>of(
                 (Integer i) -> {
@@ -77,7 +79,7 @@ public class MultiplexingFnDataReceiverTest {
   public void multipleConsumers() throws Exception {
     List<String> consumer = new ArrayList<>();
     Set<String> otherConsumer = new HashSet<>();
-    MultiplexingFnDataReceiver<String> multiplexer =
+    FnDataReceiver<String> multiplexer =
         MultiplexingFnDataReceiver.forConsumers(
             ImmutableList.<ThrowingConsumer<String>>of(consumer::add, otherConsumer::add));
 
@@ -85,15 +87,15 @@ public class MultiplexingFnDataReceiverTest {
     multiplexer.accept("foo");
     multiplexer.accept("bar");
 
-    assertThat(consumer, containsInAnyOrder("foo", "bar", "foo"));
-    assertThat(otherConsumer, containsInAnyOrder("foo", "bar"));
+    assertThat(consumer, contains("foo", "bar", "foo"));
+    assertThat(otherConsumer, contains("foo", "bar"));
   }
 
   @Test
   public void multipleConsumersException() throws Exception {
     String message = "my_exception";
     List<Integer> consumer = new ArrayList<>();
-    MultiplexingFnDataReceiver<Integer> multiplexer =
+    FnDataReceiver<Integer> multiplexer =
         MultiplexingFnDataReceiver.forConsumers(
             ImmutableList.<ThrowingConsumer<Integer>>of(
                 consumer::add,
@@ -110,6 +112,5 @@ public class MultiplexingFnDataReceiverTest {
     thrown.expectMessage(message);
     thrown.expect(Exception.class);
     multiplexer.accept(2);
-
   }
 }

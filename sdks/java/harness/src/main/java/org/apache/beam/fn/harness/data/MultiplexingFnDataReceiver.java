@@ -18,6 +18,7 @@
 
 package org.apache.beam.fn.harness.data;
 
+import com.google.common.collect.Iterables;
 import java.util.Collection;
 import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
@@ -27,8 +28,11 @@ import org.apache.beam.sdk.fn.data.FnDataReceiver;
  * ThrowingConsumer consumers}.
  */
 public class MultiplexingFnDataReceiver<T> implements FnDataReceiver<T> {
-  public static <T> MultiplexingFnDataReceiver<T> forConsumers(
+  public static <T> FnDataReceiver<T> forConsumers(
       Collection<ThrowingConsumer<T>> consumers) {
+    if (consumers.size() == 1) {
+      return Iterables.getOnlyElement(consumers)::accept;
+    }
     return new MultiplexingFnDataReceiver<>(consumers);
   }
 

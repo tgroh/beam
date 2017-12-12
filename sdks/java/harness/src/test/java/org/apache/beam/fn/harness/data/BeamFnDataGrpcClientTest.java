@@ -157,7 +157,7 @@ public class BeamFnDataGrpcClientTest {
         this::createStreamForTest);
 
       CompletableFuture<Void> readFutureA =
-          clientFactory.forInboundConsumer(
+          clientFactory.receive(
               apiServiceDescriptor, ENDPOINT_A, CODER, inboundValuesA::add);
 
       waitForClientToConnect.await();
@@ -168,7 +168,7 @@ public class BeamFnDataGrpcClientTest {
       Thread.sleep(100);
 
       CompletableFuture<Void> readFutureB =
-          clientFactory.forInboundConsumer(
+          clientFactory.receive(
               apiServiceDescriptor, ENDPOINT_B, CODER, inboundValuesB::add);
 
       // Show that out of order stream completion can occur.
@@ -222,7 +222,7 @@ public class BeamFnDataGrpcClientTest {
           this::createStreamForTest);
 
       CompletableFuture<Void> readFuture =
-          clientFactory.forInboundConsumer(
+          clientFactory.receive(
               apiServiceDescriptor,
               ENDPOINT_A,
               CODER,
@@ -292,7 +292,7 @@ public class BeamFnDataGrpcClientTest {
           this::createStreamForTest);
 
       try (CloseableFnDataReceiver<WindowedValue<String>> consumer =
-          clientFactory.forOutboundConsumer(apiServiceDescriptor, ENDPOINT_A, CODER)) {
+          clientFactory.send(apiServiceDescriptor, ENDPOINT_A, CODER)) {
         consumer.accept(valueInGlobalWindow("ABC"));
         consumer.accept(valueInGlobalWindow("DEF"));
         consumer.accept(valueInGlobalWindow("GHI"));

@@ -20,6 +20,15 @@ package org.apache.beam.sdk.fn.data;
 
 /**
  * A receiver of streamed data that can be closed.
+ *
+ * <p>The close method for a {@link CloseableFnDataReceiver} must be idempotent.
  */
 public interface CloseableFnDataReceiver<T> extends FnDataReceiver<T>, AutoCloseable {
+  /**
+   * {@inheritDoc}.
+   *
+   * <p>Does nothing if this {@link CloseableFnDataReceiver} is already closed.
+   */
+  @Override
+  void close() throws Exception;
 }

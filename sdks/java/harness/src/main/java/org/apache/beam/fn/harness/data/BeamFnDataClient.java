@@ -27,37 +27,37 @@ import org.apache.beam.sdk.fn.data.LogicalEndpoint;
 import org.apache.beam.sdk.util.WindowedValue;
 
 /**
- * The {@link BeamFnDataClient} is able to forward inbound elements to a consumer and is also a
- * consumer of outbound elements. Callers can register themselves as consumers for inbound elements
- * or can get a handle for a consumer for outbound elements.
+ * The {@link BeamFnDataClient} is able to forward inbound elements to a {@link FnDataReceiver} and
+ * is also a receiver of outbound elements. Callers can register themselves as receivers for inbound
+ * elements or can get a handle for a receiver of outbound elements.
  */
 public interface BeamFnDataClient {
   /**
-   * Registers the following inbound consumer for the provided instruction id and target.
+   * Registers the following inbound receiver for the provided instruction id and target.
    *
    * <p>The provided coder is used to decode inbound elements. The decoded elements
-   * are passed to the provided consumer. Any failure during decoding or processing of the element
+   * are passed to the provided receiver. Any failure during decoding or processing of the element
    * will complete the returned future exceptionally. On successful termination of the stream,
    * the returned future is completed successfully.
    *
-   * <p>The consumer is not required to be thread safe.
+   * <p>The receiver is not required to be thread safe.
    */
-  <T> CompletableFuture<Void> forInboundConsumer(
+  <T> CompletableFuture<Void> receive(
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
       LogicalEndpoint inputLocation,
       Coder<WindowedValue<T>> coder,
-      FnDataReceiver<WindowedValue<T>> consumer);
+      FnDataReceiver<WindowedValue<T>> receiver);
 
   /**
-   * Creates a closeable consumer using the provided instruction id and target.
+   * Creates a {@link CloseableFnDataReceiver} using the provided instruction id and target.
    *
    * <p>The provided coder is used to encode elements on the outbound stream.
    *
-   * <p>Closing the returned consumer signals the end of the stream.
+   * <p>Closing the returned receiver signals the end of the stream.
    *
-   * <p>The returned closeable consumer is not thread safe.
+   * <p>The returned closeable receiver is not thread safe.
    */
-  <T> CloseableFnDataReceiver<WindowedValue<T>> forOutboundConsumer(
+  <T> CloseableFnDataReceiver<WindowedValue<T>> send(
       Endpoints.ApiServiceDescriptor apiServiceDescriptor,
       LogicalEndpoint outputLocation,
       Coder<WindowedValue<T>> coder);
