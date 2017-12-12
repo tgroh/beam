@@ -40,22 +40,23 @@ public interface PTransformRunnerFactory<T> {
 
   /**
    * Creates and returns a handler for a given PTransform. Note that the handler must support
-   * processing multiple bundles. The handler will be discarded if an error is thrown during
-   * element processing, or during execution of start/finish.
-   *  @param pipelineOptions Pipeline options
+   * processing multiple bundles. The handler will be discarded if an error is thrown during element
+   * processing, or during execution of start/finish.
+   *
+   * @param pipelineOptions Pipeline options
    * @param beamFnDataClient A client for handling inbound and outbound data streams.
    * @param beamFnStateClient A client for handling state requests.
    * @param pTransformId The id of the PTransform.
    * @param pTransform The PTransform definition.
    * @param processBundleInstructionId A supplier containing the active process bundle instruction
-* id.
+   *     id.
    * @param pCollections A mapping from PCollection id to PCollection definition.
    * @param coders A mapping from coder id to coder definition.
    * @param pCollectionIdsToConsumers A mapping from PCollection id to a collection of consumers.
-* Note that if this handler is a consumer, it should register itself within this multimap under
-* the appropriate PCollection ids. Also note that all output consumers needed by this PTransform
-* (based on the values of the {@link PTransform#getOutputsMap()} will have already
-* registered within this multimap.
+   *     Note that if this handler is a consumer, it should register itself within this multimap
+   *     under the appropriate PCollection ids. Also note that all output consumers needed by this
+   *     PTransform (based on the values of the {@link PTransform#getOutputsMap()} will have already
+   *     registered within this multimap.
    * @param addStartFunction A consumer to register a start bundle handler with.
    * @param addFinishFunction A consumer to register a finish bundle handler with.
    */
@@ -70,7 +71,8 @@ public interface PTransformRunnerFactory<T> {
       Map<String, Coder> coders,
       Multimap<String, FnDataReceiver<WindowedValue<?>>> pCollectionIdsToConsumers,
       Consumer<ThrowingRunnable> addStartFunction,
-      Consumer<ThrowingRunnable> addFinishFunction) throws IOException;
+      Consumer<ThrowingRunnable> addFinishFunction)
+      throws IOException;
 
   /**
    * A registrar which can return a mapping from {@link RunnerApi.FunctionSpec#getUrn()} to

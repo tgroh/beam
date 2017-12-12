@@ -30,7 +30,7 @@ public class MultiplexingFnDataReceiver<T> implements FnDataReceiver<T> {
   public static <T> FnDataReceiver<T> forConsumers(
       Collection<FnDataReceiver<T>> consumers) {
     if (consumers.size() == 1) {
-      return Iterables.getOnlyElement(consumers)::accept;
+      return Iterables.getOnlyElement(consumers);
     }
     return new MultiplexingFnDataReceiver<>(consumers);
   }
