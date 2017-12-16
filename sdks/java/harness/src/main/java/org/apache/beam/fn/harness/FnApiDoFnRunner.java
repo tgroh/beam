@@ -51,6 +51,7 @@ import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.runners.core.DoFnRunner;
+import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.ParDoTranslation;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.KvCoder;
@@ -111,7 +112,12 @@ public class FnApiDoFnRunner<InputT, OutputT> implements DoFnRunner<InputT, Outp
 
     @Override
     public Map<String, PTransformRunnerFactory> getPTransformRunnerFactories() {
-      return ImmutableMap.of(ParDoTranslation.CUSTOM_JAVA_DO_FN_URN, new Factory());
+      Factory factory = new Factory();
+      return ImmutableMap.<String, PTransformRunnerFactory>builder()
+          // TODO: Remove the DoFn URN, which should not be on the overall PTransform Payload
+          .put(ParDoTranslation.CUSTOM_JAVA_DO_FN_URN, factory)
+          .put(PTransformTranslation.PAR_DO_TRANSFORM_URN, factory)
+          .build();
     }
   }
 
@@ -146,6 +152,7 @@ public class FnApiDoFnRunner<InputT, OutputT> implements DoFnRunner<InputT, Outp
 
       // Get the DoFnInfo from the serialized blob.
       ByteString serializedFn = pTransform.getSpec().getPayload();
+      // TODO(BEAM-3366): Check that the spec URN is for a java DoFn? May be overly restrictive
       @SuppressWarnings({"unchecked", "rawtypes"})
       DoFnInfo<InputT, OutputT> doFnInfo = (DoFnInfo) SerializableUtils.deserializeFromByteArray(
           serializedFn.toByteArray(), "DoFnInfo");
