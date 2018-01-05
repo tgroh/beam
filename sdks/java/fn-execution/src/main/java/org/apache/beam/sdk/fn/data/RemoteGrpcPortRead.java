@@ -21,6 +21,7 @@ package org.apache.beam.sdk.fn.data;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.auto.value.AutoValue;
+import com.google.common.collect.Iterables;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.RemoteGrpcPort;
 import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
@@ -51,8 +52,8 @@ public abstract class RemoteGrpcPortRead {
         "Expected exactly one output, got %s",
         pTransform.getOutputsCount());
     RemoteGrpcPort port = RemoteGrpcPort.parseFrom(pTransform.getSpec().getPayload());
-    String localOutputId = pTransform.getOutputsOrThrow(LOCAL_OUTPUT_ID);
-    return readFromPort(port, localOutputId);
+    String outputPcollection = Iterables.getOnlyElement(pTransform.getOutputsMap().values());
+    return readFromPort(port, outputPcollection);
   }
 
   public PTransform toPTransform() {

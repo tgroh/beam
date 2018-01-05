@@ -117,7 +117,6 @@ public class BeamFnDataReadRunnerTest {
   @Test
   public void testCreatingAndProcessingBeamFnDataReadRunner() throws Exception {
     String bundleId = "57";
-    String outputId = "101";
 
     List<WindowedValue<String>> outputValues = new ArrayList<>();
 
