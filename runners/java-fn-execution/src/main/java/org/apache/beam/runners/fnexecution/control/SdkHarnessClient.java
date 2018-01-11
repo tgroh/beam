@@ -114,6 +114,7 @@ public class SdkHarnessClient {
       final ListenableFuture<BeamFnApi.InstructionResponse> genericResponse =
           fnApiControlClient.handle(
               BeamFnApi.InstructionRequest.newBuilder()
+                  .setInstructionId(bundleId)
                   .setProcessBundle(
                       BeamFnApi.ProcessBundleRequest.newBuilder()
                           .setProcessBundleDescriptorReference(processBundleDescriptorId))
@@ -154,7 +155,7 @@ public class SdkHarnessClient {
   private final IdGenerator idGenerator;
   private final FnApiControlClient fnApiControlClient;
 
-  private final Cache<BeamFnApi.ProcessBundleDescriptor, BundleProcessor> clientProcessors =
+  private final Cache<String, BundleProcessor> clientProcessors =
       CacheBuilder.newBuilder().build();
 
   private SdkHarnessClient(FnApiControlClient fnApiControlClient, IdGenerator idGenerator) {
@@ -178,11 +179,11 @@ public class SdkHarnessClient {
   public BundleProcessor getProcessor(final BeamFnApi.ProcessBundleDescriptor descriptor) {
     try {
       return clientProcessors.get(
-          descriptor,
+          descriptor.getId(),
           new Callable<BundleProcessor>() {
             @Override
             public BundleProcessor call() {
-              return register(Collections.singleton(descriptor)).get(descriptor);
+              return register(Collections.singleton(descriptor)).get(descriptor.getId());
             }
           });
     } catch (ExecutionException e) {
@@ -195,7 +196,7 @@ public class SdkHarnessClient {
    *
    * <p>A client may block on the result future, but may also proceed without blocking.
    */
-  public Map<ProcessBundleDescriptor, BundleProcessor> register(
+  public Map<String, BundleProcessor> register(
       Iterable<BeamFnApi.ProcessBundleDescriptor> processBundleDescriptors) {
 
     // TODO: validate that all the necessary data endpoints are known
@@ -218,7 +219,7 @@ public class SdkHarnessClient {
         });
     for (BeamFnApi.ProcessBundleDescriptor processBundleDescriptor : processBundleDescriptors) {
       clientProcessors.put(
-          processBundleDescriptor,
+          processBundleDescriptor.getId(),
           new BundleProcessor(processBundleDescriptor.getId(), registerResponseFuture));
     }
 
@@ -226,13 +227,13 @@ public class SdkHarnessClient {
   }
 
   /**
-   * A pair of {@link Coder} and {@link BeamFnApi.Target} which can be handled by the remote
-   * SDK harness to receive elements sent from the runner.
+   * A pair of {@link Coder} and {@link BeamFnApi.Target} which can be handled by the remote SDK
+   * harness to receive elements sent from the runner.
    */
   @AutoValue
-  public abstract static class RemoteInputDesination<T> {
-    public static <T> RemoteInputDesination<T> of(Coder<T> coder, BeamFnApi.Target target) {
-      return new AutoValue_SdkHarnessClient_RemoteInputDesination(coder, target);
+  public abstract static class RemoteInputDestination<T> {
+    public static <T> RemoteInputDestination<T> of(Coder<T> coder, BeamFnApi.Target target) {
+      return new AutoValue_SdkHarnessClient_RemoteInputDestination(coder, target);
     }
 
     public abstract Coder<T> getCoder();

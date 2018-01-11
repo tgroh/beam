@@ -63,7 +63,7 @@ public class SdkHarnessClientTest {
         ProcessBundleDescriptor.newBuilder().setId(descriptorId1).build();
     ProcessBundleDescriptor descriptor2 =
         ProcessBundleDescriptor.newBuilder().setId(descriptorId2).build();
-    Map<ProcessBundleDescriptor, BundleProcessor> responseFuture =
+    Map<String, BundleProcessor> responseFuture =
         sdkHarnessClient.register(ImmutableList.of(descriptor1, descriptor2));
 
     // Correlating the RegisterRequest and RegisterResponse is owned by the underlying
@@ -72,7 +72,8 @@ public class SdkHarnessClientTest {
     //
     // Currently there are no fields so there's nothing to check. This test is formulated
     // to match the pattern it should have if/when the response is meaningful.
-    assertThat(responseFuture.keySet(), containsInAnyOrder(descriptor1, descriptor2));
+    assertThat(
+        responseFuture.keySet(), containsInAnyOrder(descriptor1.getId(), descriptor2.getId()));
   }
 
   @Test
