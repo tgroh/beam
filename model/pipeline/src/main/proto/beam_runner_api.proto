@@ -395,7 +395,7 @@ message Coder {
   // that can only be used by a particular SDK. It does not include component
   // coders, as it is beneficial for these to be comprehensible to a runner
   // regardless of whether the binary format is agree-upon.
-  SdkFunctionSpec spec = 1;
+  FunctionSpec spec = 1;
 
   // (Optional) If this coder is parametric, such as ListCoder(VarIntCoder),
   // this is a list of the components. In order for encodings to be identical,
