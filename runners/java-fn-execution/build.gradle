@@ -32,6 +32,7 @@ evaluationDependsOn(":sdks:java:fn-execution")
 dependencies {
   compile library.java.guava
   shadow project(path: ":model:pipeline", configuration: "shadow")
+  shadow project(path: ":model:job-management", configuration: "shadow")
   shadow project(path: ":model:fn-execution", configuration: "shadow")
   shadow project(path: ":sdks:java:core", configuration: "shadow")
   shadow project(path: ":sdks:java:fn-execution", configuration: "shadow")
