@@ -24,17 +24,13 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.google.protobuf.ByteString;
-import io.grpc.stub.StreamObserver;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
-import org.apache.beam.model.fnexecution.v1.BeamFnApi.Elements;
 import org.apache.beam.model.pipeline.v1.Endpoints;
-import org.apache.beam.sdk.fn.stream.StreamObserverFactory.StreamObserverClientFactory;
-import org.apache.beam.sdk.fn.test.Consumer;
 import org.apache.beam.sdk.fn.test.TestStreams;
 import org.junit.Test;
 
@@ -66,21 +62,7 @@ public class BeamFnDataGrpcMultiplexerTest {
     final Collection<BeamFnApi.Elements> values = new ArrayList<>();
     BeamFnDataGrpcMultiplexer multiplexer =
         new BeamFnDataGrpcMultiplexer(
-            DESCRIPTOR,
-            new StreamObserverClientFactory<Elements, Elements>() {
-              @Override
-              public StreamObserver<Elements> outboundObserverFor(
-                  StreamObserver<Elements> inboundObserver) {
-                return TestStreams.withOnNext(
-                        new Consumer<Elements>() {
-                          @Override
-                          public void accept(Elements item) {
-                            values.add(item);
-                          }
-                        })
-                    .build();
-              }
-            });
+            DESCRIPTOR, inboundObserver -> TestStreams.withOnNext(values::add).build());
     multiplexer.getOutboundObserver().onNext(ELEMENTS);
     assertThat(values, contains(ELEMENTS));
   }
@@ -91,30 +73,13 @@ public class BeamFnDataGrpcMultiplexerTest {
     final Collection<BeamFnApi.Elements.Data> inboundValues = new ArrayList<>();
     final BeamFnDataGrpcMultiplexer multiplexer =
         new BeamFnDataGrpcMultiplexer(
-            DESCRIPTOR,
-            new StreamObserverClientFactory<Elements, Elements>() {
-              @Override
-              public StreamObserver<Elements> outboundObserverFor(
-                  StreamObserver<Elements> inboundObserver) {
-                return TestStreams.withOnNext(
-                        new Consumer<Elements>() {
-                          @Override
-                          public void accept(Elements item) {
-                            outboundValues.add(item);
-                          }
-                        })
-                    .build();
-              }
-            });
+            DESCRIPTOR, inboundObserver -> TestStreams.withOnNext(outboundValues::add).build());
     ExecutorService executorService = Executors.newCachedThreadPool();
     executorService.submit(
-        new Runnable() {
-          @Override
-          public void run() {
-            // Purposefully sleep to simulate a delay in a consumer connecting.
-            Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
-            multiplexer.registerConsumer(OUTPUT_LOCATION, inboundValues::add);
-          }
+        () -> {
+          // Purposefully sleep to simulate a delay in a consumer connecting.
+          Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+          multiplexer.registerConsumer(OUTPUT_LOCATION, inboundValues::add);
         });
     multiplexer.getInboundObserver().onNext(ELEMENTS);
     assertTrue(multiplexer.hasConsumer(OUTPUT_LOCATION));
