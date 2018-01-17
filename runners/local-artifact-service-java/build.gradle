@@ -30,6 +30,7 @@ dependencies {
   shadow library.java.grpc_stub
   shadow library.java.protobuf_java
   shadow library.java.slf4j_api
+  testCompile project(path: ":beam-runners-parent:beam-runners-core-construction-java")
   testCompile library.java.hamcrest_core
   testCompile library.java.hamcrest_library
   testCompile library.java.mockito_core
