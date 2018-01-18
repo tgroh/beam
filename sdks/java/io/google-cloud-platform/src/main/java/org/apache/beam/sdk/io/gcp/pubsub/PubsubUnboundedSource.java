@@ -1408,6 +1408,10 @@ public class PubsubUnboundedSource extends PTransform<PBegin, PCollection<Pubsub
                         pubsubFactory, subscription, topic, timestampAttribute, idAttribute)));
   }
 
+  PTransform<PBegin, PCollection<PubsubMessage>> withMaxNumRecords(long maxNumRecords) {
+    return Read.from(new PubsubSource(this)).withMaxNumRecords(maxNumRecords);
+  }
+
   private SubscriptionPath createRandomSubscription(PipelineOptions options) {
     try {
       try (PubsubClient pubsubClient =

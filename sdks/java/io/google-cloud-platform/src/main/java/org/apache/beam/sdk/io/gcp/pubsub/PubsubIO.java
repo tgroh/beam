@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
+import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineRunner;
 import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.Coder;
@@ -695,8 +696,36 @@ public class PubsubIO {
       return toBuilder().setCoder(coder).setParseFn(parseFn).build();
     }
 
+    /**
+     * WARNING: Use of this method is strongly discouraged except for testing.
+     *
+     * <p>Returns a {@link PTransform} that reads from the configured topic or subscription, but stops
+     * after the specified number of records have been read.
+     *
+     * <p>Use of this method with an existing subscription is strongly discouraged except for
+     * testing. Messages read from the subscription will be immediately acknowledged, regardless of
+     * any durable storage of those messages within the {@link Pipeline}. As the read will read an
+     * arbitrary set of records from the subscription, the state of both the pipeline and the
+     * subscription after the read begins are not well-defined.
+     */
+    public PTransform<PBegin, PCollection<T>> withMaxNumRecords(final long maxNumRecords) {
+      return new PTransform<PBegin, PCollection<T>>() {
+        @Override
+        public PCollection<T> expand(PBegin input) {
+          return input
+              .apply(createSource().withMaxNumRecords(maxNumRecords))
+              .apply(MapElements.via(getParseFn()))
+              .setCoder(getCoder());
+        }
+      };
+    }
+
     @Override
     public PCollection<T> expand(PBegin input) {
+      return input.apply(createSource()).apply(MapElements.via(getParseFn())).setCoder(getCoder());
+    }
+
+    private PubsubUnboundedSource createSource() {
       if (getTopicProvider() == null && getSubscriptionProvider() == null) {
         throw new IllegalStateException(
             "Need to set either the topic or the subscription for " + "a PubsubIO.Read transform");
@@ -706,8 +735,7 @@ public class PubsubIO {
             "Can't set both the topic and the subscription for " + "a PubsubIO.Read transform");
       }
 
-      @Nullable
-      ValueProvider<ProjectPath> projectPath =
+      @Nullable ValueProvider<ProjectPath> projectPath =
           getTopicProvider() == null
               ? null
               : NestedValueProvider.of(getTopicProvider(), new ProjectPathTranslator());
@@ -721,16 +749,14 @@ public class PubsubIO {
           getSubscriptionProvider() == null
               ? null
               : NestedValueProvider.of(getSubscriptionProvider(), new SubscriptionPathTranslator());
-      PubsubUnboundedSource source =
-          new PubsubUnboundedSource(
-              FACTORY,
-              projectPath,
-              topicPath,
-              subscriptionPath,
-              getTimestampAttribute(),
-              getIdAttribute(),
-              getNeedsAttributes());
-      return input.apply(source).apply(MapElements.via(getParseFn())).setCoder(getCoder());
+      return new PubsubUnboundedSource(
+          FACTORY,
+          projectPath,
+          topicPath,
+          subscriptionPath,
+          getTimestampAttribute(),
+          getIdAttribute(),
+          getNeedsAttributes());
     }
 
     @Override
