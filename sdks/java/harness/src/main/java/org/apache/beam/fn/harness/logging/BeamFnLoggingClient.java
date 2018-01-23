@@ -323,7 +323,12 @@ public class BeamFnLoggingClient implements AutoCloseable {
 
     @Override
     public void onCompleted() {
-      inboundObserverCompletion.complete(null);
+      // Findbugs limitation when using Void typed CompletableFuture. This is a limitation of
+      // FindBugs as discussed here:
+      //    https://github.com/findbugsproject/findbugs/issues/79
+      @SuppressWarnings("unused")
+      @edu.umd.cs.findbugs.annotations.SuppressWarnings("NP_NONNULL_PARAM_VIOLATION")
+      boolean completed = inboundObserverCompletion.complete(null);
     }
 
   }
