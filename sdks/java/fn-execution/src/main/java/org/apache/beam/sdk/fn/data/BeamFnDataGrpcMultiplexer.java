@@ -102,10 +102,8 @@ public class BeamFnDataGrpcMultiplexer implements AutoCloseable {
   public void close() {
     for (CompletableFuture<Consumer<BeamFnApi.Elements.Data>> receiver :
         ImmutableList.copyOf(consumers.values())) {
-      if (receiver.isDone()) {
-        continue;
-      }
-      // Cancel any observer waiting for the client to complete.
+      // Cancel any observer waiting for the client to complete. If the receiver has already been
+      // completed or cancelled, this call will be ignored.
       receiver.cancel(true);
     }
     // Cancel any outbound calls and complete any inbound calls, as this multiplexer is hanging up
