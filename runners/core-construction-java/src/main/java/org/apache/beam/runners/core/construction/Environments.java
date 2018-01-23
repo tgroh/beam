@@ -28,7 +28,7 @@ public class Environments {
       String.format(
           "%s-%s",
           ReleaseInfo.getReleaseInfo().getName(), ReleaseInfo.getReleaseInfo().getVersion());
-  static final Environment JAVA_SDK_HARNESS_ENVIRONMENT =
+  public static final Environment JAVA_SDK_HARNESS_ENVIRONMENT =
       Environment.newBuilder().setUrl(JAVA_SDK_HARNESS_CONTAINER_URL).build();
 
   private Environments() {}
