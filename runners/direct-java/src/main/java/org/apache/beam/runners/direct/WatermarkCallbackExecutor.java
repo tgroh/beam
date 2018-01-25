@@ -135,6 +135,12 @@ class WatermarkCallbackExecutor {
         BoundedWindow window, WindowingStrategy<?, W> strategy, Runnable callback) {
       @SuppressWarnings("unchecked")
       Instant firingAfter = strategy.getTrigger().getWatermarkThatGuaranteesFiring((W) window);
+      // Whenever a window expires, it will never have other opportunities to fire, and thus
+      // would-have-fired-if-it-contained-elements.
+      Instant windowExpiry = window.maxTimestamp().plus(strategy.getAllowedLateness());
+      if (windowExpiry.isBefore(firingAfter)) {
+        firingAfter = windowExpiry;
+      }
       return new WatermarkCallback(firingAfter, callback);
     }
 
