@@ -84,13 +84,13 @@ public class CoderTranslationTest {
       // Validates that every known coder in the Coders class is represented in a "Known Coder"
       // tests, which demonstrates that they are serialized via components and specified URNs rather
       // than java serialized
-      Set<Class<? extends StructuredCoder>> knownCoderClasses =
-          CoderTranslation.KNOWN_CODER_URNS.keySet();
-      Set<Class<? extends StructuredCoder>> knownCoderTests = new HashSet<>();
-      for (StructuredCoder<?> coder : KNOWN_CODERS) {
+      Set<Class<? extends Coder>> knownCoderClasses =
+          ModelCoderRegistrar.BEAM_MODEL_CODER_URNS.keySet();
+      Set<Class<? extends Coder>> knownCoderTests = new HashSet<>();
+      for (Coder<?> coder : KNOWN_CODERS) {
         knownCoderTests.add(coder.getClass());
       }
-      Set<Class<? extends StructuredCoder>> missingKnownCoders = new HashSet<>(knownCoderClasses);
+      Set<Class<? extends Coder>> missingKnownCoders = new HashSet<>(knownCoderClasses);
       missingKnownCoders.removeAll(knownCoderTests);
       assertThat(
           String.format(
@@ -104,8 +104,8 @@ public class CoderTranslationTest {
     public void validateCoderTranslators() {
       assertThat(
           "Every Known Coder must have a Known Translator",
-          CoderTranslation.KNOWN_CODER_URNS.keySet(),
-          equalTo(CoderTranslation.KNOWN_TRANSLATORS.keySet()));
+          ModelCoderRegistrar.BEAM_MODEL_CODERS.keySet(),
+          equalTo(ModelCoderRegistrar.BEAM_MODEL_CODERS.keySet()));
     }
   }
 

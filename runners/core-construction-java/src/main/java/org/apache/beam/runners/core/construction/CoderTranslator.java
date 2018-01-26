@@ -38,7 +38,11 @@ public interface CoderTranslator<T extends Coder<?>> {
   List<? extends Coder<?>> getComponents(T from);
 
   /**
-   * Create a {@link Coder} from its component {@link Coder coders}.
+   * Returns the serialized payload that will be provided when deserializing this coder, if any. If
+   * there is no payload, a byte array of length 0 should be returned.
    */
-  T fromComponents(List<Coder<?>> components);
+  byte[] getPayload(T from);
+
+  /** Create a {@link Coder} from its component {@link Coder coders}. */
+  T fromComponents(List<Coder<?>> components, byte[] payload);
 }
