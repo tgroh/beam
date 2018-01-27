@@ -107,15 +107,6 @@ class CoderTranslators {
 
   public abstract static class SimpleStructuredCoderTranslator<T extends Coder<?>>
       implements CoderTranslator<T> {
-    /**
-     * {@inheritDoc}.
-     *
-     * <p>Always returns the byte array of length 0.
-     */
-    public final byte[] getPayload(T coder) {
-      return new byte[0];
-    }
-
     public final T fromComponents(List<Coder<?>> components, byte[] payload) {
       return fromComponents(components);
     }
