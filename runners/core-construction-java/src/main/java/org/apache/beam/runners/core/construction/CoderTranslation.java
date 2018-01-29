@@ -35,7 +35,6 @@ import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.sdk.coders.Coder;
-import org.apache.beam.sdk.coders.StructuredCoder;
 import org.apache.beam.sdk.util.SerializableUtils;
 
 /** Converts to and from Beam Runner API representations of {@link Coder Coders}. */
@@ -88,16 +87,7 @@ public class CoderTranslation {
 
   private static RunnerApi.Coder toKnownCoder(Coder<?> coder, SdkComponents components)
       throws IOException {
-    // TODO: We don't force this type in the CoderTranslatorRegistrar anymore. Still important?
-    checkArgument(
-        coder instanceof StructuredCoder,
-        "A Known %s must implement %s, but %s of class %s does not",
-        Coder.class.getSimpleName(),
-        StructuredCoder.class.getSimpleName(),
-        coder,
-        coder.getClass().getName());
-    StructuredCoder<?> stdCoder = (StructuredCoder<?>) coder;
-    CoderTranslator translator = KNOWN_TRANSLATORS.get(stdCoder.getClass());
+    CoderTranslator translator = KNOWN_TRANSLATORS.get(coder.getClass());
     List<String> componentIds = registerComponents(coder, translator, components);
     return RunnerApi.Coder.newBuilder()
         .addAllComponentCoderIds(componentIds)
@@ -105,7 +95,7 @@ public class CoderTranslation {
             SdkFunctionSpec.newBuilder()
                 .setSpec(
                     FunctionSpec.newBuilder()
-                        .setUrn(KNOWN_CODER_URNS.get(stdCoder.getClass()))
+                        .setUrn(KNOWN_CODER_URNS.get(coder.getClass()))
                         .setPayload(ByteString.copyFrom(translator.getPayload(coder)))))
         .build();
   }

@@ -19,6 +19,7 @@
 package org.apache.beam.runners.core.construction;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 
@@ -103,9 +104,13 @@ public class CoderTranslationTest {
     @Test
     public void validateCoderTranslators() {
       assertThat(
-          "Every Known Coder must have a Known Translator",
-          ModelCoderRegistrar.BEAM_MODEL_CODERS.keySet(),
+          "Every Model Coder must have a Translator",
+          ModelCoderRegistrar.BEAM_MODEL_CODER_URNS.keySet(),
           equalTo(ModelCoderRegistrar.BEAM_MODEL_CODERS.keySet()));
+      assertThat(
+          "All Model Coders should be registered",
+          CoderTranslation.KNOWN_TRANSLATORS.keySet(),
+          hasItems(ModelCoderRegistrar.BEAM_MODEL_CODERS.keySet().toArray(new Class[0])));
     }
   }
 

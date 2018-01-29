@@ -44,7 +44,8 @@ public interface CoderTranslator<T extends Coder<?>> {
    * <p>The default implementation returns a byte array of length zero.
    */
   default byte[] getPayload(T from) {
-    return new byte[0];}
+    return new byte[0];
+  }
 
   /** Create a {@link Coder} from its component {@link Coder coders}. */
   T fromComponents(List<Coder<?>> components, byte[] payload);
