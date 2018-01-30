@@ -20,12 +20,14 @@ package org.apache.beam.runners.core.construction.graph;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 
 import com.google.common.collect.Iterables;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
@@ -40,20 +42,24 @@ import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionN
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.CountingSource;
+import org.apache.beam.sdk.io.GenerateSequence;
 import org.apache.beam.sdk.io.Read;
 import org.apache.beam.sdk.transforms.Count;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.Flatten;
+import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
 import org.apache.beam.sdk.transforms.windowing.Window;
+import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
+import org.apache.beam.sdk.values.TypeDescriptors;
 import org.joda.time.Duration;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -250,5 +256,102 @@ public class QueryablePipelineTest {
   private static class TestFn extends DoFn<Long, Long> {
     @ProcessElement
     public void process(ProcessContext ctxt) {}
+  }
+
+  @Test
+  public void retainOnlyPrimitivesWithOnlyPrimitivesUnchanged() {
+    Pipeline p = Pipeline.create();
+    p.apply("Read", Read.from(CountingSource.unbounded()))
+        .apply(
+            "multi-do",
+            ParDo.of(new TestFn()).withOutputTags(new TupleTag<>(), TupleTagList.empty()));
+
+    Components originalComponents = PipelineTranslation.toProto(p).getComponents();
+    Components primitiveComponents = QueryablePipeline.retainOnlyPrimitives(originalComponents);
+
+    assertThat(primitiveComponents, equalTo(originalComponents));
+  }
+
+  @Test
+  public void retainOnlyPrimitivesComposites() {
+    Pipeline p = Pipeline.create();
+    p.apply(
+        new org.apache.beam.sdk.transforms.PTransform<PBegin, PCollection<Long>>() {
+          @Override
+          public PCollection<Long> expand(PBegin input) {
+            return input
+                .apply(GenerateSequence.from(2L))
+                .apply(Window.into(FixedWindows.of(Duration.standardMinutes(5L))))
+                .apply(MapElements.into(TypeDescriptors.longs()).via(l -> l + 1));
+          }
+        });
+
+    Components originalComponents = PipelineTranslation.toProto(p).getComponents();
+    Components primitiveComponents = QueryablePipeline.retainOnlyPrimitives(originalComponents);
+
+    // Read, Window.Assign, ParDo. This will need to be updated if the expansions change.
+    assertThat(primitiveComponents.getTransformsCount(), equalTo(3));
+    for (Map.Entry<String, RunnerApi.PTransform> transformEntry :
+        primitiveComponents.getTransformsMap().entrySet()) {
+      assertThat(
+          originalComponents.getTransformsMap(),
+          hasEntry(transformEntry.getKey(), transformEntry.getValue()));
+    }
+
+    // Other components should be unchanged
+    assertThat(
+        primitiveComponents.getPcollectionsCount(),
+        equalTo(originalComponents.getPcollectionsCount()));
+    assertThat(
+        primitiveComponents.getWindowingStrategiesCount(),
+        equalTo(originalComponents.getWindowingStrategiesCount()));
+    assertThat(
+        primitiveComponents.getCodersCount(),
+        equalTo(originalComponents.getCodersCount()));
+    assertThat(
+        primitiveComponents.getEnvironmentsCount(),
+        equalTo(originalComponents.getEnvironmentsCount()));
+  }
+
+  /**
+   * This method doesn't do any pruning for reachability, but this may not require a test.
+   */
+  @Test
+  public void retainOnlyPrimitivesIgnoresUnreachableNodes() {
+    Pipeline p = Pipeline.create();
+    p.apply(
+        new org.apache.beam.sdk.transforms.PTransform<PBegin, PCollection<Long>>() {
+          @Override
+          public PCollection<Long> expand(PBegin input) {
+            return input
+                .apply(GenerateSequence.from(2L))
+                .apply(Window.into(FixedWindows.of(Duration.standardMinutes(5L))))
+                .apply(MapElements.into(TypeDescriptors.longs()).via(l -> l + 1));
+          }
+        });
+
+    Components augmentedComponents =
+        PipelineTranslation.toProto(p)
+            .getComponents()
+            .toBuilder()
+            .putCoders("extra-coder", RunnerApi.Coder.getDefaultInstance())
+            .putWindowingStrategies(
+                "extra-windowing-strategy", RunnerApi.WindowingStrategy.getDefaultInstance())
+            .putEnvironments("extra-env", RunnerApi.Environment.getDefaultInstance())
+            .putPcollections("extra-pc", RunnerApi.PCollection.getDefaultInstance())
+            .build();
+    Components primitiveComponents = QueryablePipeline.retainOnlyPrimitives(augmentedComponents);
+
+    // Other components should be unchanged
+    assertThat(
+        primitiveComponents.getPcollectionsCount(),
+        equalTo(augmentedComponents.getPcollectionsCount()));
+    assertThat(
+        primitiveComponents.getWindowingStrategiesCount(),
+        equalTo(augmentedComponents.getWindowingStrategiesCount()));
+    assertThat(primitiveComponents.getCodersCount(), equalTo(augmentedComponents.getCodersCount()));
+    assertThat(
+        primitiveComponents.getEnvironmentsCount(),
+        equalTo(augmentedComponents.getEnvironmentsCount()));
   }
 }

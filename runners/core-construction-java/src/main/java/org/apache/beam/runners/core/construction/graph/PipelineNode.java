@@ -34,42 +34,21 @@ interface PipelineNode {
     return new AutoValue_PipelineNode_PCollectionNode(id, collection);
   }
 
-  default PCollectionNode asPCollectionNode() {
-    throw new IllegalArgumentException(
-        String.format(
-            "Cannot convert a %s with type %s to a %s",
-            PipelineNode.class.getSimpleName(),
-            getClass().getSimpleName(),
-            PCollectionNode.class.getSimpleName()));
-  }
-
-  default PTransformNode asPTransformNode() {
-    throw new IllegalArgumentException(
-        String.format(
-            "A %s with type %s is not a %s",
-            PipelineNode.class.getSimpleName(),
-            getClass().getSimpleName(),
-            PTransformNode.class.getSimpleName()));
-  }
-
+  /**
+   * A {@link PipelineNode} which contains a {@link PCollection}.
+   */
   @AutoValue
   abstract class PCollectionNode implements PipelineNode {
-    @Override
-    public PCollectionNode asPCollectionNode() {
-      return this;
-    }
-
     public abstract String getId();
     public abstract PCollection getPCollection();
   }
 
+
+  /**
+   * A {@link PipelineNode} which contains a {@link PTransform}.
+   */
   @AutoValue
   abstract class PTransformNode implements PipelineNode {
-    @Override
-    public PTransformNode asPTransformNode() {
-      return this;
-    }
-
     public abstract String getId();
     public abstract PTransform getTransform();
   }

@@ -20,6 +20,7 @@ package org.apache.beam.runners.core.construction.graph;
 
 import static com.google.common.base.Preconditions.checkState;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.graph.MutableNetwork;
 import com.google.common.graph.Network;
@@ -32,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
@@ -80,9 +82,33 @@ public class QueryablePipeline {
   private final MutableNetwork<PipelineNode, PipelineEdge> pipelineNetwork;
 
   private QueryablePipeline(Components allComponents) {
-    this.components = Pipelines.retainOnlyPrimitives(allComponents);
+    this.components = retainOnlyPrimitives(allComponents);
     this.rehydratedComponents = RehydratedComponents.forComponents(this.components);
     this.pipelineNetwork = buildNetwork(this.components);
+  }
+
+  /** Produces a {@link RunnerApi.Components} which contains only primitive transforms. */
+  @VisibleForTesting
+  static RunnerApi.Components retainOnlyPrimitives(RunnerApi.Components components) {
+    RunnerApi.Components.Builder flattenedBuilder = components.toBuilder();
+    flattenedBuilder.clearTransforms();
+    for (Map.Entry<String, PTransform> transformEntry : components.getTransformsMap().entrySet()) {
+      PTransform transform = transformEntry.getValue();
+      boolean isPrimitive = isPrimitiveTransform(transform);
+      if (isPrimitive) {
+        flattenedBuilder.putTransforms(transformEntry.getKey(), transform);
+      }
+    }
+    return flattenedBuilder.build();
+  }
+
+  /**
+   * Returns true if the provided transform is a primitive. A primitive has no subtransforms and
+   * produces a new {@link PCollection}.
+   */
+  private static boolean isPrimitiveTransform(PTransform transform) {
+    return transform.getSubtransformsCount() == 0
+        && !transform.getInputsMap().values().containsAll(transform.getOutputsMap().values());
   }
 
   private MutableNetwork<PipelineNode, PipelineEdge> buildNetwork(Components components) {
@@ -140,12 +166,12 @@ public class QueryablePipeline {
         .nodes()
         .stream()
         .filter(pipelineNode -> pipelineNetwork.inEdges(pipelineNode).isEmpty())
-        .map(PipelineNode::asPTransformNode)
+        .map(pipelineNode ->  (PTransformNode) pipelineNode)
         .collect(Collectors.toSet());
   }
 
-  public PipelineNode.PTransformNode getProducer(PCollectionNode pcollection) {
-    return Iterables.getOnlyElement(pipelineNetwork.predecessors(pcollection)).asPTransformNode();
+  public PTransformNode getProducer(PCollectionNode pcollection) {
+    return (PTransformNode) Iterables.getOnlyElement(pipelineNetwork.predecessors(pcollection));
   }
 
   /**
@@ -169,7 +195,7 @@ public class QueryablePipeline {
                     .edgesConnecting(pCollection, consumer)
                     .stream()
                     .anyMatch(PipelineEdge::isPerElement))
-        .map(PipelineNode::asPTransformNode)
+        .map(pipelineNode -> (PTransformNode) pipelineNode)
         .collect(Collectors.toSet());
   }
 
@@ -177,7 +203,7 @@ public class QueryablePipeline {
     return pipelineNetwork
         .successors(ptransform)
         .stream()
-        .map(PipelineNode::asPCollectionNode)
+        .map(pipelineNode -> (PCollectionNode) pipelineNode)
         .collect(Collectors.toSet());
   }
 
