@@ -26,11 +26,6 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
  * A graph node which contains some pipeline element.
  */
 interface PipelineNode {
-  enum NodeType {
-    PCOLLECTION,
-    PTRANSFORM
-  }
-
   static PTransformNode ptransform(String id, PTransform transform) {
     return new AutoValue_PipelineNode_PTransformNode(id, transform);
   }
@@ -39,13 +34,13 @@ interface PipelineNode {
     return new AutoValue_PipelineNode_PCollectionNode(id, collection);
   }
 
-  NodeType getType();
-
   default PCollectionNode asPCollectionNode() {
     throw new IllegalArgumentException(
         String.format(
             "Cannot convert a %s with type %s to a %s",
-            PipelineNode.class.getSimpleName(), getType(), PCollectionNode.class.getSimpleName()));
+            PipelineNode.class.getSimpleName(),
+            getClass().getSimpleName(),
+            PCollectionNode.class.getSimpleName()));
   }
 
   default PTransformNode asPTransformNode() {
@@ -53,16 +48,12 @@ interface PipelineNode {
         String.format(
             "A %s with type %s is not a %s",
             PipelineNode.class.getSimpleName(),
-            NodeType.PCOLLECTION,
+            getClass().getSimpleName(),
             PTransformNode.class.getSimpleName()));
   }
 
   @AutoValue
   abstract class PCollectionNode implements PipelineNode {
-    public NodeType getType() {
-      return NodeType.PCOLLECTION;
-    }
-
     @Override
     public PCollectionNode asPCollectionNode() {
       return this;
@@ -74,10 +65,6 @@ interface PipelineNode {
 
   @AutoValue
   abstract class PTransformNode implements PipelineNode {
-    public NodeType getType() {
-      return NodeType.PTRANSFORM;
-    }
-
     @Override
     public PTransformNode asPTransformNode() {
       return this;

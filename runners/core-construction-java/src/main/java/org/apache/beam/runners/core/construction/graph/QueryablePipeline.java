@@ -27,6 +27,7 @@ import com.google.common.graph.NetworkBuilder;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -40,7 +41,6 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
 import org.apache.beam.runners.core.construction.Environments;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.RehydratedComponents;
-import org.apache.beam.runners.core.construction.graph.PipelineNode.NodeType;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 
@@ -88,6 +88,7 @@ public class QueryablePipeline {
   private MutableNetwork<PipelineNode, PipelineEdge> buildNetwork(Components components) {
     MutableNetwork<PipelineNode, PipelineEdge> network =
         NetworkBuilder.directed().allowsParallelEdges(true).allowsSelfLoops(false).build();
+    Set<PCollectionNode> unproducedCollections = new HashSet<>();
     for (Map.Entry<String, PTransform> transformEntry : components.getTransformsMap().entrySet()) {
       String transformId = transformEntry.getKey();
       PTransform transform = transformEntry.getValue();
@@ -105,12 +106,16 @@ public class QueryablePipeline {
             PTransformNode.class.getSimpleName(),
             producedNode,
             network.successors(producedNode));
+        unproducedCollections.remove(producedNode);
       }
       for (Map.Entry<String, String> consumed : transform.getInputsMap().entrySet()) {
         // This loop may add an edge between the consumed PCollection and the current PTransform.
         // The local name of the transform must be used to determine the type of edge.
         PCollectionNode consumedNode = pCollectionNode(consumed.getValue());
-        network.addNode(consumedNode);
+        if (network.addNode(consumedNode)) {
+          // This node has been added to the network for the first time, so it has no producer.
+          unproducedCollections.add(consumedNode);
+        }
         if (getLocalSideInputNames(transform).contains(consumed.getKey())) {
           network.addEdge(consumedNode, transformNode, new SingletonEdge());
         } else {
@@ -118,6 +123,11 @@ public class QueryablePipeline {
         }
       }
     }
+    checkState(
+        unproducedCollections.isEmpty(),
+        "%ss %s were consumed but never produced",
+        PCollectionNode.class.getSimpleName(),
+        unproducedCollections);
     return network;
   }
 
@@ -129,10 +139,7 @@ public class QueryablePipeline {
     return pipelineNetwork
         .nodes()
         .stream()
-        .filter(
-            pipelineNode ->
-                pipelineNode.getType().equals(NodeType.PTRANSFORM)
-                    && pipelineNetwork.inEdges(pipelineNode).isEmpty())
+        .filter(pipelineNode -> pipelineNetwork.inEdges(pipelineNode).isEmpty())
         .map(PipelineNode::asPTransformNode)
         .collect(Collectors.toSet());
   }
