@@ -27,10 +27,11 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.ArrayList;
-import java.util.List;
+import java.nio.channels.FileChannel.MapMode;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi;
+import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.GetManifestResponse;
+import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
 import org.apache.beam.model.jobmanagement.v1.ArtifactRetrievalServiceGrpc;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
 
@@ -38,24 +39,28 @@ import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
 public class LocalFileSystemArtifactRetrievalService
     extends ArtifactRetrievalServiceGrpc.ArtifactRetrievalServiceImplBase
     implements ArtifactRetrievalService {
-  private static final long DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024;
+  private static final int DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024;
 
   public static LocalFileSystemArtifactRetrievalService forRootDirectory(File base) {
     return new LocalFileSystemArtifactRetrievalService(base);
   }
 
   private final LocalArtifactStagingLocation location;
+  private final Manifest manifest;
 
   private LocalFileSystemArtifactRetrievalService(File rootDirectory) {
     this.location = LocalArtifactStagingLocation.forExistingDirectory(rootDirectory);
-  }
-
-  /**
-   * Get the manifest of artifacts that can be retrieved by this {@link
-   * LocalFileSystemArtifactRetrievalService}.
-   */
-  private ArtifactApi.Manifest getManifest() throws IOException {
-    return ArtifactApi.Manifest.parseFrom(new FileInputStream(location.getManifestFile()));
+    try {
+      this.manifest =
+          ArtifactApi.Manifest.parseFrom(new FileInputStream(location.getManifestFile()));
+    } catch (FileNotFoundException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "No %s in root directory %s", Manifest.class.getSimpleName(), rootDirectory),
+          e);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -63,7 +68,7 @@ public class LocalFileSystemArtifactRetrievalService
       ArtifactApi.GetManifestRequest request,
       StreamObserver<GetManifestResponse> responseObserver) {
     try {
-      responseObserver.onNext(GetManifestResponse.newBuilder().setManifest(getManifest()).build());
+      responseObserver.onNext(GetManifestResponse.newBuilder().setManifest(manifest).build());
       responseObserver.onCompleted();
     } catch (Exception e) {
       responseObserver.onError(Status.INTERNAL.withCause(e).asException());
@@ -71,20 +76,13 @@ public class LocalFileSystemArtifactRetrievalService
   }
 
   /** Get the artifact with the provided name as a sequence of bytes. */
-  private Iterable<ByteBuffer> getArtifact(String name) throws IOException {
+  private ByteBuffer getArtifact(String name) throws IOException {
     File artifact = location.getArtifactFile(name);
     if (!artifact.exists()) {
       throw new FileNotFoundException(String.format("No such artifact %s", name));
     }
     FileChannel input = new FileInputStream(artifact).getChannel();
-    List<ByteBuffer> chunks = new ArrayList<>();
-    do {
-      ByteBuffer buf = ByteBuffer.allocate((int) Math.min(DEFAULT_CHUNK_SIZE, input.size()));
-      input.read(buf);
-      buf.flip();
-      chunks.add(buf);
-    } while (chunks.size() * DEFAULT_CHUNK_SIZE < input.size());
-    return chunks;
+    return input.map(MapMode.READ_ONLY, 0L, input.size());
   }
 
   @Override
@@ -92,11 +90,15 @@ public class LocalFileSystemArtifactRetrievalService
       ArtifactApi.GetArtifactRequest request,
       StreamObserver<ArtifactApi.ArtifactChunk> responseObserver) {
     try {
-      for (ByteBuffer artifactBytes : getArtifact(request.getName())) {
-        responseObserver.onNext(ArtifactApi.ArtifactChunk.newBuilder()
-            .setData(ByteString.copyFrom(artifactBytes))
-            .build());
-      }
+      ByteBuffer artifact = getArtifact(request.getName());
+      do {
+        responseObserver.onNext(
+            ArtifactChunk.newBuilder()
+                .setData(
+                    ByteString.copyFrom(
+                        artifact, Math.min(artifact.remaining(), DEFAULT_CHUNK_SIZE)))
+                .build());
+      } while (artifact.hasRemaining());
       responseObserver.onCompleted();
     } catch (FileNotFoundException e) {
       responseObserver.onError(
