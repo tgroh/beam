@@ -234,11 +234,21 @@ public class QueryablePipeline {
     }
   }
 
-  private PTransformNode transformNode(String transformId) {
+  /**
+   * Create the {@link PTransformNode} for the {@link PTransform} with the given ID.
+   *
+   * @throws IllegalArgumentException if there is no {@link PTransformNode} with the given ID.
+   */
+  public PTransformNode transformNode(String transformId) {
     return PipelineNode.ptransform(transformId, components.getTransformsOrThrow(transformId));
   }
 
-  private PCollectionNode pCollectionNode(String pcollectionId) {
+  /**
+   * Create the {@link PCollectionNode} for the {@link PCollection} with the given ID.
+   *
+   * @throws IllegalArgumentException if there is no {@link PCollectionNode} with the given ID.
+   */
+  public PCollectionNode pCollectionNode(String pcollectionId) {
     return PipelineNode.pcollection(
         pcollectionId, components.getPcollectionsOrThrow(pcollectionId));
   }
