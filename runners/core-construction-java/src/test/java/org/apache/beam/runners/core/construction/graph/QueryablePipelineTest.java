@@ -20,6 +20,7 @@ package org.apache.beam.runners.core.construction.graph;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -72,35 +73,24 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class QueryablePipelineTest {
   @Rule public ExpectedException thrown = ExpectedException.none();
+
   /**
    * Constructing a {@link QueryablePipeline} with components that reference absent {@link
    * RunnerApi.PCollection PCollections} should fail.
    */
   @Test
+  public void fromEmptyComponents() {
+    // Not that it's hugely useful, but it shouldn't throw.
+    QueryablePipeline p = QueryablePipeline.fromComponents(Components.getDefaultInstance());
+    assertThat(p.getRootTransforms(), emptyIterable());
+  }
+
+  @Test
   public void fromComponentsWithMalformedComponents() {
     Components components =
         Components.newBuilder()
             .putTransforms(
-                "read",
-                PTransform.newBuilder()
-                    .setSpec(
-                        FunctionSpec.newBuilder()
-                            .setUrn(PTransformTranslation.READ_TRANSFORM_URN)
-                            .build())
-                    .putOutputs("output", "read.out")
-                    .build())
-            .putPcollections(
-                "read.out", RunnerApi.PCollection.newBuilder().setUniqueName("read.out").build())
-            .putTransforms(
-                "malformed",
-                PTransform.newBuilder()
-                    .setSpec(
-                        FunctionSpec.newBuilder()
-                            .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
-                            .build())
-                    .putInputs("in", "read.out")
-                    .putOutputs("out", "missing_pc")
-                    .build())
+                "root", PTransform.newBuilder().putOutputs("output", "output.out").build())
             .build();
 
     thrown.expect(IllegalArgumentException.class);

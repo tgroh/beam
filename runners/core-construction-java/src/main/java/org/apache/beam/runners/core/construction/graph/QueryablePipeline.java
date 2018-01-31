@@ -105,6 +105,9 @@ public class QueryablePipeline {
   /**
    * Returns true if the provided transform is a primitive. A primitive has no subtransforms and
    * produces a new {@link PCollection}.
+   *
+   * <p>Note that this precludes primitive transforms which only consume input and produce no
+   * PCollections as output.
    */
   private static boolean isPrimitiveTransform(PTransform transform) {
     return transform.getSubtransformsCount() == 0
@@ -155,6 +158,19 @@ public class QueryablePipeline {
         PCollectionNode.class.getSimpleName(),
         unproducedCollections);
     return network;
+  }
+
+  /**
+   * Return the set of all {@link PCollectionNode PCollection Nodes} which are consumed as side
+   * inputs.
+   */
+  private Set<PCollectionNode> getConsumedAsSideInputs() {
+    return pipelineNetwork
+        .edges()
+        .stream()
+        .filter(edge -> !edge.isPerElement())
+        .map(edge -> (PCollectionNode) pipelineNetwork.incidentNodes(edge).source())
+        .collect(Collectors.toSet());
   }
 
   /**
