@@ -50,9 +50,8 @@ public class LocalFileSystemArtifactRetrievalService
 
   private LocalFileSystemArtifactRetrievalService(File rootDirectory) {
     this.location = LocalArtifactStagingLocation.forExistingDirectory(rootDirectory);
-    try {
-      this.manifest =
-          ArtifactApi.Manifest.parseFrom(new FileInputStream(location.getManifestFile()));
+    try (FileInputStream manifestStream = new FileInputStream(location.getManifestFile())) {
+      this.manifest = ArtifactApi.Manifest.parseFrom(manifestStream);
     } catch (FileNotFoundException e) {
       throw new IllegalArgumentException(
           String.format(
