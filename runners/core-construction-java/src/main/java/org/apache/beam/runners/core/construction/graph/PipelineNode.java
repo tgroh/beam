@@ -26,11 +26,11 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
  * A graph node which contains some pipeline element.
  */
 interface PipelineNode {
-  static PTransformNode ptransform(String id, PTransform transform) {
+  static PTransformNode pTransform(String id, PTransform transform) {
     return new AutoValue_PipelineNode_PTransformNode(id, transform);
   }
 
-  static PCollectionNode pcollection(String id, PCollection collection) {
+  static PCollectionNode pCollection(String id, PCollection collection) {
     return new AutoValue_PipelineNode_PCollectionNode(id, collection);
   }
 

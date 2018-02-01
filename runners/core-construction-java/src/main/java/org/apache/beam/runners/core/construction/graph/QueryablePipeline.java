@@ -121,11 +121,12 @@ public class QueryablePipeline {
     for (Map.Entry<String, PTransform> transformEntry : components.getTransformsMap().entrySet()) {
       String transformId = transformEntry.getKey();
       PTransform transform = transformEntry.getValue();
-      PTransformNode transformNode = transformNode(transformId);
+      PTransformNode transformNode =
+          PipelineNode.pTransform(transformId, this.components.getTransformsOrThrow(transformId));
       network.addNode(transformNode);
       for (String produced : transform.getOutputsMap().values()) {
         PCollectionNode producedNode =
-            PipelineNode.pcollection(produced, components.getPcollectionsOrThrow(produced));
+            PipelineNode.pCollection(produced, components.getPcollectionsOrThrow(produced));
         network.addNode(producedNode);
         network.addEdge(transformNode, producedNode, new PerElementEdge());
         checkState(
@@ -140,7 +141,9 @@ public class QueryablePipeline {
       for (Map.Entry<String, String> consumed : transform.getInputsMap().entrySet()) {
         // This loop may add an edge between the consumed PCollection and the current PTransform.
         // The local name of the transform must be used to determine the type of edge.
-        PCollectionNode consumedNode = pCollectionNode(consumed.getValue());
+        String pcollectionId = consumed.getValue();
+        PCollectionNode consumedNode = PipelineNode.pCollection(pcollectionId,
+            this.components.getPcollectionsOrThrow(pcollectionId));
         if (network.addNode(consumedNode)) {
           // This node has been added to the network for the first time, so it has no producer.
           unproducedCollections.add(consumedNode);
@@ -215,7 +218,7 @@ public class QueryablePipeline {
         .collect(Collectors.toSet());
   }
 
-  public Set<PCollectionNode> getProducedPCollections(PTransformNode ptransform) {
+  public Set<PCollectionNode> getOutputPCollections(PTransformNode ptransform) {
     return pipelineNetwork
         .successors(ptransform)
         .stream()
@@ -234,7 +237,11 @@ public class QueryablePipeline {
   public Collection<PCollectionNode> getSideInputs(PTransformNode transform) {
     return getLocalSideInputNames(transform.getTransform())
         .stream()
-        .map(localName -> pCollectionNode(transform.getTransform().getInputsOrThrow(localName)))
+        .map(localName -> {
+          String pcollectionId = transform.getTransform().getInputsOrThrow(localName);
+          return PipelineNode.pCollection(
+              pcollectionId, components.getPcollectionsOrThrow(pcollectionId));
+        })
         .collect(Collectors.toSet());
   }
 
@@ -248,25 +255,6 @@ public class QueryablePipeline {
     } else {
       return Collections.emptySet();
     }
-  }
-
-  /**
-   * Create the {@link PTransformNode} for the {@link PTransform} with the given ID.
-   *
-   * @throws IllegalArgumentException if there is no {@link PTransformNode} with the given ID.
-   */
-  public PTransformNode transformNode(String transformId) {
-    return PipelineNode.ptransform(transformId, components.getTransformsOrThrow(transformId));
-  }
-
-  /**
-   * Create the {@link PCollectionNode} for the {@link PCollection} with the given ID.
-   *
-   * @throws IllegalArgumentException if there is no {@link PCollectionNode} with the given ID.
-   */
-  public PCollectionNode pCollectionNode(String pcollectionId) {
-    return PipelineNode.pcollection(
-        pcollectionId, components.getPcollectionsOrThrow(pcollectionId));
   }
 
   public Optional<Environment> getEnvironment(PTransformNode parDo) {

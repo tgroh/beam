@@ -142,8 +142,13 @@ public class QueryablePipelineTest {
     QueryablePipeline qp = QueryablePipeline.fromComponents(components);
 
     String mainInputName =
-        getOnlyElement(qp.transformNode("BoundedRead").getTransform().getOutputsMap().values());
-    PCollectionNode mainInput = qp.pCollectionNode(mainInputName);
+        getOnlyElement(
+            PipelineNode.pTransform("BoundedRead", components.getTransformsOrThrow("BoundedRead"))
+                .getTransform()
+                .getOutputsMap()
+                .values());
+    PCollectionNode mainInput =
+        PipelineNode.pCollection(mainInputName, components.getPcollectionsOrThrow(mainInputName));
     String sideInputName =
         getOnlyElement(
             components
@@ -153,8 +158,10 @@ public class QueryablePipelineTest {
                 .stream()
                 .filter(pcollectionName -> !pcollectionName.equals(mainInputName))
                 .collect(Collectors.toSet()));
-    PCollectionNode sideInput = qp.pCollectionNode(sideInputName);
-    PTransformNode parDoNode = qp.transformNode("par_do");
+    PCollectionNode sideInput =
+        PipelineNode.pCollection(sideInputName, components.getPcollectionsOrThrow(sideInputName));
+    PTransformNode parDoNode =
+        PipelineNode.pTransform("par_do", components.getTransformsOrThrow("par_do"));
 
     assertThat(qp.getSideInputs(parDoNode), contains(sideInput));
     assertThat(qp.getPerElementConsumers(mainInput), contains(parDoNode));
@@ -192,8 +199,10 @@ public class QueryablePipelineTest {
             .build();
 
     QueryablePipeline qp = QueryablePipeline.fromComponents(components);
-    PCollectionNode multiInputPc = qp.pCollectionNode("read_pc");
-    PTransformNode multiConsumerPT = qp.transformNode("multiConsumer");
+    PCollectionNode multiInputPc =
+        PipelineNode.pCollection("read_pc", components.getPcollectionsOrThrow("read_pc"));
+    PTransformNode multiConsumerPT =
+        PipelineNode.pTransform("multiConsumer", components.getTransformsOrThrow("multiConsumer"));
     assertThat(qp.getPerElementConsumers(multiInputPc), contains(multiConsumerPT));
     assertThat(qp.getSideInputs(multiConsumerPT), contains(multiInputPc));
   }
@@ -213,7 +222,9 @@ public class QueryablePipelineTest {
     String readOutput =
         getOnlyElement(components.getTransformsOrThrow("BoundedRead").getOutputsMap().values());
     QueryablePipeline qp = QueryablePipeline.fromComponents(components);
-    Set<PTransformNode> consumers = qp.getPerElementConsumers(qp.pCollectionNode(readOutput));
+    Set<PTransformNode> consumers =
+        qp.getPerElementConsumers(
+            PipelineNode.pCollection(readOutput, components.getPcollectionsOrThrow(readOutput)));
 
     assertThat(consumers.size(), equalTo(1));
     assertThat(
@@ -231,13 +242,27 @@ public class QueryablePipelineTest {
     QueryablePipeline qp = QueryablePipeline.fromComponents(components);
 
     String longsOutputName =
-        getOnlyElement(qp.transformNode("BoundedRead").getTransform().getOutputsMap().values());
-    PTransformNode longsProducer = qp.transformNode("BoundedRead");
-    PCollectionNode longsOutput = qp.pCollectionNode(longsOutputName);
+        getOnlyElement(
+            PipelineNode.pTransform("BoundedRead", components.getTransformsOrThrow("BoundedRead"))
+                .getTransform()
+                .getOutputsMap()
+                .values());
+    PTransformNode longsProducer =
+        PipelineNode.pTransform("BoundedRead", components.getTransformsOrThrow("BoundedRead"));
+    PCollectionNode longsOutput =
+        PipelineNode.pCollection(
+            longsOutputName, components.getPcollectionsOrThrow(longsOutputName));
     String flattenOutputName =
-        getOnlyElement(qp.transformNode("flatten").getTransform().getOutputsMap().values());
-    PTransformNode flattenProducer = qp.transformNode("flatten");
-    PCollectionNode flattenOutput = qp.pCollectionNode(flattenOutputName);
+        getOnlyElement(
+            PipelineNode.pTransform("flatten", components.getTransformsOrThrow("flatten"))
+                .getTransform()
+                .getOutputsMap()
+                .values());
+    PTransformNode flattenProducer =
+        PipelineNode.pTransform("flatten", components.getTransformsOrThrow("flatten"));
+    PCollectionNode flattenOutput =
+        PipelineNode.pCollection(
+            flattenOutputName, components.getPcollectionsOrThrow(flattenOutputName));
 
     assertThat(qp.getProducer(longsOutput), equalTo(longsProducer));
     assertThat(qp.getProducer(flattenOutput), equalTo(flattenProducer));
@@ -252,8 +277,10 @@ public class QueryablePipelineTest {
     Components components = PipelineTranslation.toProto(p).getComponents();
     QueryablePipeline qp = QueryablePipeline.fromComponents(components);
 
-    PTransformNode environmentalRead = qp.transformNode("BoundedRead");
-    PTransformNode nonEnvironmentalTransform = qp.transformNode("flatten");
+    PTransformNode environmentalRead =
+        PipelineNode.pTransform("BoundedRead", components.getTransformsOrThrow("BoundedRead"));
+    PTransformNode nonEnvironmentalTransform =
+        PipelineNode.pTransform("flatten", components.getTransformsOrThrow("flatten"));
 
     assertThat(qp.getEnvironment(environmentalRead).isPresent(), is(true));
     assertThat(

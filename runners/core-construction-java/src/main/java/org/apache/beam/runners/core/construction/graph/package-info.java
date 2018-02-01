@@ -17,7 +17,8 @@
  */
 
 /** Graph-manipulation utilities. */
-@ParametersAreNonnullByDefault
+@DefaultAnnotation(NonNull.class)
 package org.apache.beam.runners.core.construction.graph;
 
-import javax.annotation.ParametersAreNonnullByDefault;
+import edu.umd.cs.findbugs.annotations.DefaultAnnotation;
+import edu.umd.cs.findbugs.annotations.NonNull;
