@@ -197,22 +197,8 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
   }
 
   @Override
-  public PTransform toPTransform() {
-    PTransform.Builder pt = PTransform.newBuilder();
-    if (maybeInputPCollection != null) {
-      pt.putInputs("input", maybeInputPCollection.getId());
-    }
-    int i = 0;
-    for (PCollectionNode materializedPCollection : materializedPCollections) {
-      pt.putOutputs(String.format("materialized_%s", i), materializedPCollection.getId());
-      i++;
-    }
-    for (PTransformNode fusedTransform : fusedTransforms) {
-      // TODO: This may include nodes that have an input edge from multiple environments, which
-      // could be problematic within the SDK harness, but also might not be
-      pt.addSubtransforms(fusedTransform.getId());
-    }
-    pt.setSpec(FunctionSpec.newBuilder().setUrn(ExecutableStage.URN));
-    return pt.build();
+  public Collection<PTransformNode> getTransforms() {
+    return fusedTransforms;
   }
+
 }

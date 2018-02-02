@@ -18,14 +18,23 @@
 
 package org.apache.beam.runners.core.construction.graph;
 
+import static com.google.common.collect.Iterables.getOnlyElement;
+
 import java.util.Collection;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
+import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
+import org.apache.beam.runners.core.construction.Environments;
 import org.apache.beam.runners.core.construction.ReadTranslation;
+import org.apache.beam.runners.core.construction.RehydratedComponents;
+import org.apache.beam.runners.core.construction.graph.ImmutableExecutableStage.Builder;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 
 /**
  * A combination of PTransforms that can be executed within a single SDK harness.
@@ -69,6 +78,11 @@ public interface ExecutableStage {
   Collection<PCollectionNode> getMaterializedPCollections();
 
   /**
+   * Returns the transforms executed in this {@link ExecutableStage}.
+   */
+  Collection<PTransformNode> getTransforms();
+
+  /**
    * Returns a composite {@link PTransform} which contains as {@link
    * PTransform#getSubtransformsList() subtransforms} all of the {@link PTransform PTransforms}
    * fused into this {@link ExecutableStage}.
@@ -78,5 +92,71 @@ public interface ExecutableStage {
    * PCollection PCollections} will be the {@link PCollectionNode PCollections} returned by {@link
    * #getMaterializedPCollections()}.
    */
-  PTransform toPTransform();
+  default PTransform toPTransform() {
+    PTransform.Builder pt = PTransform.newBuilder();
+    if (getConsumedPCollection().isPresent()) {
+      pt.putInputs("input", getConsumedPCollection().get().getId());
+    }
+    int i = 0;
+    for (PCollectionNode materializedPCollection : getMaterializedPCollections()) {
+      pt.putOutputs(String.format("materialized_%s", i), materializedPCollection.getId());
+      i++;
+    }
+    for (PTransformNode fusedTransform : getTransforms()) {
+      // TODO: This may include nodes that have an input edge from multiple environments, which
+      // could be problematic within the SDK harness, but also might not be
+      pt.addSubtransforms(fusedTransform.getId());
+    }
+    pt.setSpec(FunctionSpec.newBuilder().setUrn(ExecutableStage.URN));
+    return pt.build();
+  }
+
+  static ExecutableStage fromPTransform(PTransform transform, Components components) {
+    Builder stageBuilder = ImmutableExecutableStage.builder();
+    if (transform.getInputsCount() == 0) {
+      stageBuilder = stageBuilder.setConsumedPCollection(Optional.empty());
+    } else if (transform.getInputsCount() == 1) {
+      String input = getOnlyElement(transform.getInputsMap().values());
+      stageBuilder =
+          stageBuilder.setConsumedPCollection(
+              Optional.of(
+                  PipelineNode.pCollection(input, components.getPcollectionsOrThrow(input))));
+    } else {
+      throw new IllegalArgumentException(
+          String.format(
+              "Unexpected number of inputs for %s, 0 or 1 permitted: %s",
+              ExecutableStage.class.getSimpleName(), transform.getInputsMap()));
+    }
+    return stageBuilder
+        .setMaterializedPCollections(
+            transform
+                .getOutputsMap()
+                .values()
+                .stream()
+                .map(
+                    materialized ->
+                        PipelineNode.pCollection(
+                            materialized, components.getPcollectionsOrThrow(materialized)))
+                .collect(Collectors.toList()))
+        .setTransforms(
+            transform
+                .getSubtransformsList()
+                .stream()
+                .map(
+                    subTransform ->
+                        PipelineNode.pTransform(
+                            subTransform, components.getTransformsOrThrow(subTransform)))
+                .collect(Collectors.toList()))
+        .setEnvironment(
+            Environments.getEnvironment(
+                    components.getTransformsOrThrow(transform.getSubtransforms(0)),
+                    RehydratedComponents.forComponents(components))
+                .orElseThrow(
+                    () ->
+                        new IllegalArgumentException(
+                            String.format(
+                                "Subtransform %s has no %s",
+                                transform.getSubtransforms(0), Environment.class.getSimpleName()))))
+        .build();
+  }
 }
