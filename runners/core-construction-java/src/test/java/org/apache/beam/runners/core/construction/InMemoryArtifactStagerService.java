@@ -21,14 +21,19 @@ package org.apache.beam.runners.core.construction;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.io.BaseEncoding;
+import com.google.common.util.concurrent.Uninterruptibles;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactMetadata;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.CommitManifestResponse;
@@ -43,17 +48,21 @@ import org.apache.beam.model.jobmanagement.v1.ArtifactStagingServiceGrpc.Artifac
  * artifacts in memory..
  */
 public class InMemoryArtifactStagerService extends ArtifactStagingServiceImplBase {
-  private final Map<ArtifactMetadata, byte[]> artifactBytes;
+  private final ConcurrentMap<ArtifactMetadata, byte[]> artifactBytes;
   private Manifest manifest;
 
-  public InMemoryArtifactStagerService() {
-    artifactBytes = new HashMap<>();
+  private final AtomicInteger activePuts = new AtomicInteger();
+
+  InMemoryArtifactStagerService() {
+    artifactBytes = new ConcurrentHashMap<>();
   }
 
   @Override
   public StreamObserver<ArtifactApi.PutArtifactRequest> putArtifact(
       StreamObserver<ArtifactApi.PutArtifactResponse> responseObserver) {
-    return new BufferingObserver(responseObserver);
+    BufferingObserver bufferingObserver = new BufferingObserver(responseObserver);
+    activePuts.getAndIncrement();
+    return bufferingObserver;
   }
 
   @Override
@@ -61,8 +70,24 @@ public class InMemoryArtifactStagerService extends ArtifactStagingServiceImplBas
       ArtifactApi.CommitManifestRequest request,
       StreamObserver<ArtifactApi.CommitManifestResponse> responseObserver) {
     this.manifest = request.getManifest();
-    responseObserver.onNext(CommitManifestResponse.getDefaultInstance());
-    responseObserver.onCompleted();
+    while (activePuts.get() != 0) {
+      // Wait for existing calls to complete.
+      Uninterruptibles.sleepUninterruptibly(1L, TimeUnit.MILLISECONDS);
+    }
+    if (manifest.getArtifactCount() != artifactBytes.size()) {
+      responseObserver.onError(
+          Status.INVALID_ARGUMENT
+              .withDescription(
+                  String.format(
+                      "Different number of staged artifacts and artifacts in manifest.%n"
+                          + "Manifest contents: %s%n"
+                          + "Staged contents: %s",
+                      manifest.getArtifactList(), artifactBytes.keySet()))
+              .asException());
+    } else {
+      responseObserver.onNext(CommitManifestResponse.getDefaultInstance());
+      responseObserver.onCompleted();
+    }
   }
 
   public Map<ArtifactMetadata, byte[]> getStagedArtifacts() {
@@ -117,6 +142,8 @@ public class InMemoryArtifactStagerService extends ArtifactStagingServiceImplBas
               writer.stream.toByteArray());
         } catch (NoSuchAlgorithmException e) {
           throw new AssertionError("The Java Spec requires all JVMs to support MD5", e);
+        } finally {
+          activePuts.getAndDecrement();
         }
       }
       responseObserver.onNext(PutArtifactResponse.getDefaultInstance());
