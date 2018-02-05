@@ -239,8 +239,8 @@ public class GreedilyFusedExecutableStageTest {
 
     ExecutableStage subgraph =
         GreedilyFusedExecutableStage.forRootTransform(p, getOnlyElement(p.getRootTransforms()));
-    assertThat(subgraph.getMaterializedPCollections(), emptyIterable());
-    assertThat(subgraph.getConsumedPCollection().isPresent(), is(false));
+    assertThat(subgraph.getOutputPCollections(), emptyIterable());
+    assertThat(subgraph.getInputPCollection().isPresent(), is(false));
     assertThat(
         subgraph.toPTransform().getSubtransformsList(),
         containsInAnyOrder("read", "parDo", "window"));
@@ -309,9 +309,9 @@ public class GreedilyFusedExecutableStageTest {
     ExecutableStage subgraph =
         GreedilyFusedExecutableStage.forGrpcPortRead(
             p, readOutput, p.getPerElementConsumers(readOutput));
-    assertThat(subgraph.getMaterializedPCollections(), emptyIterable());
-    assertThat(subgraph.getConsumedPCollection().isPresent(), is(true));
-    assertThat(subgraph.getConsumedPCollection().get(), equalTo(readOutput));
+    assertThat(subgraph.getOutputPCollections(), emptyIterable());
+    assertThat(subgraph.getInputPCollection().isPresent(), is(true));
+    assertThat(subgraph.getInputPCollection().get(), equalTo(readOutput));
     assertThat(subgraph.getEnvironment(), equalTo(env));
     assertThat(
         subgraph.toPTransform().getSubtransformsList(), containsInAnyOrder("parDo", "window"));
@@ -384,8 +384,8 @@ public class GreedilyFusedExecutableStageTest {
 
     ExecutableStage subgraph =
         GreedilyFusedExecutableStage.forRootTransform(p, getOnlyElement(p.getRootTransforms()));
-    assertThat(subgraph.getMaterializedPCollections(), emptyIterable());
-    assertThat(subgraph.getConsumedPCollection().isPresent(), is(false));
+    assertThat(subgraph.getOutputPCollections(), emptyIterable());
+    assertThat(subgraph.getInputPCollection().isPresent(), is(false));
     assertThat(
         subgraph.toPTransform().getSubtransformsList(),
         containsInAnyOrder("read", "parDo", "flatten", "window"));
@@ -474,9 +474,10 @@ public class GreedilyFusedExecutableStageTest {
     QueryablePipeline p = QueryablePipeline.fromComponents(components);
 
     ExecutableStage subgraph =
-        GreedilyFusedExecutableStage.forRootTransform(p, getOnlyElement(p.getRootTransforms()));
-    assertThat(subgraph.getMaterializedPCollections(), emptyIterable());
-    assertThat(subgraph.getConsumedPCollection().isPresent(), is(false));
+        GreedilyFusedExecutableStage.forRootTransform(
+            p, PipelineNode.pTransform("read", readTransform));
+    assertThat(subgraph.getOutputPCollections(), emptyIterable());
+    assertThat(subgraph.getInputPCollection().isPresent(), is(false));
     assertThat(
         subgraph.toPTransform().getSubtransformsList(),
         containsInAnyOrder("read", "parDo", "flatten", "window"));
@@ -485,9 +486,9 @@ public class GreedilyFusedExecutableStageTest {
     // flatten once.
     ExecutableStage readFromOtherEnv =
         GreedilyFusedExecutableStage.forRootTransform(
-            p, PipelineNode.pTransform("envRead", components.getTransformsOrThrow("envRead")));
+            p, PipelineNode.pTransform("envRead", otherEnvRead));
     assertThat(
-        readFromOtherEnv.getMaterializedPCollections(),
+        readFromOtherEnv.getOutputPCollections(),
         contains(
             PipelineNode.pCollection(
                 "flatten.out", components.getPcollectionsOrThrow("flatten.out"))));
@@ -557,9 +558,9 @@ public class GreedilyFusedExecutableStageTest {
     ExecutableStage subgraph =
         GreedilyFusedExecutableStage.forGrpcPortRead(
             p, readOutput, p.getPerElementConsumers(readOutput));
-    assertThat(subgraph.getMaterializedPCollections(), emptyIterable());
-    assertThat(subgraph.getConsumedPCollection().isPresent(), is(true));
-    assertThat(subgraph.getConsumedPCollection().get(), equalTo(readOutput));
+    assertThat(subgraph.getOutputPCollections(), emptyIterable());
+    assertThat(subgraph.getInputPCollection().isPresent(), is(true));
+    assertThat(subgraph.getInputPCollection().get(), equalTo(readOutput));
     assertThat(subgraph.getEnvironment(), equalTo(env));
     assertThat(subgraph.toPTransform().getSubtransformsList(), contains("parDo"));
   }
@@ -625,7 +626,7 @@ public class GreedilyFusedExecutableStageTest {
     PTransformNode readNode = getOnlyElement(p.getRootTransforms());
     PCollectionNode readOutput = getOnlyElement(p.getOutputPCollections(readNode));
     ExecutableStage subgraph = GreedilyFusedExecutableStage.forRootTransform(p, readNode);
-    assertThat(subgraph.getMaterializedPCollections(), contains(readOutput));
+    assertThat(subgraph.getOutputPCollections(), contains(readOutput));
     assertThat(subgraph.toPTransform().getSubtransformsList(), contains("read"));
   }
 
@@ -698,7 +699,7 @@ public class GreedilyFusedExecutableStageTest {
     PTransformNode readNode = PipelineNode.pTransform("read", readTransform);
     PCollectionNode readOutput = getOnlyElement(p.getOutputPCollections(readNode));
     ExecutableStage subgraph = GreedilyFusedExecutableStage.forRootTransform(p, readNode);
-    assertThat(subgraph.getMaterializedPCollections(), contains(readOutput));
+    assertThat(subgraph.getOutputPCollections(), contains(readOutput));
     assertThat(subgraph.toPTransform().getSubtransformsList(), contains(readNode.getId()));
   }
 
@@ -740,7 +741,7 @@ public class GreedilyFusedExecutableStageTest {
     PTransformNode readNode = PipelineNode.pTransform("read", readTransform);
     PCollectionNode readOutput = getOnlyElement(p.getOutputPCollections(readNode));
     ExecutableStage subgraph = GreedilyFusedExecutableStage.forRootTransform(p, readNode);
-    assertThat(subgraph.getMaterializedPCollections(), contains(readOutput));
+    assertThat(subgraph.getOutputPCollections(), contains(readOutput));
     assertThat(subgraph.toPTransform().getSubtransformsList(), contains(readNode.getId()));
   }
 }

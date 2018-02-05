@@ -42,7 +42,13 @@ import org.slf4j.LoggerFactory;
  * An {@link ExecutableStage} that will greedily fuse all available {@link PCollectionNode
  * PCollections} when it is constructed.
  *
- * <p>PCollections are either fully fused or fully materialized.
+ * <p>A {@link PCollectionNode} is fused into a stage if all of its consumers can be fused into the
+ * stage. A consumer can be fused into a stage if it is executed within the environment of that
+ * {@link ExecutableStage}, and receives only per-element inputs. PTransforms which consume side
+ * inputs are always the only {@link PTransformNode} at the root of a stage.
+ *
+ * <p>A {@link PCollectionNode} with consumers that execute in an environment other than a stage is
+ * materialized, and its consumers execute in independent stages.
  */
 public class GreedilyFusedExecutableStage implements ExecutableStage {
   // TODO: Provide a way to merge in a compatible subgraph (e.g. one where all of the siblings
@@ -66,13 +72,12 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
         ExecutableStage.class.getSimpleName(),
         PTransformTranslation.READ_TRANSFORM_URN,
         rootTransform.getTransform().getSpec().getUrn());
-    return new GreedilyFusedExecutableStage(
-        pipeline, null, Collections.singleton(rootTransform));
+    return new GreedilyFusedExecutableStage(pipeline, null, Collections.singleton(rootTransform));
   }
 
   /**
    * Returns an {@link ExecutableStage} where the initial {@link PTransformNode PTransform} is a
-   * Remote GRPC Port Read, reading elements from the materialized {@link PCollectionNode
+   * Remote gRPC Port Read, reading elements from the materialized {@link PCollectionNode
    * PCollection}.
    *
    * @param initialNodes the initial set of sibling transforms to fuse into this node. All of the
@@ -108,7 +113,7 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
         PTransformNode.class.getSimpleName());
     // Choose the environment from an arbitrary node. The initial nodes may not be empty for this
     // subgraph to make any sense, there has to be at least one processor node
-    // (otherwise the stage is GRPCRead -> GRPCWrite, which doesn't do anything).
+    // (otherwise the stage is gRPC Read -> gRPC Write, which doesn't do anything).
     this.environment =
         pipeline
             .getEnvironment(initialNodes.iterator().next())
@@ -187,12 +192,12 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
   }
 
   @Override
-  public Optional<PCollectionNode> getConsumedPCollection() {
+  public Optional<PCollectionNode> getInputPCollection() {
     return Optional.ofNullable(maybeInputPCollection);
   }
 
   @Override
-  public Collection<PCollectionNode> getMaterializedPCollections() {
+  public Collection<PCollectionNode> getOutputPCollections() {
     return Collections.unmodifiableSet(materializedPCollections);
   }
 

@@ -34,7 +34,7 @@ import org.apache.beam.sdk.transforms.Flatten;
 /**
  * A Fuser that constructs a fused pipeline by fusing as many PCollections into a stage as possible.
  */
-public class GreedyPCollectionFusers {
+class GreedyPCollectionFusers {
   private static final Map<String, FusibilityChecker> URN_FUSIBILITY_CHECKERS =
       ImmutableMap.<String, FusibilityChecker>builder()
           .put(PTransformTranslation.PAR_DO_TRANSFORM_URN, GreedyPCollectionFusers::canFuseParDo)
@@ -110,7 +110,7 @@ public class GreedyPCollectionFusers {
    * transform that are upstream of any of its side input are present in that stage.
    *
    * <p>A ParDo that consumes a side input cannot process an element until all of the side inputs
-   * contain data for the Side Input window that contains the element.
+   * contain data for the side input window that contains the element.
    */
   private static boolean canFuseParDo(
       PTransformNode parDo, ExecutableStage stage, QueryablePipeline pipeline) {
@@ -126,7 +126,7 @@ public class GreedyPCollectionFusers {
       return false;
     } else if (!pipeline.getSideInputs(parDo).isEmpty()) {
       // At execution time, a Runner is required to only provide inputs to a PTransform that, at the
-      // time the PTransform processes them, the associated window is ready in all Side Inputs that
+      // time the PTransform processes them, the associated window is ready in all side inputs that
       // the PTransform consumes. For an arbitrary stage, it is significantly complex for the runner
       // to determine this for each input. As a result, we break fusion to simplify this inspection.
       // In general, a ParDo which consumes side inputs cannot be fused into an executable subgraph
