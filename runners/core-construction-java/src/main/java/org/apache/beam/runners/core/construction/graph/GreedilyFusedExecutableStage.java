@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
  * <p>A {@link PCollectionNode} is fused into a stage if all of its consumers can be fused into the
  * stage. A consumer can be fused into a stage if it is executed within the environment of that
  * {@link ExecutableStage}, and receives only per-element inputs. PTransforms which consume side
- * inputs are always the only {@link PTransformNode} at the root of a stage.
+ * inputs are always at the root of a stage.
  *
  * <p>A {@link PCollectionNode} with consumers that execute in an environment other than a stage is
  * materialized, and its consumers execute in independent stages.
@@ -160,29 +160,24 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
           GreedilyFusedExecutableStage.class.getSimpleName());
       return;
     }
-    boolean canFuse = true;
     for (PTransformNode node : pipeline.getPerElementConsumers(candidate)) {
       if (!(GreedyPCollectionFusers.canFuse(node, this, pipeline))) {
-        canFuse = false;
-        break;
+        // Some of the consumers can't be fused into this subgraph, so the PCollection has to be
+        // materialized.
+        // TODO: Potentially, some of the consumers can be fused back into this stage later
+        // complicate the process, but at a high level, if a downstream stage can be fused into all
+        // of the stages that produce a PCollection it can be fused into all of those stages.
+        materializedPCollections.add(candidate);
+        return;
       }
     }
-    if (canFuse) {
-      // All of the consumers of the candidate PCollection can be fused into this stage, so do so.
-      fusedCollections.add(candidate);
-      fusedTransforms.addAll(pipeline.getPerElementConsumers(candidate));
-      for (PTransformNode consumer : pipeline.getPerElementConsumers(candidate)) {
-        // The outputs of every transform fused into this stage must be either materialized or
-        // themselves fused away, so add them to the set of candidates.
-        fusionCandidates.addAll(pipeline.getOutputPCollections(consumer));
-      }
-    } else {
-      // Some of the consumers can't be fused into this subgraph, so the PCollection has to be
-      // materialized.
-      // TODO: Potentially, some of the consumers can be fused back into this stage at a later point
-      // complicate the process, but at a high level, if a downstream stage can be fused into all
-      // of the stages that produce a PCollection it can be fused into all of those stages.
-      materializedPCollections.add(candidate);
+    // All of the consumers of the candidate PCollection can be fused into this stage, so do so.
+    fusedCollections.add(candidate);
+    fusedTransforms.addAll(pipeline.getPerElementConsumers(candidate));
+    for (PTransformNode consumer : pipeline.getPerElementConsumers(candidate)) {
+      // The outputs of every transform fused into this stage must be either materialized or
+      // themselves fused away, so add them to the set of candidates.
+      fusionCandidates.addAll(pipeline.getOutputPCollections(consumer));
     }
   }
 
@@ -213,8 +208,6 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
       i++;
     }
     for (PTransformNode fusedTransform : fusedTransforms) {
-      // TODO: This may include nodes that have an input edge from multiple environments, which
-      // could be problematic within the SDK harness, but also might not be
       pt.addSubtransforms(fusedTransform.getId());
     }
     pt.setSpec(FunctionSpec.newBuilder().setUrn(ExecutableStage.URN));

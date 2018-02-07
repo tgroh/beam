@@ -42,7 +42,7 @@ public interface ExecutableStage {
   /**
    * The URN identifying an {@link ExecutableStage} that has been converted to a {@link PTransform}.
    */
-  String URN = "urn:beam:runner:stage:v1";
+  String URN = "beam:runner:executable_stage:v1";
 
   /**
    * Returns the {@link Environment} this stage executes in.
