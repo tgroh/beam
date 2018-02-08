@@ -59,9 +59,6 @@ public class GreedilyFusedExecutableStageTest {
   private final PCollectionNode impulseOutputNode =
       PipelineNode.pCollection("impulse.out", impulseDotOut);
 
-  private final PCollection readDotOut = PCollection.newBuilder().setUniqueName("read.out").build();
-  private final PCollectionNode readOutputNode = PipelineNode.pCollection("read.out", readDotOut);
-
   private Components partialComponents;
 
   @Before
@@ -106,7 +103,8 @@ public class GreedilyFusedExecutableStageTest {
                         .putInputs("input", "impulse.out")
                         .putOutputs("output", "read.out")
                         .build())
-                .putPcollections("read.out", readDotOut)
+                .putPcollections(
+                    "read.out", PCollection.newBuilder().setUniqueName("read.out").build())
                 .putTransforms(
                     "goTransform",
                     PTransform.newBuilder()
@@ -142,24 +140,33 @@ public class GreedilyFusedExecutableStageTest {
                 .putEnvironments("go", Environment.newBuilder().setUrl("go").build())
                 .putEnvironments("py", Environment.newBuilder().setUrl("py").build())
                 .build());
-    Set<PTransformNode> differentEnvironments = p.getPerElementConsumers(readOutputNode);
+    Set<PTransformNode> differentEnvironments =
+        p.getPerElementConsumers(
+            PipelineNode.pCollection(
+                "read.out", PCollection.newBuilder().setUniqueName("read.out").build()));
 
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage("go");
     thrown.expectMessage("py");
     thrown.expectMessage("same");
-    GreedilyFusedExecutableStage.forGrpcPortRead(p, readOutputNode, differentEnvironments);
+    GreedilyFusedExecutableStage.forGrpcPortRead(
+        p,
+        PipelineNode.pCollection(
+            "read.out", PCollection.newBuilder().setUniqueName("read.out").build()),
+        differentEnvironments);
   }
 
   @Test
   public void noEnvironmentThrows() {
     // (impulse.out) -> runnerTransform -> gbk.out
     // runnerTransform can't be executed in an environment, so trying to construct it should fail
-    PTransform gbkTransform = PTransform.newBuilder()
-        .putInputs("input", "impulse.out")
-        .setSpec(FunctionSpec.newBuilder().setUrn(PTransformTranslation.GROUP_BY_KEY_TRANSFORM_URN))
-        .putOutputs("output", "gbk.out")
-        .build();
+    PTransform gbkTransform =
+        PTransform.newBuilder()
+            .putInputs("input", "impulse.out")
+            .setSpec(
+                FunctionSpec.newBuilder().setUrn(PTransformTranslation.GROUP_BY_KEY_TRANSFORM_URN))
+            .putOutputs("output", "gbk.out")
+            .build();
     QueryablePipeline p =
         QueryablePipeline.fromComponents(
             partialComponents
@@ -231,8 +238,7 @@ public class GreedilyFusedExecutableStageTest {
     // Nothing consumes the outputs of ParDo or Window, so they don't have to be materialized
     assertThat(subgraph.getOutputPCollections(), emptyIterable());
     assertThat(
-        subgraph.toPTransform().getSubtransformsList(),
-        containsInAnyOrder("parDo", "window"));
+        subgraph.toPTransform().getSubtransformsList(), containsInAnyOrder("parDo", "window"));
   }
 
   @Test
@@ -377,7 +383,7 @@ public class GreedilyFusedExecutableStageTest {
         partialComponents
             .toBuilder()
             .putTransforms("read", readTransform)
-            .putPcollections("read.out", readDotOut)
+            .putPcollections("read.out", PCollection.newBuilder().setUniqueName("read.out").build())
             .putTransforms("envRead", otherEnvRead)
             .putPcollections(
                 "envRead.out", PCollection.newBuilder().setUniqueName("envRead.out").build())
@@ -625,9 +631,11 @@ public class GreedilyFusedExecutableStageTest {
             .build();
     QueryablePipeline p =
         QueryablePipeline.fromComponents(
-            partialComponents.toBuilder()
+            partialComponents
+                .toBuilder()
                 .putTransforms("read", readTransform)
-                .putPcollections("read.out", readDotOut)
+                .putPcollections(
+                    "read.out", PCollection.newBuilder().setUniqueName("read.out").build())
                 .putTransforms(
                     "parDo",
                     PTransform.newBuilder()
@@ -706,7 +714,8 @@ public class GreedilyFusedExecutableStageTest {
             partialComponents
                 .toBuilder()
                 .putTransforms("read", readTransform)
-                .putPcollections("read.out", readDotOut)
+                .putPcollections(
+                    "read.out", PCollection.newBuilder().setUniqueName("read.out").build())
                 .putTransforms(
                     "side_read",
                     PTransform.newBuilder()
@@ -790,7 +799,8 @@ public class GreedilyFusedExecutableStageTest {
             partialComponents
                 .toBuilder()
                 .putTransforms("read", readTransform)
-                .putPcollections("read.out", readDotOut)
+                .putPcollections(
+                    "read.out", PCollection.newBuilder().setUniqueName("read.out").build())
                 .putTransforms(
                     "gbk",
                     PTransform.newBuilder()
