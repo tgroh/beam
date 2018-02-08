@@ -25,14 +25,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
-import javax.annotation.Nullable;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
-import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.slf4j.Logger;
@@ -57,26 +54,6 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
 
   /**
    * Returns an {@link ExecutableStage} where the initial {@link PTransformNode PTransform} is a
-   * Read which executes within the environment (with no input elements or {@link PCollectionNode
-   * PCollection}).
-   *
-   * <p>Once primitive Read transforms are replaced by an Impulse -> ParDo expansion, this
-   * construction should be removed.
-   */
-  public static ExecutableStage forRootTransform(
-      QueryablePipeline pipeline, PTransformNode rootTransform) {
-    checkArgument(
-        PTransformTranslation.READ_TRANSFORM_URN.equals(
-            rootTransform.getTransform().getSpec().getUrn()),
-        "Can only create an %s rooted at a %s node, got URN %s",
-        ExecutableStage.class.getSimpleName(),
-        PTransformTranslation.READ_TRANSFORM_URN,
-        rootTransform.getTransform().getSpec().getUrn());
-    return new GreedilyFusedExecutableStage(pipeline, null, Collections.singleton(rootTransform));
-  }
-
-  /**
-   * Returns an {@link ExecutableStage} where the initial {@link PTransformNode PTransform} is a
    * Remote gRPC Port Read, reading elements from the materialized {@link PCollectionNode
    * PCollection}.
    *
@@ -94,7 +71,7 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
   private final QueryablePipeline pipeline;
   private final Environment environment;
 
-  @Nullable private final PCollectionNode maybeInputPCollection;
+  private final PCollectionNode inputPCollection;
 
   private final Set<PCollectionNode> fusedCollections;
   private final Set<PTransformNode> fusedTransforms;
@@ -104,7 +81,7 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
 
   private GreedilyFusedExecutableStage(
       QueryablePipeline pipeline,
-      @Nullable PCollectionNode inputPCollection,
+      PCollectionNode inputPCollection,
       Set<PTransformNode> initialNodes) {
     checkArgument(
         !initialNodes.isEmpty(),
@@ -135,7 +112,7 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
                 environment,
                 pipeline.getEnvironment(transformNode).orElse(null)));
     this.pipeline = pipeline;
-    this.maybeInputPCollection = inputPCollection;
+    this.inputPCollection = inputPCollection;
     this.fusedCollections = new HashSet<>();
     this.fusedTransforms = new LinkedHashSet<>(initialNodes);
     this.materializedPCollections = new HashSet<>();
@@ -187,8 +164,8 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
   }
 
   @Override
-  public Optional<PCollectionNode> getInputPCollection() {
-    return Optional.ofNullable(maybeInputPCollection);
+  public PCollectionNode getInputPCollection() {
+    return inputPCollection;
   }
 
   @Override
@@ -196,12 +173,14 @@ public class GreedilyFusedExecutableStage implements ExecutableStage {
     return Collections.unmodifiableSet(materializedPCollections);
   }
 
+  public Collection<PTransformNode> getTransforms() {
+    return Collections.unmodifiableSet(fusedTransforms);
+  }
+
   @Override
   public PTransform toPTransform() {
     PTransform.Builder pt = PTransform.newBuilder();
-    if (maybeInputPCollection != null) {
-      pt.putInputs("input", maybeInputPCollection.getId());
-    }
+    pt.putInputs("input", inputPCollection.getId());
     int i = 0;
     for (PCollectionNode materializedPCollection : materializedPCollections) {
       pt.putOutputs(String.format("materialized_%s", i), materializedPCollection.getId());

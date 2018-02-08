@@ -19,7 +19,6 @@
 package org.apache.beam.runners.core.construction.graph;
 
 import java.util.Collection;
-import java.util.Optional;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
@@ -61,7 +60,7 @@ public interface ExecutableStage {
    * Node. If the returned value is absent, the {@link ExecutableStage} executes by reading from a
    * single Read node (which contains a {@link ReadTranslation read transform}).
    */
-  Optional<PCollectionNode> getInputPCollection();
+  PCollectionNode getInputPCollection();
 
   /**
    * Returns the leaf {@link PCollectionNode PCollections} of this {@link ExecutableStage}.
@@ -71,6 +70,8 @@ public interface ExecutableStage {
    * execution time by a Remote gRPC Write Transform.
    */
   Collection<PCollectionNode> getOutputPCollections();
+
+  Collection<PTransformNode> getTransforms();
 
   /**
    * Returns a composite {@link PTransform} which contains all of the {@link PTransform PTransforms}

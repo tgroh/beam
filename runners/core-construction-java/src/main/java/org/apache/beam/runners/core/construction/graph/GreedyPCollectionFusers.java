@@ -38,7 +38,9 @@ class GreedyPCollectionFusers {
   private static final Map<String, FusibilityChecker> URN_FUSIBILITY_CHECKERS =
       ImmutableMap.<String, FusibilityChecker>builder()
           .put(PTransformTranslation.PAR_DO_TRANSFORM_URN, GreedyPCollectionFusers::canFuseParDo)
-          .put(PTransformTranslation.WINDOW_TRANSFORM_URN, GreedyPCollectionFusers::canFuseWindow)
+          .put(
+              PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN,
+              GreedyPCollectionFusers::canFuseAssignWindows)
           .put(PTransformTranslation.FLATTEN_TRANSFORM_URN, GreedyPCollectionFusers::canFuseFlatten)
           .put(
               PTransformTranslation.GROUP_BY_KEY_TRANSFORM_URN,
@@ -54,7 +56,7 @@ class GreedyPCollectionFusers {
               PTransformTranslation.PAR_DO_TRANSFORM_URN,
               GreedyPCollectionFusers::parDoCompatibility)
           .put(
-              PTransformTranslation.WINDOW_TRANSFORM_URN,
+              PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN,
               GreedyPCollectionFusers::compatibleEnvironments)
           .put(
               PTransformTranslation.FLATTEN_TRANSFORM_URN, GreedyPCollectionFusers::noCompatibility)
@@ -150,7 +152,7 @@ class GreedyPCollectionFusers {
   /**
    * A WindowInto can be fused into a stage if it executes in the same Environment as that stage.
    */
-  private static boolean canFuseWindow(
+  private static boolean canFuseAssignWindows(
       PTransformNode window, ExecutableStage stage, QueryablePipeline pipeline) {
     // WindowInto transforms may not have an environment
     Optional<Environment> windowEnvironment = pipeline.getEnvironment(window);
@@ -196,8 +198,8 @@ class GreedyPCollectionFusers {
    * PCollection}, and the output is materialized and consumed by downstream transforms identically
    * to any other materialized {@link PCollection}.
    *
-   * <p>For the latter, where fusion is possible into at least one of the producer stages, the
-   * following occurs:
+   * <p>For the latter, where fusion is possible into at least one of the producer stages, Flatten
+   * unzipping is performed. This consists of the following steps:
    *
    * <ol>
    *   <li>The flatten is fused into each upstream stage

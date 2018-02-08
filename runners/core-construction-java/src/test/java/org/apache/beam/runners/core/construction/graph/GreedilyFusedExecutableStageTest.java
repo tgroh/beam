@@ -23,9 +23,11 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 
+import com.google.common.collect.ImmutableSet;
 import java.util.Collections;
 import java.util.Set;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
@@ -34,13 +36,13 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.model.pipeline.v1.RunnerApi.ParDoPayload;
-import org.apache.beam.model.pipeline.v1.RunnerApi.ReadPayload;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SideInput;
 import org.apache.beam.model.pipeline.v1.RunnerApi.WindowIntoPayload;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -52,37 +54,58 @@ import org.junit.runners.JUnit4;
 public class GreedilyFusedExecutableStageTest {
   @Rule public ExpectedException thrown = ExpectedException.none();
 
+  private final PCollection impulseDotOut =
+      PCollection.newBuilder().setUniqueName("impulse.out").build();
+  private final PCollectionNode impulseOutputNode =
+      PipelineNode.pCollection("impulse.out", impulseDotOut);
+
   private final PCollection readDotOut = PCollection.newBuilder().setUniqueName("read.out").build();
   private final PCollectionNode readOutputNode = PipelineNode.pCollection("read.out", readDotOut);
 
+  private Components partialComponents;
+
+  @Before
+  public void setup() {
+    partialComponents =
+        Components.newBuilder()
+            .putTransforms(
+                "impulse",
+                PTransform.newBuilder()
+                    .putOutputs("output", "impulse.out")
+                    .setSpec(
+                        FunctionSpec.newBuilder()
+                            .setUrn(PTransformTranslation.IMPULSE_TRANSFORM_URN))
+                    .build())
+            .putPcollections("impulse.out", impulseDotOut)
+            .build();
+  }
+
   @Test
   public void noInitialConsumersThrows() {
-    QueryablePipeline p =
-        QueryablePipeline.fromComponents(
-            Components.newBuilder()
-                .putTransforms(
-                    "read",
-                    PTransform.newBuilder()
-                        .putOutputs("output", "read.out")
-                        .setSpec(
-                            FunctionSpec.newBuilder()
-                                .setUrn(PTransformTranslation.READ_TRANSFORM_URN))
-                        .build())
-                .putPcollections("read.out", readDotOut)
-                .build());
+    // (impulse.out) -> () is not a meaningful stage, so it should never be called
+    QueryablePipeline p = QueryablePipeline.fromComponents(partialComponents);
 
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage("at least one PTransform");
-    GreedilyFusedExecutableStage.forGrpcPortRead(p, readOutputNode, Collections.emptySet());
+    GreedilyFusedExecutableStage.forGrpcPortRead(p, impulseOutputNode, Collections.emptySet());
   }
 
   @Test
   public void differentEnvironmentsThrows() {
+    // (impulse.out) -> read -> read.out --> go -> go.out
+    //                                   \
+    //                                    -> py -> py.out
+    // read.out can't be fused with both 'go' and 'py', so we should refuse to create this stage
     QueryablePipeline p =
         QueryablePipeline.fromComponents(
-            Components.newBuilder()
+            partialComponents
+                .toBuilder()
                 .putTransforms(
-                    "read", PTransform.newBuilder().putOutputs("output", "read.out").build())
+                    "read",
+                    PTransform.newBuilder()
+                        .putInputs("input", "impulse.out")
+                        .putOutputs("output", "read.out")
+                        .build())
                 .putPcollections("read.out", readDotOut)
                 .putTransforms(
                     "goTransform",
@@ -107,7 +130,7 @@ public class GreedilyFusedExecutableStageTest {
                         .putOutputs("output", "py.out")
                         .setSpec(
                             FunctionSpec.newBuilder()
-                                .setUrn(PTransformTranslation.WINDOW_TRANSFORM_URN)
+                                .setUrn(PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN)
                                 .setPayload(
                                     WindowIntoPayload.newBuilder()
                                         .setWindowFn(
@@ -130,75 +153,37 @@ public class GreedilyFusedExecutableStageTest {
 
   @Test
   public void noEnvironmentThrows() {
+    // (impulse.out) -> runnerTransform -> gbk.out
+    // runnerTransform can't be executed in an environment, so trying to construct it should fail
+    PTransform gbkTransform = PTransform.newBuilder()
+        .putInputs("input", "impulse.out")
+        .setSpec(FunctionSpec.newBuilder().setUrn(PTransformTranslation.GROUP_BY_KEY_TRANSFORM_URN))
+        .putOutputs("output", "gbk.out")
+        .build();
     QueryablePipeline p =
         QueryablePipeline.fromComponents(
-            Components.newBuilder()
-                .putTransforms(
-                    "read", PTransform.newBuilder().putOutputs("output", "read.out").build())
-                .putPcollections("read.out", readDotOut)
-                .putTransforms(
-                    "runnerTransform",
-                    PTransform.newBuilder()
-                        .putInputs("input", "read.out")
-                        .setSpec(
-                            FunctionSpec.newBuilder()
-                                .setUrn(PTransformTranslation.GROUP_BY_KEY_TRANSFORM_URN))
-                        .putOutputs("output", "gbk.out")
-                        .build())
+            partialComponents
+                .toBuilder()
+                .putTransforms("runnerTransform", gbkTransform)
                 .putPcollections(
                     "gbk.out", PCollection.newBuilder().setUniqueName("gbk.out").build())
                 .build());
-    Set<PTransformNode> differentEnvironments = p.getPerElementConsumers(readOutputNode);
 
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage("Environment must be populated");
-    GreedilyFusedExecutableStage.forGrpcPortRead(p, readOutputNode, differentEnvironments);
+    GreedilyFusedExecutableStage.forGrpcPortRead(
+        p,
+        impulseOutputNode,
+        ImmutableSet.of(PipelineNode.pTransform("runnerTransform", gbkTransform)));
   }
 
   @Test
-  public void nonReadRootThrows() {
-    QueryablePipeline p =
-        QueryablePipeline.fromComponents(
-            Components.newBuilder()
-                .putTransforms(
-                    "rootParDo",
-                    PTransform.newBuilder()
-                        .setSpec(
-                            FunctionSpec.newBuilder()
-                                .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
-                                .setPayload(
-                                    ParDoPayload.newBuilder()
-                                        .setDoFn(
-                                            SdkFunctionSpec.newBuilder().setEnvironmentId("env"))
-                                        .build()
-                                        .toByteString()))
-                        .putOutputs("output", "read.out")
-                        .build())
-                .putPcollections("read.out", readDotOut)
-                .putEnvironments("env", Environment.newBuilder().setUrl("env").build())
-                .build());
-    thrown.expect(IllegalArgumentException.class);
-    thrown.expectMessage(PTransformTranslation.READ_TRANSFORM_URN);
-    GreedilyFusedExecutableStage.forRootTransform(p, getOnlyElement(p.getRootTransforms()));
-  }
-
-  @Test
-  public void fusesCompatibleEnvironmentsWithRead() {
-    PTransform readTransform =
-        PTransform.newBuilder()
-            .putOutputs("output", "read.out")
-            .setSpec(
-                FunctionSpec.newBuilder()
-                    .setUrn(PTransformTranslation.READ_TRANSFORM_URN)
-                    .setPayload(
-                        ReadPayload.newBuilder()
-                            .setSource(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
-                            .build()
-                            .toByteString()))
-            .build();
+  public void fusesCompatibleEnvironments() {
+    // (impulse.out) -> parDo -> parDo.out -> window -> window.out
+    // parDo and window both have the environment "common" and can be fused together
     PTransform parDoTransform =
         PTransform.newBuilder()
-            .putInputs("input", "read.out")
+            .putInputs("input", "impulse.out")
             .putOutputs("output", "parDo.out")
             .setSpec(
                 FunctionSpec.newBuilder()
@@ -211,11 +196,11 @@ public class GreedilyFusedExecutableStageTest {
             .build();
     PTransform windowTransform =
         PTransform.newBuilder()
-            .putInputs("input", "read.out")
+            .putInputs("input", "impulse.out")
             .putOutputs("output", "window.out")
             .setSpec(
                 FunctionSpec.newBuilder()
-                    .setUrn(PTransformTranslation.WINDOW_TRANSFORM_URN)
+                    .setUrn(PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN)
                     .setPayload(
                         WindowIntoPayload.newBuilder()
                             .setWindowFn(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
@@ -225,9 +210,8 @@ public class GreedilyFusedExecutableStageTest {
 
     QueryablePipeline p =
         QueryablePipeline.fromComponents(
-            Components.newBuilder()
-                .putTransforms("read", readTransform)
-                .putPcollections("read.out", readDotOut)
+            partialComponents
+                .toBuilder()
                 .putTransforms("parDo", parDoTransform)
                 .putPcollections(
                     "parDo.out", PCollection.newBuilder().setUniqueName("parDo.out").build())
@@ -238,21 +222,30 @@ public class GreedilyFusedExecutableStageTest {
                 .build());
 
     ExecutableStage subgraph =
-        GreedilyFusedExecutableStage.forRootTransform(p, getOnlyElement(p.getRootTransforms()));
+        GreedilyFusedExecutableStage.forGrpcPortRead(
+            p,
+            impulseOutputNode,
+            ImmutableSet.of(
+                PipelineNode.pTransform("parDo", parDoTransform),
+                PipelineNode.pTransform("window", windowTransform)));
+    // Nothing consumes the outputs of ParDo or Window, so they don't have to be materialized
     assertThat(subgraph.getOutputPCollections(), emptyIterable());
-    assertThat(subgraph.getInputPCollection().isPresent(), is(false));
     assertThat(
         subgraph.toPTransform().getSubtransformsList(),
-        containsInAnyOrder("read", "parDo", "window"));
+        containsInAnyOrder("parDo", "window"));
   }
 
   @Test
-  public void fusesCompatibleEnivronmentsReadingFromPCollection() {
-    Environment env = Environment.newBuilder().setUrl("common").build();
-    PTransform parDoTransform =
+  public void fusesFlatten() {
+    // (impulse.out) -> parDo -> parDo.out --> flatten -> flatten.out -> window -> window.out
+    //               \                     /
+    //                -> read -> read.out -
+    // The flatten can be executed within the same environment as any transform; the window can
+    // execute in the same environment as the rest of the transforms, and can fuse with the stage
+    PTransform readTransform =
         PTransform.newBuilder()
-            .putInputs("input", "read.out")
-            .putOutputs("output", "parDo.out")
+            .putInputs("input", "impulse.out")
+            .putOutputs("output", "read.out")
             .setSpec(
                 FunctionSpec.newBuilder()
                     .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
@@ -262,78 +255,9 @@ public class GreedilyFusedExecutableStageTest {
                             .build()
                             .toByteString()))
             .build();
-    PTransform windowTransform =
-        PTransform.newBuilder()
-            .putInputs("input", "read.out")
-            .putOutputs("output", "window.out")
-            .setSpec(
-                FunctionSpec.newBuilder()
-                    .setUrn(PTransformTranslation.WINDOW_TRANSFORM_URN)
-                    .setPayload(
-                        WindowIntoPayload.newBuilder()
-                            .setWindowFn(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
-                            .build()
-                            .toByteString()))
-            .build();
-
-    QueryablePipeline p =
-        QueryablePipeline.fromComponents(
-            Components.newBuilder()
-                .putTransforms(
-                    "read",
-                    PTransform.newBuilder()
-                        .putOutputs("output", "read.out")
-                        .setSpec(
-                            FunctionSpec.newBuilder()
-                                .setUrn(PTransformTranslation.READ_TRANSFORM_URN)
-                                .setPayload(
-                                    ReadPayload.newBuilder()
-                                        .setSource(
-                                            SdkFunctionSpec.newBuilder().setEnvironmentId("rare"))
-                                        .build()
-                                        .toByteString()))
-                        .build())
-                .putPcollections("read.out", readDotOut)
-                .putTransforms("parDo", parDoTransform)
-                .putPcollections(
-                    "parDo.out", PCollection.newBuilder().setUniqueName("parDo.out").build())
-                .putTransforms("window", windowTransform)
-                .putPcollections(
-                    "window.out", PCollection.newBuilder().setUniqueName("window.out").build())
-                .putEnvironments("rare", Environment.newBuilder().setUrl("rare").build())
-                .putEnvironments("common", env)
-                .build());
-
-    PCollectionNode readOutput =
-        getOnlyElement(p.getOutputPCollections(getOnlyElement(p.getRootTransforms())));
-    ExecutableStage subgraph =
-        GreedilyFusedExecutableStage.forGrpcPortRead(
-            p, readOutput, p.getPerElementConsumers(readOutput));
-    assertThat(subgraph.getOutputPCollections(), emptyIterable());
-    assertThat(subgraph.getInputPCollection().isPresent(), is(true));
-    assertThat(subgraph.getInputPCollection().get(), equalTo(readOutput));
-    assertThat(subgraph.getEnvironment(), equalTo(env));
-    assertThat(
-        subgraph.toPTransform().getSubtransformsList(), containsInAnyOrder("parDo", "window"));
-  }
-
-  @Test
-  public void fusesFlatten() {
-    PTransform readTransform =
-        PTransform.newBuilder()
-            .putOutputs("output", "read.out")
-            .setSpec(
-                FunctionSpec.newBuilder()
-                    .setUrn(PTransformTranslation.READ_TRANSFORM_URN)
-                    .setPayload(
-                        ReadPayload.newBuilder()
-                            .setSource(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
-                            .build()
-                            .toByteString()))
-            .build();
     PTransform parDoTransform =
         PTransform.newBuilder()
-            .putInputs("input", "read.out")
+            .putInputs("input", "impulse.out")
             .putOutputs("output", "parDo.out")
             .setSpec(
                 FunctionSpec.newBuilder()
@@ -357,7 +281,7 @@ public class GreedilyFusedExecutableStageTest {
             .putOutputs("output", "window.out")
             .setSpec(
                 FunctionSpec.newBuilder()
-                    .setUrn(PTransformTranslation.WINDOW_TRANSFORM_URN)
+                    .setUrn(PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN)
                     .setPayload(
                         WindowIntoPayload.newBuilder()
                             .setWindowFn(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
@@ -367,9 +291,11 @@ public class GreedilyFusedExecutableStageTest {
 
     QueryablePipeline p =
         QueryablePipeline.fromComponents(
-            Components.newBuilder()
+            partialComponents
+                .toBuilder()
                 .putTransforms("read", readTransform)
-                .putPcollections("read.out", readDotOut)
+                .putPcollections(
+                    "read.out", PCollection.newBuilder().setUniqueName("read.out").build())
                 .putTransforms("parDo", parDoTransform)
                 .putPcollections(
                     "parDo.out", PCollection.newBuilder().setUniqueName("parDo.out").build())
@@ -383,9 +309,9 @@ public class GreedilyFusedExecutableStageTest {
                 .build());
 
     ExecutableStage subgraph =
-        GreedilyFusedExecutableStage.forRootTransform(p, getOnlyElement(p.getRootTransforms()));
+        GreedilyFusedExecutableStage.forGrpcPortRead(
+            p, impulseOutputNode, p.getPerElementConsumers(impulseOutputNode));
     assertThat(subgraph.getOutputPCollections(), emptyIterable());
-    assertThat(subgraph.getInputPCollection().isPresent(), is(false));
     assertThat(
         subgraph.toPTransform().getSubtransformsList(),
         containsInAnyOrder("read", "parDo", "flatten", "window"));
@@ -393,34 +319,17 @@ public class GreedilyFusedExecutableStageTest {
 
   @Test
   public void fusesFlattenWithDifferentEnvironmentInputs() {
+    // (impulse.out) -> read -> read.out \                                 -> window -> window.out
+    //                                    -------> flatten -> flatten.out /
+    // (impulse.out) -> envRead -> envRead.out /
+    // fuses into
+    // read -> read.out -> flatten -> flatten.out -> window -> window.out
+    // envRead -> envRead.out -> flatten -> (flatten.out)
+    // (flatten.out) -> window -> window.out
     PTransform readTransform =
         PTransform.newBuilder()
+            .putInputs("input", "impulse.out")
             .putOutputs("output", "read.out")
-            .setSpec(
-                FunctionSpec.newBuilder()
-                    .setUrn(PTransformTranslation.READ_TRANSFORM_URN)
-                    .setPayload(
-                        ReadPayload.newBuilder()
-                            .setSource(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
-                            .build()
-                            .toByteString()))
-            .build();
-    PTransform otherEnvRead =
-        PTransform.newBuilder()
-            .putOutputs("output", "envRead.out")
-            .setSpec(
-                FunctionSpec.newBuilder()
-                    .setUrn(PTransformTranslation.READ_TRANSFORM_URN)
-                    .setPayload(
-                        ReadPayload.newBuilder()
-                            .setSource(SdkFunctionSpec.newBuilder().setEnvironmentId("rare"))
-                            .build()
-                            .toByteString()))
-            .build();
-    PTransform parDoTransform =
-        PTransform.newBuilder()
-            .putInputs("input", "read.out")
-            .putOutputs("output", "parDo.out")
             .setSpec(
                 FunctionSpec.newBuilder()
                     .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
@@ -430,10 +339,22 @@ public class GreedilyFusedExecutableStageTest {
                             .build()
                             .toByteString()))
             .build();
+    PTransform otherEnvRead =
+        PTransform.newBuilder()
+            .putInputs("impulse", "impulse.out")
+            .putOutputs("output", "envRead.out")
+            .setSpec(
+                FunctionSpec.newBuilder()
+                    .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
+                    .setPayload(
+                        ParDoPayload.newBuilder()
+                            .setDoFn(SdkFunctionSpec.newBuilder().setEnvironmentId("rare"))
+                            .build()
+                            .toByteString()))
+            .build();
     PTransform flattenTransform =
         PTransform.newBuilder()
             .putInputs("readInput", "read.out")
-            .putInputs("parDoInput", "parDo.out")
             .putInputs("otherEnvInput", "envRead.out")
             .putOutputs("output", "flatten.out")
             .setSpec(FunctionSpec.newBuilder().setUrn(PTransformTranslation.FLATTEN_TRANSFORM_URN))
@@ -444,7 +365,7 @@ public class GreedilyFusedExecutableStageTest {
             .putOutputs("output", "window.out")
             .setSpec(
                 FunctionSpec.newBuilder()
-                    .setUrn(PTransformTranslation.WINDOW_TRANSFORM_URN)
+                    .setUrn(PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN)
                     .setPayload(
                         WindowIntoPayload.newBuilder()
                             .setWindowFn(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
@@ -453,15 +374,13 @@ public class GreedilyFusedExecutableStageTest {
             .build();
 
     Components components =
-        Components.newBuilder()
+        partialComponents
+            .toBuilder()
             .putTransforms("read", readTransform)
             .putPcollections("read.out", readDotOut)
             .putTransforms("envRead", otherEnvRead)
             .putPcollections(
                 "envRead.out", PCollection.newBuilder().setUniqueName("envRead.out").build())
-            .putTransforms("parDo", parDoTransform)
-            .putPcollections(
-                "parDo.out", PCollection.newBuilder().setUniqueName("parDo.out").build())
             .putTransforms("flatten", flattenTransform)
             .putPcollections(
                 "flatten.out", PCollection.newBuilder().setUniqueName("flatten.out").build())
@@ -474,19 +393,20 @@ public class GreedilyFusedExecutableStageTest {
     QueryablePipeline p = QueryablePipeline.fromComponents(components);
 
     ExecutableStage subgraph =
-        GreedilyFusedExecutableStage.forRootTransform(
-            p, PipelineNode.pTransform("read", readTransform));
+        GreedilyFusedExecutableStage.forGrpcPortRead(
+            p, impulseOutputNode, ImmutableSet.of(PipelineNode.pTransform("read", readTransform)));
     assertThat(subgraph.getOutputPCollections(), emptyIterable());
-    assertThat(subgraph.getInputPCollection().isPresent(), is(false));
     assertThat(
         subgraph.toPTransform().getSubtransformsList(),
-        containsInAnyOrder("read", "parDo", "flatten", "window"));
+        containsInAnyOrder("read", "flatten", "window"));
 
     // Flatten shows up in both of these subgraphs, but elements only go through a path to the
     // flatten once.
     ExecutableStage readFromOtherEnv =
-        GreedilyFusedExecutableStage.forRootTransform(
-            p, PipelineNode.pTransform("envRead", otherEnvRead));
+        GreedilyFusedExecutableStage.forGrpcPortRead(
+            p,
+            impulseOutputNode,
+            ImmutableSet.of(PipelineNode.pTransform("envRead", otherEnvRead)));
     assertThat(
         readFromOtherEnv.getOutputPCollections(),
         contains(
@@ -498,11 +418,139 @@ public class GreedilyFusedExecutableStageTest {
   }
 
   @Test
+  public void flattenWithHeterogeneousInputsAndOutputs() {
+    // (impulse.out) -> pyRead -> pyRead.out \                           -> pyParDo -> pyParDo.out
+    // (impulse.out) ->                       -> flatten -> flatten.out |
+    // (impulse.out) -> goRead -> goRead.out /                           -> goWindow -> goWindow.out
+    // fuses into
+    // (impulse.out) -> pyRead -> pyRead.out -> flatten -> (flatten.out)
+    // (impulse.out) -> goRead -> goRead.out -> flatten -> (flatten.out)
+    // (flatten.out) -> pyParDo -> pyParDo.out
+    // (flatten.out) -> goWindow -> goWindow.out
+    PTransform pyRead =
+        PTransform.newBuilder()
+            .putInputs("input", "impulse.out")
+            .putOutputs("output", "pyRead.out")
+            .setSpec(
+                FunctionSpec.newBuilder()
+                    .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
+                    .setPayload(
+                        ParDoPayload.newBuilder()
+                            .setDoFn(SdkFunctionSpec.newBuilder().setEnvironmentId("py"))
+                            .build()
+                            .toByteString())
+                    .build())
+            .build();
+    PTransform goRead =
+        PTransform.newBuilder()
+            .putInputs("input", "impulse.out")
+            .putOutputs("output", "goRead.out")
+            .setSpec(
+                FunctionSpec.newBuilder()
+                    .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
+                    .setPayload(
+                        ParDoPayload.newBuilder()
+                            .setDoFn(SdkFunctionSpec.newBuilder().setEnvironmentId("go"))
+                            .build()
+                            .toByteString())
+                    .build())
+            .build();
+
+    PTransform pyParDo =
+        PTransform.newBuilder()
+            .putInputs("input", "flatten.out")
+            .putOutputs("output", "pyParDo.out")
+            .setSpec(
+                FunctionSpec.newBuilder()
+                    .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
+                    .setPayload(
+                        ParDoPayload.newBuilder()
+                            .setDoFn(SdkFunctionSpec.newBuilder().setEnvironmentId("py"))
+                            .build()
+                            .toByteString())
+                    .build())
+            .build();
+    PTransform goWindow =
+        PTransform.newBuilder()
+            .putInputs("input", "flatten.out")
+            .putOutputs("output", "goWindow.out")
+            .setSpec(
+                FunctionSpec.newBuilder()
+                    .setUrn(PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN)
+                    .setPayload(
+                        WindowIntoPayload.newBuilder()
+                            .setWindowFn(SdkFunctionSpec.newBuilder().setEnvironmentId("go"))
+                            .build()
+                            .toByteString())
+                    .build())
+            .build();
+
+    PCollection flattenPc = PCollection.newBuilder().setUniqueName("flatten.out").build();
+    Components components =
+        partialComponents
+            .toBuilder()
+            .putTransforms("pyRead", pyRead)
+            .putPcollections(
+                "pyRead.out", PCollection.newBuilder().setUniqueName("pyRead.out").build())
+            .putTransforms("goRead", goRead)
+            .putPcollections(
+                "goRead.out", PCollection.newBuilder().setUniqueName("goRead.out").build())
+            .putTransforms(
+                "flatten",
+                PTransform.newBuilder()
+                    .putInputs("py_input", "pyRead.out")
+                    .putInputs("go_input", "goRead.out")
+                    .putOutputs("output", "flatten.out")
+                    .setSpec(
+                        FunctionSpec.newBuilder()
+                            .setUrn(PTransformTranslation.FLATTEN_TRANSFORM_URN)
+                            .build())
+                    .build())
+            .putPcollections("flatten.out", flattenPc)
+            .putTransforms("pyParDo", pyParDo)
+            .putPcollections(
+                "pyParDo.out", PCollection.newBuilder().setUniqueName("pyParDo.out").build())
+            .putTransforms("goWindow", goWindow)
+            .putPcollections(
+                "goWindow.out", PCollection.newBuilder().setUniqueName("goWindow.out").build())
+            .putEnvironments("go", Environment.newBuilder().setUrl("go").build())
+            .putEnvironments("py", Environment.newBuilder().setUrl("py").build())
+            .build();
+    QueryablePipeline p = QueryablePipeline.fromComponents(components);
+
+    ExecutableStage readFromPy =
+        GreedilyFusedExecutableStage.forGrpcPortRead(
+            p, impulseOutputNode, ImmutableSet.of(PipelineNode.pTransform("pyRead", pyRead)));
+    ExecutableStage readFromGo =
+        GreedilyFusedExecutableStage.forGrpcPortRead(
+            p, impulseOutputNode, ImmutableSet.of(PipelineNode.pTransform("goRead", goRead)));
+
+    assertThat(
+        readFromPy.getOutputPCollections(),
+        contains(PipelineNode.pCollection("flatten.out", flattenPc)));
+    // The stage must materialize the flatten, so the `go` stage can read it; this means that this
+    // parDo can't be in the stage, as it'll be a reader of that materialized PCollection. The same
+    // is true for the go window.
+    assertThat(
+        readFromPy.getTransforms(), not(hasItem(PipelineNode.pTransform("pyParDo", pyParDo))));
+
+    assertThat(
+        readFromGo.getOutputPCollections(),
+        contains(PipelineNode.pCollection("flatten.out", flattenPc)));
+    assertThat(
+        readFromGo.getTransforms(), not(hasItem(PipelineNode.pTransform("goWindow", goWindow))));
+  }
+
+  @Test
   public void materializesWithDifferentEnvConsumer() {
+    // (impulse.out) -> parDo -> parDo.out -> window -> window.out
+    // Fuses into
+    // (impulse.out) -> parDo -> (parDo.out)
+    // (parDo.out) -> window -> window.out
     Environment env = Environment.newBuilder().setUrl("common").build();
     PTransform parDoTransform =
         PTransform.newBuilder()
-            .putInputs("input", "read.out")
+            .putInputs("input", "impulse.out")
             .setSpec(
                 FunctionSpec.newBuilder()
                     .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
@@ -516,22 +564,8 @@ public class GreedilyFusedExecutableStageTest {
 
     QueryablePipeline p =
         QueryablePipeline.fromComponents(
-            Components.newBuilder()
-                .putTransforms(
-                    "read",
-                    PTransform.newBuilder()
-                        .putOutputs("output", "read.out")
-                        .setSpec(
-                            FunctionSpec.newBuilder()
-                                .setUrn(PTransformTranslation.READ_TRANSFORM_URN)
-                                .setPayload(
-                                    ReadPayload.newBuilder()
-                                        .setSource(
-                                            SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
-                                        .build()
-                                        .toByteString()))
-                        .build())
-                .putPcollections("read.out", readDotOut)
+            partialComponents
+                .toBuilder()
                 .putTransforms("parDo", parDoTransform)
                 .putPcollections(
                     "parDo.out", PCollection.newBuilder().setUniqueName("parDo.out").build())
@@ -541,7 +575,7 @@ public class GreedilyFusedExecutableStageTest {
                         .putInputs("input", "parDo.out")
                         .setSpec(
                             FunctionSpec.newBuilder()
-                                .setUrn(PTransformTranslation.WINDOW_TRANSFORM_URN)
+                                .setUrn(PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN)
                                 .setPayload(
                                     WindowIntoPayload.newBuilder()
                                         .setWindowFn(
@@ -553,36 +587,45 @@ public class GreedilyFusedExecutableStageTest {
                 .putEnvironments("common", env)
                 .build());
 
-    PCollectionNode readOutput =
-        getOnlyElement(p.getOutputPCollections(getOnlyElement(p.getRootTransforms())));
     ExecutableStage subgraph =
         GreedilyFusedExecutableStage.forGrpcPortRead(
-            p, readOutput, p.getPerElementConsumers(readOutput));
+            p, impulseOutputNode, p.getPerElementConsumers(impulseOutputNode));
     assertThat(subgraph.getOutputPCollections(), emptyIterable());
-    assertThat(subgraph.getInputPCollection().isPresent(), is(true));
-    assertThat(subgraph.getInputPCollection().get(), equalTo(readOutput));
+    assertThat(subgraph.getInputPCollection(), equalTo(impulseOutputNode));
     assertThat(subgraph.getEnvironment(), equalTo(env));
-    assertThat(subgraph.toPTransform().getSubtransformsList(), contains("parDo"));
+    assertThat(
+        subgraph.getTransforms(), contains(PipelineNode.pTransform("parDo", parDoTransform)));
   }
 
   @Test
   public void materializesWithDifferentEnvSibling() {
+    // (impulse.out) -> read -> read.out -> parDo -> parDo.out
+    //                                   \
+    //                                    -> window -> window.out
+    // Fuses into
+    // (impulse.out) -> read -> (read.out)
+    // (read.out) -> parDo -> parDo.out
+    // (read.out) -> window -> window.out
+    // The window can't be fused into the stage, which forces the PCollection to be materialized.
+    // ParDo in this case _could_ be fused into the stage, but is not for simplicity of
+    // implementation
     Environment env = Environment.newBuilder().setUrl("common").build();
     PTransform readTransform =
         PTransform.newBuilder()
+            .putInputs("input", "impulse.out")
             .putOutputs("output", "read.out")
             .setSpec(
                 FunctionSpec.newBuilder()
-                    .setUrn(PTransformTranslation.READ_TRANSFORM_URN)
+                    .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
                     .setPayload(
-                        ReadPayload.newBuilder()
-                            .setSource(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
+                        ParDoPayload.newBuilder()
+                            .setDoFn(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
                             .build()
                             .toByteString()))
             .build();
     QueryablePipeline p =
         QueryablePipeline.fromComponents(
-            Components.newBuilder()
+            partialComponents.toBuilder()
                 .putTransforms("read", readTransform)
                 .putPcollections("read.out", readDotOut)
                 .putTransforms(
@@ -609,7 +652,7 @@ public class GreedilyFusedExecutableStageTest {
                         .putOutputs("output", "window.out")
                         .setSpec(
                             FunctionSpec.newBuilder()
-                                .setUrn(PTransformTranslation.WINDOW_TRANSFORM_URN)
+                                .setUrn(PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN)
                                 .setPayload(
                                     WindowIntoPayload.newBuilder()
                                         .setWindowFn(
@@ -623,37 +666,53 @@ public class GreedilyFusedExecutableStageTest {
                 .putEnvironments("common", env)
                 .build());
 
-    PTransformNode readNode = getOnlyElement(p.getRootTransforms());
+    PTransformNode readNode = PipelineNode.pTransform("read", readTransform);
     PCollectionNode readOutput = getOnlyElement(p.getOutputPCollections(readNode));
-    ExecutableStage subgraph = GreedilyFusedExecutableStage.forRootTransform(p, readNode);
+    ExecutableStage subgraph =
+        GreedilyFusedExecutableStage.forGrpcPortRead(
+            p, impulseOutputNode, ImmutableSet.of(PipelineNode.pTransform("read", readTransform)));
     assertThat(subgraph.getOutputPCollections(), contains(readOutput));
-    assertThat(subgraph.toPTransform().getSubtransformsList(), contains("read"));
+    assertThat(subgraph.getTransforms(), contains(readNode));
   }
 
   @Test
   public void materializesWithSideInputConsumer() {
+    // (impulse.out) -> read -> read.out -----------> parDo -> parDo.out -> window -> window.out
+    // (impulse.out) -> side_read -> side_read.out /
+    // Where parDo takes side_read as a side input, fuses into
+    // (impulse.out) -> read -> (read.out)
+    // (impulse.out) -> side_read -> (side_read.out)
+    // (read.out) -> parDo -> parDo.out -> window -> window.out
+    // parDo doesn't have a per-element consumer from side_read.out, so it can't root a stage
+    // which consumes from that materialized collection. Nodes with side inputs must root a stage,
+    // but do not restrict fusion of consumers.
     Environment env = Environment.newBuilder().setUrl("common").build();
     PTransform readTransform =
         PTransform.newBuilder()
+            .putInputs("input", "impulse.out")
             .putOutputs("output", "read.out")
             .setSpec(
                 FunctionSpec.newBuilder()
-                    .setUrn(PTransformTranslation.READ_TRANSFORM_URN)
+                    .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
                     .setPayload(
-                        ReadPayload.newBuilder()
-                            .setSource(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
+                        ParDoPayload.newBuilder()
+                            .setDoFn(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
                             .build()
                             .toByteString()))
             .build();
 
     QueryablePipeline p =
         QueryablePipeline.fromComponents(
-            Components.newBuilder()
+            partialComponents
+                .toBuilder()
                 .putTransforms("read", readTransform)
                 .putPcollections("read.out", readDotOut)
                 .putTransforms(
                     "side_read",
-                    PTransform.newBuilder().putOutputs("output", "side_read.out").build())
+                    PTransform.newBuilder()
+                        .putInputs("input", "impulse.out")
+                        .putOutputs("output", "side_read.out")
+                        .build())
                 .putPcollections(
                     "side_read.out",
                     PCollection.newBuilder().setUniqueName("side_read.out").build())
@@ -683,7 +742,7 @@ public class GreedilyFusedExecutableStageTest {
                         .putOutputs("output", "window.out")
                         .setSpec(
                             FunctionSpec.newBuilder()
-                                .setUrn(PTransformTranslation.WINDOW_TRANSFORM_URN)
+                                .setUrn(PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN)
                                 .setPayload(
                                     WindowIntoPayload.newBuilder()
                                         .setWindowFn(
@@ -698,30 +757,38 @@ public class GreedilyFusedExecutableStageTest {
 
     PTransformNode readNode = PipelineNode.pTransform("read", readTransform);
     PCollectionNode readOutput = getOnlyElement(p.getOutputPCollections(readNode));
-    ExecutableStage subgraph = GreedilyFusedExecutableStage.forRootTransform(p, readNode);
+    ExecutableStage subgraph =
+        GreedilyFusedExecutableStage.forGrpcPortRead(
+            p, impulseOutputNode, ImmutableSet.of(readNode));
     assertThat(subgraph.getOutputPCollections(), contains(readOutput));
     assertThat(subgraph.toPTransform().getSubtransformsList(), contains(readNode.getId()));
   }
 
   @Test
   public void materializesWithGroupByKeyConsumer() {
+    // (impulse.out) -> read -> read.out -> gbk -> gbk.out
+    // Fuses to
+    // (impulse.out) -> read -> (read.out)
+    // GBK is the responsibility of the runner, so it is not included in a stage.
     Environment env = Environment.newBuilder().setUrl("common").build();
     PTransform readTransform =
         PTransform.newBuilder()
+            .putInputs("input", "impulse.out")
             .putOutputs("output", "read.out")
             .setSpec(
                 FunctionSpec.newBuilder()
-                    .setUrn(PTransformTranslation.READ_TRANSFORM_URN)
+                    .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
                     .setPayload(
-                        ReadPayload.newBuilder()
-                            .setSource(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
+                        ParDoPayload.newBuilder()
+                            .setDoFn(SdkFunctionSpec.newBuilder().setEnvironmentId("common"))
                             .build()
                             .toByteString()))
             .build();
 
     QueryablePipeline p =
         QueryablePipeline.fromComponents(
-            Components.newBuilder()
+            partialComponents
+                .toBuilder()
                 .putTransforms("read", readTransform)
                 .putPcollections("read.out", readDotOut)
                 .putTransforms(
@@ -740,7 +807,9 @@ public class GreedilyFusedExecutableStageTest {
 
     PTransformNode readNode = PipelineNode.pTransform("read", readTransform);
     PCollectionNode readOutput = getOnlyElement(p.getOutputPCollections(readNode));
-    ExecutableStage subgraph = GreedilyFusedExecutableStage.forRootTransform(p, readNode);
+    ExecutableStage subgraph =
+        GreedilyFusedExecutableStage.forGrpcPortRead(
+            p, impulseOutputNode, ImmutableSet.of(readNode));
     assertThat(subgraph.getOutputPCollections(), contains(readOutput));
     assertThat(subgraph.toPTransform().getSubtransformsList(), contains(readNode.getId()));
   }
