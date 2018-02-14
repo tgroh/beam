@@ -41,11 +41,15 @@ import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.PutArtifactRequest;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.PutArtifactRequest.ContentCase;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.PutArtifactResponse;
+import org.apache.beam.model.jobmanagement.v1.ArtifactStagingServiceGrpc;
 import org.apache.beam.model.jobmanagement.v1.ArtifactStagingServiceGrpc.ArtifactStagingServiceImplBase;
 
 /**
  * An {@link ArtifactStagingServiceImplBase ArtifactStagingService} which stores the bytes of the
- * artifacts in memory..
+ * artifacts in memory.
+ *
+ * <p>Due to size limitations and other concerns, this should generally only be used to test clients
+ * of the {@link ArtifactStagingServiceGrpc}.
  */
 public class InMemoryArtifactStagerService extends ArtifactStagingServiceImplBase {
   private final ConcurrentMap<ArtifactMetadata, byte[]> artifactBytes;
@@ -60,8 +64,8 @@ public class InMemoryArtifactStagerService extends ArtifactStagingServiceImplBas
   @Override
   public StreamObserver<ArtifactApi.PutArtifactRequest> putArtifact(
       StreamObserver<ArtifactApi.PutArtifactResponse> responseObserver) {
-    BufferingObserver bufferingObserver = new BufferingObserver(responseObserver);
     activePuts.getAndIncrement();
+    BufferingObserver bufferingObserver = new BufferingObserver(responseObserver);
     return bufferingObserver;
   }
 
@@ -142,10 +146,9 @@ public class InMemoryArtifactStagerService extends ArtifactStagingServiceImplBas
               writer.stream.toByteArray());
         } catch (NoSuchAlgorithmException e) {
           throw new AssertionError("The Java Spec requires all JVMs to support MD5", e);
-        } finally {
-          activePuts.getAndDecrement();
         }
       }
+      activePuts.getAndDecrement();
       responseObserver.onNext(PutArtifactResponse.getDefaultInstance());
       responseObserver.onCompleted();
     }
