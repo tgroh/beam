@@ -18,24 +18,25 @@
 
 package org.apache.beam.sdk.fn.data;
 
-import java.util.concurrent.CancellationException;
-
 /**
- * A client representing some stream of inbound data. An inbound data client can be completed or
- * cancelled, in which case it will ignore any future inputs. It can also be awaited on.
+ * TODO: Document
  */
-public interface InboundDataClient {
+public interface ManagedDataStream {
   /**
-   * Block until the client has completed reading from the inbound stream.
-   *
-   * @throws InterruptedException if the client is interrupted before completing.
-   * @throws CancellationException if the client is cancelled before completing.
-   * @throws Exception if the client throws an exception while awaiting completion.
+   * Cancels the stream, causing it to drop any future inbound data.
    */
-  void awaitCompletion() throws InterruptedException, Exception;
+  void cancel();
 
   /**
-   * Returns true if the client is done, either via completing successfully or by being cancelled.
+   * Mark the stream as completed.
    */
-  boolean isDone();
+  void complete();
+
+  /**
+   * Mark the client as completed with an exception. Calls to awaitCompletion will terminate by
+   * throwing the provided exception.
+   *
+   * @param t the throwable that caused this client to fail
+   */
+  void fail(Throwable t);
 }

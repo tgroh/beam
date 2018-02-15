@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.SynchronousQueue;
 import org.apache.beam.fn.harness.FnHarness;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
@@ -193,19 +192,21 @@ public class SdkHarnessClientTest {
     final GrpcFnServer<FnApiControlClientPoolService> controlServer =
         GrpcFnServer.allocatePortAndCreateFor(clientPoolService, serverFactory);
 
-    Future<Void> harness = executor.submit(() -> {
-      FnHarness.main(PipelineOptionsFactory.create(),
-          loggingServer.getApiServiceDescriptor(),
-          controlServer.getApiServiceDescriptor(),
-          new ManagedChannelFactory() {
-            @Override
-            public ManagedChannel forDescriptor(ApiServiceDescriptor apiServiceDescriptor) {
-              return InProcessChannelBuilder.forName(apiServiceDescriptor.getUrl()).build();
-            }
-          },
-          StreamObserverFactory.direct());
-      return null;
-    });
+    executor.submit(
+        () -> {
+          FnHarness.main(
+              PipelineOptionsFactory.create(),
+              loggingServer.getApiServiceDescriptor(),
+              controlServer.getApiServiceDescriptor(),
+              new ManagedChannelFactory() {
+                @Override
+                public ManagedChannel forDescriptor(ApiServiceDescriptor apiServiceDescriptor) {
+                  return InProcessChannelBuilder.forName(apiServiceDescriptor.getUrl()).build();
+                }
+              },
+              StreamObserverFactory.direct());
+          return null;
+        });
 
     ProcessBundleDescriptor processBundleDescriptor =
         getProcessBundleDescriptor(dataServer.getApiServiceDescriptor());

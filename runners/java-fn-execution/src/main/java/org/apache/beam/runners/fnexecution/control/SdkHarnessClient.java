@@ -196,7 +196,7 @@ public class SdkHarnessClient implements AutoCloseable {
 
   public <T> BundleProcessor<T> getProcessor(
       final BeamFnApi.ProcessBundleDescriptor descriptor,
-      final RemoteInputDestination<WindowedValue<T>> remoteInputDesination) {
+      final RemoteInputDestination<WindowedValue<T>> remoteInputDestination) {
     try {
       return clientProcessors.get(
           descriptor.getId(),
@@ -204,7 +204,7 @@ public class SdkHarnessClient implements AutoCloseable {
               (BundleProcessor)
                   register(
                           Collections.singletonMap(
-                              descriptor, (RemoteInputDestination) remoteInputDesination))
+                              descriptor, (RemoteInputDestination) remoteInputDestination))
                       .get(descriptor.getId()));
     } catch (ExecutionException e) {
       throw new RuntimeException(e);
@@ -258,7 +258,7 @@ public class SdkHarnessClient implements AutoCloseable {
   @AutoValue
   public abstract static class RemoteInputDestination<T> {
     public static <T> RemoteInputDestination<T> of(Coder<T> coder, BeamFnApi.Target target) {
-      return new AutoValue_SdkHarnessClient_RemoteInputDestination(coder, target);
+      return new AutoValue_SdkHarnessClient_RemoteInputDestination<>(coder, target);
     }
 
     public abstract Coder<T> getCoder();
@@ -272,7 +272,7 @@ public class SdkHarnessClient implements AutoCloseable {
   @AutoValue
   public abstract static class RemoteOutputReceiver<T> {
     public static <T> RemoteOutputReceiver of (Coder<T> coder, FnDataReceiver<T> receiver) {
-      return new AutoValue_SdkHarnessClient_RemoteOutputReceiver(coder, receiver);
+      return new AutoValue_SdkHarnessClient_RemoteOutputReceiver<>(coder, receiver);
     }
 
     public abstract Coder<T> getCoder();

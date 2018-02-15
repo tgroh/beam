@@ -30,16 +30,16 @@ import org.slf4j.LoggerFactory;
  * passing the individual decoded elements to the provided consumer.
  */
 public class BeamFnDataInboundObserver<T>
-    implements Consumer<BeamFnApi.Elements.Data>, InboundDataClient {
+    implements Consumer<BeamFnApi.Elements.Data>, InboundDataClient, ManagedDataStream {
   private static final Logger LOG = LoggerFactory.getLogger(BeamFnDataInboundObserver.class);
 
   public static <T> BeamFnDataInboundObserver<T> forConsumer(
-      Coder<WindowedValue<T>> coder, FnDataReceiver<WindowedValue<T>> receiver) {
+      Coder<WindowedValue<T>> coder, CloseableFnDataReceiver<WindowedValue<T>> receiver) {
     return new BeamFnDataInboundObserver<>(
         coder, receiver, SettableFutureInboundDataClient.create());
   }
 
-  private final FnDataReceiver<WindowedValue<T>> consumer;
+  private final CloseableFnDataReceiver<WindowedValue<T>> consumer;
   private final Coder<WindowedValue<T>> coder;
   private final InboundDataClient readFuture;
   private long byteCounter;
@@ -47,7 +47,7 @@ public class BeamFnDataInboundObserver<T>
 
   public BeamFnDataInboundObserver(
       Coder<WindowedValue<T>> coder,
-      FnDataReceiver<WindowedValue<T>> consumer,
+      CloseableFnDataReceiver<WindowedValue<T>> consumer,
       InboundDataClient readFuture) {
     this.coder = coder;
     this.consumer = consumer;
@@ -68,6 +68,7 @@ public class BeamFnDataInboundObserver<T>
             t.getTarget(),
             counter,
             byteCounter);
+        consumer.close();
         readFuture.complete();
         return;
       }
@@ -84,6 +85,7 @@ public class BeamFnDataInboundObserver<T>
     }
   }
 
+  // Observy-bits
   @Override
   public void awaitCompletion() throws Exception {
     readFuture.awaitCompletion();
@@ -94,6 +96,7 @@ public class BeamFnDataInboundObserver<T>
     return readFuture.isDone();
   }
 
+  // Streamy-bits
   @Override
   public void cancel() {
     readFuture.cancel();

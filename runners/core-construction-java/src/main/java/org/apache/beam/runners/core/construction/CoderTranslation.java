@@ -34,6 +34,7 @@ import java.util.ServiceLoader;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
+import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.util.SerializableUtils;
 
@@ -130,6 +131,25 @@ public class CoderTranslation {
       return fromCustomCoder(protoCoder);
     }
     return fromKnownCoder(protoCoder, components);
+  }
+
+  public static Coder<?> fromPartiallyKnownCoder(
+      RunnerApi.Coder protoCoder, RunnerApi.Components components) throws IOException {
+    String coderUrn = protoCoder.getSpec().getSpec().getUrn();
+    List<Coder<?>> coderComponents = new LinkedList<>();
+    for (String componentId : protoCoder.getComponentCoderIdsList()) {
+      RunnerApi.Coder innerCoder = components.getCodersOrThrow(componentId);
+      Coder<?> innerCoderJava = fromPartiallyKnownCoder(innerCoder, components);
+      coderComponents.add(innerCoderJava);
+    }
+    Class<? extends Coder> coderType = KNOWN_CODER_URNS.inverse().get(coderUrn);
+    if (coderType == null) {
+      return ByteArrayCoder.of();
+    } else {
+      CoderTranslator<?> translator = KNOWN_TRANSLATORS.get(coderType);
+      return translator.fromComponents(
+          coderComponents, protoCoder.getSpec().getSpec().getPayload().toByteArray());
+    }
   }
 
   private static Coder<?> fromKnownCoder(RunnerApi.Coder coder, RehydratedComponents components)

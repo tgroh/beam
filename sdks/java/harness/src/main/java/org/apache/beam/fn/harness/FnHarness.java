@@ -92,9 +92,11 @@ public class FnHarness {
     main(options, loggingApiServiceDescriptor, controlApiServiceDescriptor);
   }
 
-  public static void main(PipelineOptions options,
+  public static void main(
+      PipelineOptions options,
       Endpoints.ApiServiceDescriptor loggingApiServiceDescriptor,
-      Endpoints.ApiServiceDescriptor controlApiServiceDescriptor) throws Exception {
+      Endpoints.ApiServiceDescriptor controlApiServiceDescriptor)
+      throws Exception {
     ManagedChannelFactory channelFactory;
     List<String> experiments = options.as(ExperimentalOptions.class).getExperiments();
     if (experiments != null && experiments.contains("beam_fn_api_epoll")) {

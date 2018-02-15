@@ -23,9 +23,13 @@ import static com.google.common.base.Preconditions.checkArgument;
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.Iterables;
 import com.google.protobuf.InvalidProtocolBufferException;
+import java.io.IOException;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.RemoteGrpcPort;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
+import org.apache.beam.runners.core.construction.CoderTranslation;
+import org.apache.beam.sdk.coders.Coder;
 
 /**
  * An execution-time only {@link PTransform} which represents an SDK harness reading from a
@@ -65,4 +69,9 @@ public abstract class RemoteGrpcPortRead {
 
   public abstract RemoteGrpcPort getPort();
   abstract String getOutputPCollectionId();
+
+  public Coder<?> getActualCoder(RunnerApi.Components components) throws IOException {
+    return CoderTranslation.fromPartiallyKnownCoder(
+        components.getCodersOrThrow(getPort().getCoderId()), components);
+  }
 }
