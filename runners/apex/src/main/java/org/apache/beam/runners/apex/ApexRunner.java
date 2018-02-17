@@ -40,17 +40,13 @@ import org.apache.apex.api.Launcher.AppHandle;
 import org.apache.apex.api.Launcher.LaunchMode;
 import org.apache.beam.runners.apex.translation.ApexPipelineTranslator;
 import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems;
-import org.apache.beam.runners.core.construction.PTransformMatchers;
-import org.apache.beam.runners.core.construction.PTransformReplacements;
-import org.apache.beam.runners.core.construction.PrimitiveCreate;
-import org.apache.beam.runners.core.construction.ReplacementOutputs;
-import org.apache.beam.runners.core.construction.SingleInputOutputOverrideFactory;
-import org.apache.beam.runners.core.construction.SplittableParDo;
+import org.apache.beam.runners.core.construction.*;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineRunner;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderRegistry;
 import org.apache.beam.sdk.coders.ListCoder;
+import org.apache.beam.sdk.io.Read;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsValidator;
 import org.apache.beam.sdk.runners.AppliedPTransform;
@@ -128,12 +124,15 @@ public class ApexRunner extends PipelineRunner<ApexRunnerResult> {
                 new StreamingWrapSingletonInList.Factory()))
         .add(
             PTransformOverride.of(
-                PTransformMatchers.splittableParDoMulti(),
-                new SplittableParDoOverrideFactory<>()))
+                PTransformMatchers.splittableParDoMulti(), new SplittableParDoOverrideFactory<>()))
         .add(
             PTransformOverride.of(
                 PTransformMatchers.classEqualTo(SplittableParDo.ProcessKeyedElements.class),
                 new SplittableParDoViaKeyedWorkItems.OverrideFactory<>()))
+        .add(
+            PTransformOverride.of(
+                PTransformMatchers.classEqualTo(Read.Bounded.class),
+                new PrimitiveBoundedRead.Factory()))
         .build();
   }
 

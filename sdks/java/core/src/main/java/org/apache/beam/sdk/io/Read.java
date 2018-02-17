@@ -18,7 +18,10 @@
 package org.apache.beam.sdk.io;
 
 import javax.annotation.Nullable;
-import org.apache.beam.sdk.transforms.PTransform;
+
+import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.coders.SerializableCoder;
+import org.apache.beam.sdk.transforms.*;
 import org.apache.beam.sdk.transforms.display.DisplayData;
 import org.apache.beam.sdk.util.NameUtils;
 import org.apache.beam.sdk.util.SerializableUtils;
@@ -97,11 +100,12 @@ public class Read {
     public final PCollection<T> expand(PBegin input) {
       source.validate();
 
-      return PCollection.createPrimitiveOutputInternal(
-          input.getPipeline(),
-          WindowingStrategy.globalDefault(),
-          IsBounded.BOUNDED,
-          source.getOutputCoder());
+      return input.apply(Impulse.create())
+              .apply(ParDo.of(SplitBoundedSourceFn.create(source)))
+              .setCoder((Coder<BoundedSource<T>>) SerializableCoder.of((Class) BoundedSource.class))
+              .apply(Reshuffle.viaRandomKey())
+              .apply(ParDo.of(ReadFromBoundedSourceFn.create()))
+              .setCoder(source.getOutputCoder());
     }
 
     /**
@@ -161,6 +165,8 @@ public class Read {
     @Override
     public final PCollection<T> expand(PBegin input) {
       source.validate();
+
+      // TODO: Replace the default expansion with an Impulse -> ParDo sequence, as in BoundedRead
       return PCollection.createPrimitiveOutputInternal(
           input.getPipeline(),
           WindowingStrategy.globalDefault(),
@@ -187,6 +193,41 @@ public class Read {
           .add(DisplayData.item("source", source.getClass())
             .withLabel("Read Source"))
           .include("source", source);
+    }
+  }
+
+  private static class SplitBoundedSourceFn<T> extends DoFn<byte[], BoundedSource<T>> {
+    private static <T> SplitBoundedSourceFn<T> create(BoundedSource<T> source) {
+      return new SplitBoundedSourceFn<>(source);
+    }
+
+    private final BoundedSource<T> source;
+
+    private SplitBoundedSourceFn(BoundedSource<T> source) {
+      this.source = source;
+    }
+
+    @DoFn.ProcessElement
+    public void process(ProcessContext c) throws Exception {
+      for (BoundedSource<T> split :
+              source.split(64L << 20, c.getPipelineOptions())) {
+        c.output(split);
+      }
+    }
+  }
+
+  private static class ReadFromBoundedSourceFn<T> extends DoFn<BoundedSource<T> ,T> {
+    public static <T> ReadFromBoundedSourceFn<T> create() {
+      return new ReadFromBoundedSourceFn<>();
+    }
+
+    @ProcessElement
+    public void process(ProcessContext c) throws Exception {
+      BoundedSource.BoundedReader<T> reader =
+              c.element().createReader(c.getPipelineOptions());
+      for (boolean more = reader.start(); more; more = reader.advance()) {
+        c.outputWithTimestamp(reader.getCurrent(), reader.getCurrentTimestamp());
+      }
     }
   }
 }
