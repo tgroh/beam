@@ -44,6 +44,7 @@ import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems.ProcessElem
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation.TransformPayloadTranslator;
 import org.apache.beam.runners.core.construction.TransformPayloadTranslatorRegistrar;
+import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.direct.TestStreamEvaluatorFactory.DirectTestStreamFactory.DirectTestStream;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -86,6 +87,15 @@ class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
             .put(SPLITTABLE_PROCESS_URN, new SplittableProcessElementsEvaluatorFactory<>(ctxt))
             .build();
     return new TransformEvaluatorRegistry(primitives);
+  }
+
+  public static TransformEvaluatorRegistry portableRegistry(EvaluationContext ctxt) {
+    ImmutableMap<String, TransformEvaluatorFactory> primitives = ImmutableMap.<String, TransformEvaluatorFactory>builder()
+        .put(FLATTEN_TRANSFORM_URN, new FlattenEvaluatorFactory(ctxt))
+        .put(IMPULSE_TRANSFORM_URN, new ImpulseEvaluatorFactory(ctxt))
+        .put(DIRECT_GBKO_URN, new GroupByKeyOnlyEvaluatorFactory(ctxt))
+        .put(DIRECT_GABW_URN, new PortableGroupAlsoByWindowEvaluatorFactory(ctxt))
+        .put(ExecutableStage.URN, new RemoteStageEvaluatorFactory(ctxt)).build()
   }
 
   /** Registers classes specialized to the direct runner. */
