@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.TransformInputs;
 import org.apache.beam.runners.direct.ViewOverrideFactory.WriteView;
 import org.apache.beam.sdk.Pipeline;
@@ -116,7 +117,8 @@ class DirectGraphVisitor extends PipelineVisitor.Defaults {
         allConsumers.put(value, appliedTransform);
       }
     }
-    if (node.getTransform() instanceof ParDo.MultiOutput) {
+    if (PTransformTranslation.PAR_DO_TRANSFORM_URN.equals(
+        PTransformTranslation.urnForTransformOrNull(node.getTransform()))) {
       consumedViews.addAll(((ParDo.MultiOutput<?, ?>) node.getTransform()).getSideInputs());
     } else if (node.getTransform() instanceof ViewOverrideFactory.WriteView) {
       viewWriters.put(
