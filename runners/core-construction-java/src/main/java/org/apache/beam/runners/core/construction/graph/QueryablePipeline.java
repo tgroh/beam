@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -116,42 +117,12 @@ public class QueryablePipeline {
         NetworkBuilder.directed().allowsParallelEdges(true).allowsSelfLoops(false).build();
     Set<PCollectionNode> unproducedCollections = new HashSet<>();
     for (Map.Entry<String, PTransform> transformEntry : components.getTransformsMap().entrySet()) {
-      String transformId = transformEntry.getKey();
-      PTransform transform = transformEntry.getValue();
-      PTransformNode transformNode =
-          PipelineNode.pTransform(transformId, this.components.getTransformsOrThrow(transformId));
-      network.addNode(transformNode);
-      for (String produced : transform.getOutputsMap().values()) {
-        PCollectionNode producedNode =
-            PipelineNode.pCollection(produced, components.getPcollectionsOrThrow(produced));
-        network.addNode(producedNode);
-        network.addEdge(transformNode, producedNode, new PerElementEdge());
-        checkState(
-            network.inDegree(producedNode) == 1,
-            "A %s should have exactly one producing %s, %s has %s",
-            PCollectionNode.class.getSimpleName(),
-            PTransformNode.class.getSimpleName(),
-            producedNode,
-            network.successors(producedNode));
-        unproducedCollections.remove(producedNode);
-      }
-      for (Map.Entry<String, String> consumed : transform.getInputsMap().entrySet()) {
-        // This loop may add an edge between the consumed PCollection and the current PTransform.
-        // The local name of the transform must be used to determine the type of edge.
-        String pcollectionId = consumed.getValue();
-        PCollectionNode consumedNode =
-            PipelineNode.pCollection(
-                pcollectionId, this.components.getPcollectionsOrThrow(pcollectionId));
-        if (network.addNode(consumedNode)) {
-          // This node has been added to the network for the first time, so it has no producer.
-          unproducedCollections.add(consumedNode);
-        }
-        if (getLocalSideInputNames(transform).contains(consumed.getKey())) {
-          network.addEdge(consumedNode, transformNode, new SingletonEdge());
-        } else {
-          network.addEdge(consumedNode, transformNode, new PerElementEdge());
-        }
-      }
+      addNode(
+          components,
+          network,
+          unproducedCollections,
+          transformEntry.getKey(),
+          transformEntry.getValue());
     }
     checkState(
         unproducedCollections.isEmpty(),
@@ -159,6 +130,61 @@ public class QueryablePipeline {
         PCollectionNode.class.getSimpleName(),
         unproducedCollections);
     return network;
+  }
+
+  private PTransformNode addNode(
+      Components components,
+      MutableNetwork<PipelineNode, PipelineEdge> network,
+      Set<PCollectionNode> unproducedCollections,
+      String transformId,
+      PTransform transform) {
+    PTransformNode transformNode =
+        PipelineNode.pTransform(transformId, this.components.getTransformsOrThrow(transformId));
+    network.addNode(transformNode);
+    for (String subtransformId : transform.getSubtransformsList()) {
+      PTransformNode subtransformNode =
+          addNode(
+              components,
+              network,
+              unproducedCollections,
+              subtransformId,
+              components.getTransformsOrThrow(subtransformId));
+      network.addEdge(subtransformNode, transformNode, new ParentTransformEdge());
+    }
+    for (String produced : transform.getOutputsMap().values()) {
+      PCollectionNode producedNode =
+          PipelineNode.pCollection(produced, components.getPcollectionsOrThrow(produced));
+      network.addNode(producedNode);
+      if (isPrimitiveTransform(transform)) {
+        network.addEdge(transformNode, producedNode, new PerElementEdge());
+      }
+      checkState(
+          network.inDegree(producedNode) == 1,
+          "A %s should have exactly one producing %s, %s has %s",
+          PCollectionNode.class.getSimpleName(),
+          PTransformNode.class.getSimpleName(),
+          producedNode,
+          network.successors(producedNode));
+      unproducedCollections.remove(producedNode);
+    }
+    for (Entry<String, String> consumed : transform.getInputsMap().entrySet()) {
+      // This loop may add an edge between the consumed PCollection and the current PTransform.
+      // The local name of the transform must be used to determine the type of edge.
+      String pcollectionId = consumed.getValue();
+      PCollectionNode consumedNode =
+          PipelineNode.pCollection(
+              pcollectionId, this.components.getPcollectionsOrThrow(pcollectionId));
+      if (network.addNode(consumedNode)) {
+        // This node has been added to the network for the first time, so it has no producer.
+        unproducedCollections.add(consumedNode);
+      }
+      if (getLocalSideInputNames(transform).contains(consumed.getKey())) {
+        network.addEdge(consumedNode, transformNode, new SingletonEdge());
+      } else {
+        network.addEdge(consumedNode, transformNode, new PerElementEdge());
+      }
+    }
+    return transformNode;
   }
 
   /**
@@ -174,6 +200,7 @@ public class QueryablePipeline {
         .collect(Collectors.toSet());
   }
 
+  /** Gets the primitive producer of a {@link PCollectionNode}. */
   public PTransformNode getProducer(PCollectionNode pcollection) {
     return (PTransformNode) Iterables.getOnlyElement(pipelineNetwork.predecessors(pcollection));
   }
@@ -198,15 +225,18 @@ public class QueryablePipeline {
                 pipelineNetwork
                     .edgesConnecting(pCollection, consumer)
                     .stream()
-                    .anyMatch(PipelineEdge::isPerElement))
+                    .map(PipelineEdge::getEdgeType)
+                    .anyMatch(EdgeType.PARALLEL_ELEMENT::equals))
         .map(pipelineNode -> (PTransformNode) pipelineNode)
         .collect(Collectors.toSet());
   }
 
   public Set<PCollectionNode> getOutputPCollections(PTransformNode ptransform) {
     return pipelineNetwork
-        .successors(ptransform)
+        .outEdges(ptransform)
         .stream()
+        .filter(edge -> edge.getEdgeType().isElementEdge())
+        .map(edge -> pipelineNetwork.incidentNodes(edge).target())
         .map(pipelineNode -> (PCollectionNode) pipelineNode)
         .collect(Collectors.toSet());
   }
@@ -248,20 +278,50 @@ public class QueryablePipeline {
   }
 
   private interface PipelineEdge {
-    boolean isPerElement();
+    EdgeType getEdgeType();
   }
 
   private static class PerElementEdge implements PipelineEdge {
     @Override
-    public boolean isPerElement() {
-      return true;
+    public EdgeType getEdgeType() {
+      return EdgeType.PARALLEL_ELEMENT;
     }
   }
 
   private static class SingletonEdge implements PipelineEdge {
     @Override
-    public boolean isPerElement() {
-      return false;
+    public EdgeType getEdgeType() {
+      return EdgeType.SINGLETON;
+    }
+  }
+
+  private static class ParentTransformEdge implements PipelineEdge {
+    @Override
+    public EdgeType getEdgeType() {
+      return EdgeType.ENCLOSING_TRANSFORM;
+    }
+  }
+
+  private enum EdgeType {
+    PARALLEL_ELEMENT(true),
+    SINGLETON(true),
+    ENCLOSING_TRANSFORM(false);
+
+    private final boolean elementEdge;
+
+    EdgeType(boolean elementEdge) {
+      this.elementEdge = elementEdge;
+    }
+
+    /**
+     * Returns if this edge represents the flow of elements.
+     *
+     * <p>Edges between {@link PCollectionNode} and {@link PTransformNode} return {@code true}.
+     * Edges between {@link PCollectionNode PCollectionNodes}, representing composite transforms,
+     * return false.
+     */
+    public boolean isElementEdge() {
+      return elementEdge;
     }
   }
 }
