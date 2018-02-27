@@ -65,13 +65,13 @@ public class Environments {
           KNOWN_URN_SPEC_EXTRACTORS
               .getOrDefault(ptransform.getSpec().getUrn(), DEFAULT_SPEC_EXTRACTOR)
               .getEnvironmentId(ptransform);
-      if (!Strings.isNullOrEmpty(envId)) {
-        // Some PTransform payloads may have an empty (default) Environment ID, for example a
+      if (Strings.isNullOrEmpty(envId)) {
+        // Some PTransform payloads may have an unspecified (empty) Environment ID, for example a
         // WindowIntoPayload with a known WindowFn. Others will never have an Environment ID, such
         // as a GroupByKeyPayload, and the Default extractor returns null in this case.
-        return Optional.of(components.getEnvironmentsOrThrow(envId));
-      } else {
         return Optional.empty();
+      } else {
+        return Optional.of(components.getEnvironmentsOrThrow(envId));
       }
     } catch (IOException e) {
       throw new RuntimeException(e);
