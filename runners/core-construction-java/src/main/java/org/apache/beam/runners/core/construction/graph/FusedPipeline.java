@@ -19,16 +19,18 @@
 package org.apache.beam.runners.core.construction.graph;
 
 import com.google.auto.value.AutoValue;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map.Entry;
 import java.util.Set;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components.Builder;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 
-/**
- * A {@link Pipeline} which has been separated into collections of executable components.
- */
+/** A {@link Pipeline} which has been separated into collections of executable components. */
 @AutoValue
 public abstract class FusedPipeline {
   static FusedPipeline of(
@@ -36,15 +38,31 @@ public abstract class FusedPipeline {
     return new AutoValue_FusedPipeline(environmentalStages, runnerStages);
   }
 
-  /**
-   * The {@link ExecutableStage executable stages} that are executed by SDK harnesses.
-   */
+  /** The {@link ExecutableStage executable stages} that are executed by SDK harnesses. */
   public abstract Set<ExecutableStage> getFusedStages();
 
-  /**
-   * The {@link PTransform PTransforms} that a runner is responsible for executing.
-   */
+  /** The {@link PTransform PTransforms} that a runner is responsible for executing. */
   public abstract Set<PTransformNode> getRunnerExecutedTransforms();
+
+  public RunnerApi.Pipeline toPipeline(Components initialComponents) {
+    Components pipelineComponents = populateComponents(initialComponents);
+    List<String> rootTransformIds = new ArrayList<>();
+    for (Entry<String, PTransform> transformEntry :
+        pipelineComponents.getTransformsMap().entrySet()) {
+      if (getRunnerExecutedTransforms()
+              .contains(PipelineNode.pTransform(transformEntry.getKey(), transformEntry.getValue()))
+          || ExecutableStage.URN.equals(transformEntry.getValue().getSpec().getUrn())) {
+        // This is a runner-executed transform or an ExecutableStage, which are the two types of
+        // top-level transforms in the fused representation.
+        // TODO: addParents(transformEntry.getValue(), pipelineComponents);
+      }
+      // Otherwise, this is a SDK-executed transform, and a subtransform of an ExecutableStage
+    }
+    return Pipeline.newBuilder()
+        .setComponents(pipelineComponents)
+        .addAllRootTransformIds(rootTransformIds)
+        .build();
+  }
 
   /**
    * Return a {@link Components} like the {@code base} components, but with the only transforms
@@ -52,7 +70,7 @@ public abstract class FusedPipeline {
    *
    * <p>The only composites will be the stages returned by {@link #getFusedStages()}.
    */
-  public Components asComponents(Components base) {
+  private Components populateComponents(Components base) {
     Builder newComponents = base.toBuilder().clearTransforms();
     for (PTransformNode runnerExecuted : getRunnerExecutedTransforms()) {
       newComponents.putTransforms(runnerExecuted.getId(), runnerExecuted.getTransform());
