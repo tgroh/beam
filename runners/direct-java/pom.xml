@@ -151,8 +151,9 @@
               <parallel>none</parallel>
               <failIfNoTests>true</failIfNoTests>
               <dependenciesToScan>
-                <dependency>org.apache.beam:beam-sdks-java-core</dependency>
-                <dependency>org.apache.beam:beam-runners-java-core</dependency>
+                <dependency>org.apache.beam:beam-runners-java-core-construction</dependency>
+                <!--<dependency>org.apache.beam:beam-runners-java-core</dependency>
+                  <dependency>org.apache.beam:beam-sdks-java-core</dependency>-->
               </dependenciesToScan>
               <systemPropertyVariables>
                 <beamTestPipelineOptions>
