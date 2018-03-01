@@ -40,6 +40,7 @@
     <module>local-artifact-service-java</module>
     <module>reference</module>
     <module>direct-java</module>
+    <module>java-validation</module>
     <module>flink</module>
     <module>gearpump</module>
     <module>google-cloud-dataflow-java</module>
