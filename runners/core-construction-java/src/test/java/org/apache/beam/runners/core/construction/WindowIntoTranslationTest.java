@@ -95,7 +95,8 @@ public class WindowIntoTranslationTest {
     WindowIntoPayload payload =
         WindowIntoTranslation.toProto(assign.get().getTransform(), components);
 
-    assertEquals(windowFn, WindowingStrategyTranslation.windowFnFromProto(payload.getWindowFn()));
+    assertEquals(
+        windowFn, WindowingStrategyTranslation.javaWindowFnFromProto(payload.getWindowFn()));
   }
 
   private static class CustomWindows extends PartitioningWindowFn<String, BoundedWindow> {

@@ -102,7 +102,7 @@ public class WindowIntoTranslation {
   }
 
   public static @Nullable WindowFn<?, ?> getWindowFn(AppliedPTransform<?, ?, ?> application) {
-    return WindowingStrategyTranslation.windowFnFromProto(
+    return WindowingStrategyTranslation.javaWindowFnFromProto(
         getWindowIntoPayload(application).getWindowFn());
   }
 

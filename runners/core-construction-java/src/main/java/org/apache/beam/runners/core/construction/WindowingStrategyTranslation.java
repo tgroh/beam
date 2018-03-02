@@ -28,6 +28,7 @@ import java.util.Collection;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
+import org.apache.beam.model.pipeline.v1.RunnerApi.MergeStatus;
 import org.apache.beam.model.pipeline.v1.RunnerApi.OutputTime;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.model.pipeline.v1.StandardWindowFns;
@@ -165,7 +166,7 @@ public class WindowingStrategyTranslation implements Serializable {
   }
 
   public static RunnerApi.OutputTime.Enum toProto(TimestampCombiner timestampCombiner) {
-    switch(timestampCombiner) {
+    switch (timestampCombiner) {
       case EARLIEST:
         return OutputTime.Enum.EARLIEST_IN_PANE;
       case END_OF_WINDOW:
@@ -175,9 +176,7 @@ public class WindowingStrategyTranslation implements Serializable {
       default:
         throw new IllegalArgumentException(
             String.format(
-                "Unknown %s: %s",
-                TimestampCombiner.class.getSimpleName(),
-                timestampCombiner));
+                "Unknown %s: %s", TimestampCombiner.class.getSimpleName(), timestampCombiner));
     }
   }
 
@@ -207,6 +206,7 @@ public class WindowingStrategyTranslation implements Serializable {
   public static final String FIXED_WINDOWS_FN = "beam:windowfn:fixed_windows:v0.1";
   public static final String SLIDING_WINDOWS_FN = "beam:windowfn:sliding_windows:v0.1";
   public static final String SESSION_WINDOWS_FN = "beam:windowfn:session_windows:v0.1";
+
   static {
     // Out-of-line to facilitate use in the case statements below.
     UrnUtils.validateCommonUrn(GLOBAL_WINDOWS_FN);
@@ -248,11 +248,12 @@ public class WindowingStrategyTranslation implements Serializable {
                   .setPayload(fixedWindowsPayload.toByteString()))
           .build();
     } else if (windowFn instanceof SlidingWindows) {
-      SlidingWindowsPayload slidingWindowsPayload = SlidingWindowsPayload.newBuilder()
-          .setSize(Durations.fromMillis(((SlidingWindows) windowFn).getSize().getMillis()))
-          .setOffset(Timestamps.fromMillis(((SlidingWindows) windowFn).getOffset().getMillis()))
-          .setPeriod(Durations.fromMillis(((SlidingWindows) windowFn).getPeriod().getMillis()))
-          .build();
+      SlidingWindowsPayload slidingWindowsPayload =
+          SlidingWindowsPayload.newBuilder()
+              .setSize(Durations.fromMillis(((SlidingWindows) windowFn).getSize().getMillis()))
+              .setOffset(Timestamps.fromMillis(((SlidingWindows) windowFn).getOffset().getMillis()))
+              .setPeriod(Durations.fromMillis(((SlidingWindows) windowFn).getPeriod().getMillis()))
+              .build();
       return SdkFunctionSpec.newBuilder()
           .setEnvironmentId(
               components.registerEnvironment(Environments.JAVA_SDK_HARNESS_ENVIRONMENT))
@@ -330,8 +331,8 @@ public class WindowingStrategyTranslation implements Serializable {
   }
 
   /**
-   * Converts from a {@link RunnerApi.WindowingStrategy} accompanied by {@link Components}
-   * to the SDK's {@link WindowingStrategy}.
+   * Converts from a {@link RunnerApi.WindowingStrategy} accompanied by {@link Components} to the
+   * SDK's {@link WindowingStrategy}.
    */
   public static WindowingStrategy<?, ?> fromProto(RunnerApi.MessageWithComponents proto)
       throws InvalidProtocolBufferException {
@@ -357,7 +358,7 @@ public class WindowingStrategyTranslation implements Serializable {
       throws InvalidProtocolBufferException {
 
     SdkFunctionSpec windowFnSpec = proto.getWindowFn();
-    WindowFn<?, ?> windowFn = windowFnFromProto(windowFnSpec);
+    WindowFn<?, ?> windowFn = knownWindowFnFromProto(windowFnSpec, proto, components);
     TimestampCombiner timestampCombiner = timestampCombinerFromProto(proto.getOutputTime());
     AccumulationMode accumulationMode = fromProto(proto.getAccumulationMode());
     Trigger trigger = TriggerTranslation.fromProto(proto.getTrigger());
@@ -374,16 +375,56 @@ public class WindowingStrategyTranslation implements Serializable {
         .withOnTimeBehavior(onTimeBehavior);
   }
 
-  public static WindowFn<?, ?> windowFnFromProto(SdkFunctionSpec windowFnSpec) {
+  /**
+   * Returns a {@link WindowFn} deserialized from a java-compatible {@link SdkFunctionSpec}.
+   * Potentially, this is a Java-serialized custom {@link WindowFn}.
+   *
+   * <p>The returned {@link WindowFn} can be used as a {@link WindowFn}.
+   *
+   * @throws IllegalArgumentException if the {@code windowFnSpec} is not a known {@link WindowFn}
+   *     type or a custom java {@link WindowFn}.
+   */
+  public static WindowFn<?, ?> javaWindowFnFromProto(SdkFunctionSpec windowFnSpec) {
+    return windowFnFromProto(
+        windowFnSpec,
+        spec -> {
+          if (SERIALIZED_JAVA_WINDOWFN_URN.equals(spec.getSpec().getUrn())) {
+            return (WindowFn<?, ?>)
+                SerializableUtils.deserializeFromByteArray(
+                    windowFnSpec.getSpec().getPayload().toByteArray(), "WindowFn");
+          }
+          throw new IllegalArgumentException(
+              String.format(
+                  "%s with %s with URN %s is not a known type",
+                  WindowFn.class.getSimpleName(),
+                  SdkFunctionSpec.class.getSimpleName(),
+                  windowFnSpec.getSpec().getUrn()));
+        });
+  }
+
+  /**
+   * Returns a {@link WindowFn} deserialized from the provided {@link SdkFunctionSpec}.
+   *
+   * <p>The returned {@link WindowFn} may not be usable as a java {@link WindowFn} - it may be
+   * deserialized from some custom type.
+   */
+  public static WindowFn<?, ?> knownWindowFnFromProto(
+      SdkFunctionSpec windowFnSpec,
+      RunnerApi.WindowingStrategy strategy,
+      RehydratedComponents components) {
+    return windowFnFromProto(
+        windowFnSpec, spec -> RawWindowFn.forFunctionSpec(spec, strategy, components));
+  }
+
+  private static WindowFn<?, ?> windowFnFromProto(
+      SdkFunctionSpec windowFnSpec, UnknownWindowFnDeserializer defaultDeserializer) {
     try {
       switch (windowFnSpec.getSpec().getUrn()) {
         case GLOBAL_WINDOWS_FN:
           return new GlobalWindows();
         case FIXED_WINDOWS_FN:
-          StandardWindowFns.FixedWindowsPayload fixedParams = null;
-          fixedParams =
-              StandardWindowFns.FixedWindowsPayload.parseFrom(
-                  windowFnSpec.getSpec().getPayload());
+          StandardWindowFns.FixedWindowsPayload fixedParams =
+              FixedWindowsPayload.parseFrom(windowFnSpec.getSpec().getPayload());
           return FixedWindows.of(Duration.millis(Durations.toMillis(fixedParams.getSize())))
               .withOffset(Duration.millis(Timestamps.toMillis(fixedParams.getOffset())));
         case SLIDING_WINDOWS_FN:
@@ -398,15 +439,10 @@ public class WindowingStrategyTranslation implements Serializable {
               StandardWindowFns.SessionsPayload.parseFrom(windowFnSpec.getSpec().getPayload());
           return Sessions.withGapDuration(
               Duration.millis(Durations.toMillis(sessionParams.getGapSize())));
-        case SERIALIZED_JAVA_WINDOWFN_URN:
-          // Is this allowed in this method?
-          return (WindowFn<?, ?>)
-              SerializableUtils.deserializeFromByteArray(
-                  windowFnSpec.getSpec().getPayload().toByteArray(), "WindowFn");
         default:
-          return RawWindowFn.forFunctionSpec(windowFnSpec);
+          return defaultDeserializer.fromProto(windowFnSpec);
       }
-    } catch (InvalidProtocolBufferException e) {
+    } catch (IOException e) {
       throw new IllegalArgumentException(
           String.format(
               "%s for %s with URN %s did not contain expected proto message for payload",
@@ -417,63 +453,78 @@ public class WindowingStrategyTranslation implements Serializable {
     }
   }
 
+  @FunctionalInterface
+  private interface UnknownWindowFnDeserializer {
+    WindowFn<?, ?> fromProto(SdkFunctionSpec functionSpec) throws IOException;
+  }
+
   @AutoValue
-  abstract static class RawWindowFn<T, W extends BoundedWindow> extends WindowFn<T, W> {
+  abstract static class RawWindowFn<T, W extends BoundedWindow>
+      extends org.apache.beam.sdk.transforms.windowing.WindowFn<T, W> {
+
     static <T, W extends BoundedWindow> WindowFn<T, W> forFunctionSpec(
-        SdkFunctionSpec functionSpec) {
-      return new AutoValue_WindowingStrategyTranslation_RawWindowFn(functionSpec);
+        SdkFunctionSpec functionSpec,
+        RunnerApi.WindowingStrategy strategy,
+        RehydratedComponents components)
+        throws IOException {
+      return new AutoValue_WindowingStrategyTranslation_RawWindowFn<T, W>(
+          functionSpec,
+          (Coder) components.getCoder(strategy.getWindowCoderId()),
+          strategy.getAssignsToOneWindow(),
+          MergeStatus.Enum.NON_MERGING.equals(strategy.getMergeStatus()));
     }
 
     abstract SdkFunctionSpec getFunctionSpec();
 
     @Override
+    public abstract Coder<W> windowCoder();
+
+    @Override
+    public abstract boolean assignsToOneWindow();
+
+    @Override
+    public abstract boolean isNonMerging();
+
+    @Override
     public Collection<W> assignWindows(AssignContext c) {
-      throw new UnsupportedOperationException();
+      throw unsupported();
     }
 
     @Override
     public void mergeWindows(MergeContext c) {
-      throw new UnsupportedOperationException();
+      throw unsupported();
     }
 
     @Override
     public boolean isCompatible(WindowFn<?, ?> other) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Coder<W> windowCoder() {
-      throw new UnsupportedOperationException();
+      throw unsupported();
     }
 
     @Override
     public WindowMappingFn<W> getDefaultWindowMappingFn() {
-      throw new UnsupportedOperationException();
+      throw unsupported();
     }
 
     @Override
     public void verifyCompatibility(WindowFn<?, ?> other) {
-      throw new UnsupportedOperationException();
+      throw unsupported();
     }
 
     @Override
     public Instant getOutputTime(Instant inputTimestamp, W window) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean isNonMerging() {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean assignsToOneWindow() {
-      throw new UnsupportedOperationException()
+      throw unsupported();
     }
 
     @Override
     public TypeDescriptor<W> getWindowTypeDescriptor() {
-      throw new UnsupportedOperationException()
+      throw unsupported();
+    }
+
+    private UnsupportedOperationException unsupported() {
+      return new UnsupportedOperationException(
+          String.format(
+              "%s cannot be used as a Java %s",
+              RawWindowFn.class.getSimpleName(), WindowFn.class.getSimpleName()));
     }
   }
 }
