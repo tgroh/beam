@@ -44,7 +44,7 @@ class GreedyPCollectionFusers {
           .put(
               PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN,
               GreedyPCollectionFusers::canFuseAssignWindows)
-          .put(PTransformTranslation.FLATTEN_TRANSFORM_URN, GreedyPCollectionFusers::canAlwaysFuse)
+          .put(PTransformTranslation.FLATTEN_TRANSFORM_URN, GreedyPCollectionFusers::canFuseFlatten)
           .put(
               // GroupByKeys are runner-implemented only. PCollections consumed by a GroupByKey must
               // be materialized
@@ -198,7 +198,10 @@ class GreedyPCollectionFusers {
   }
 
   /**
-   * Flatten can be fused into any stage.
+   * Flattens can be fused into a stage if all of its producing collections are also in that stage.
+   * This ensures that a single flatten transform appears exactly once in the fused pipeline proto.
+   *
+   * <p>Generally, a Flatten can be fused into any stage.
    *
    * <p>If the assumption that for each {@link PCollection}, an element is produced in that {@link
    * PCollection} via a single path through the {@link Pipeline} DAG, a Flatten can appear in each
@@ -245,12 +248,14 @@ class GreedyPCollectionFusers {
    *       the stages that could not fuse with those consumers.
    * </ol>
    */
-  private static boolean canAlwaysFuse(
+  // TODO: Unzip flattens that span multiple stages, or insert synthetic flattens to
+  // materialize downstream elements less often
+  private static boolean canFuseFlatten(
       @SuppressWarnings("unused") PTransformNode flatten,
       @SuppressWarnings("unused") Environment environment,
       @SuppressWarnings("unused") Collection<PCollectionNode> stagePCollections,
       @SuppressWarnings("unused") QueryablePipeline pipeline) {
-    return true;
+    return stagePCollections.containsAll(flatten.getTransform().getInputsMap().values());
   }
 
   private static boolean cannotFuse(
