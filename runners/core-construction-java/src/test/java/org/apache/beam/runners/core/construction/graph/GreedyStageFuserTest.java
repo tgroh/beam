@@ -20,6 +20,7 @@ package org.apache.beam.runners.core.construction.graph;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -443,7 +444,7 @@ public class GreedyStageFuserTest {
   }
 
   @Test
-  public void fusesFlattenWithDifferentEnvironmentInputs() {
+  public void doesNotFuseFlattenWithDifferentEnvironmentInputs() {
     // (impulse.out) -> read -> read.out \                                 -> window -> window.out
     //                                    -------> flatten -> flatten.out /
     // (impulse.out) -> envRead -> envRead.out /
@@ -520,8 +521,13 @@ public class GreedyStageFuserTest {
     ExecutableStage subgraph =
         GreedyStageFuser.forGrpcPortRead(
             p, impulseOutputNode, ImmutableSet.of(PipelineNode.pTransform("read", readTransform)));
-    assertThat(subgraph.getOutputPCollections(), emptyIterable());
-    assertThat(subgraph, hasSubtransforms("read", "flatten", "window"));
+    assertThat(
+        subgraph.getOutputPCollections(),
+        containsInAnyOrder(
+            PipelineNode.pCollection("read.out", components.getPcollectionsOrThrow("read.out"))));
+    assertThat(
+        subgraph.toPTransform().getSubtransformsList(),
+        containsInAnyOrder("read"));
 
     // Flatten shows up in both of these subgraphs, but elements only go through a path to the
     // flatten once.
@@ -534,8 +540,10 @@ public class GreedyStageFuserTest {
         readFromOtherEnv.getOutputPCollections(),
         contains(
             PipelineNode.pCollection(
-                "flatten.out", components.getPcollectionsOrThrow("flatten.out"))));
-    assertThat(readFromOtherEnv, hasSubtransforms("envRead", "flatten"));
+                "envRead.out", components.getPcollectionsOrThrow("envRead.out"))));
+    assertThat(
+        readFromOtherEnv.toPTransform().getSubtransformsList(),
+        containsInAnyOrder("envRead"));
   }
 
   @Test
@@ -648,7 +656,9 @@ public class GreedyStageFuserTest {
 
     assertThat(
         readFromPy.getOutputPCollections(),
-        contains(PipelineNode.pCollection("flatten.out", flattenPc)));
+        contains(
+            PipelineNode.pCollection(
+                "pyRead.out", components.getPcollectionsOrThrow("pyRead.out"))));
     // The stage must materialize the flatten, so the `go` stage can read it; this means that this
     // parDo can't be in the stage, as it'll be a reader of that materialized PCollection. The same
     // is true for the go window.
@@ -657,7 +667,9 @@ public class GreedyStageFuserTest {
 
     assertThat(
         readFromGo.getOutputPCollections(),
-        contains(PipelineNode.pCollection("flatten.out", flattenPc)));
+        contains(
+            PipelineNode.pCollection(
+                "goRead.out", components.getPcollectionsOrThrow("goRead.out"))));
     assertThat(
         readFromGo.getTransforms(), not(hasItem(PipelineNode.pTransform("goWindow", goWindow))));
   }

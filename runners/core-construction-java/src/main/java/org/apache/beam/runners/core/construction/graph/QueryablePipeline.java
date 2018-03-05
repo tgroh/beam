@@ -162,6 +162,19 @@ public class QueryablePipeline {
   }
 
   /**
+   * Return the set of all {@link PCollectionNode PCollection Nodes} which are consumed as side
+   * inputs.
+   */
+  private Set<PCollectionNode> getConsumedAsSideInputs() {
+    return pipelineNetwork
+        .edges()
+        .stream()
+        .filter(edge -> !edge.isPerElement())
+        .map(edge -> (PCollectionNode) pipelineNetwork.incidentNodes(edge).source())
+        .collect(Collectors.toSet());
+  }
+
+  /**
    * Get the transforms that are roots of this {@link QueryablePipeline}. These are all nodes which
    * have no input {@link PCollection}.
    */

@@ -298,8 +298,8 @@ public class GreedyPipelineFuserTest {
    * pyImpulse -> .out -> pyRead -> .out /                    -> pyParDo -> .out
    *
    * becomes
-   * (goImpulse.out) -> goRead -> goRead.out -> flatten -> (flatten.out)
-   * (pyImpulse.out) -> pyRead -> pyRead.out -> flatten -> (flatten.out)
+   * (goImpulse.out) -> goRead -> (goRead.out)
+   * (pyImpulse.out) -> pyRead -> (pyRead.out)
    * (flatten.out) -> goParDo
    * (flatten.out) -> pyParDo
    */
@@ -412,17 +412,18 @@ public class GreedyPipelineFuserTest {
     assertThat(
         fused.getRunnerExecutedTransforms(),
         containsInAnyOrder(
+            PipelineNode.pTransform("flatten", components.getTransformsOrThrow("flatten")),
             PipelineNode.pTransform("pyImpulse", components.getTransformsOrThrow("pyImpulse")),
             PipelineNode.pTransform("goImpulse", components.getTransformsOrThrow("goImpulse"))));
     assertThat(
         fused.getFusedStages(),
         containsInAnyOrder(
             ExecutableStageMatcher.withInput("goImpulse.out")
-                .withOutputs("flatten.out")
-                .withTransforms("goRead", "flatten"),
+                .withOutputs("goRead.out")
+                .withTransforms("goRead"),
             ExecutableStageMatcher.withInput("pyImpulse.out")
-                .withOutputs("flatten.out")
-                .withTransforms("pyRead", "flatten"),
+                .withOutputs("pyRead.out")
+                .withTransforms("pyRead"),
             ExecutableStageMatcher.withInput("flatten.out")
                 .withNoOutputs()
                 .withTransforms("goParDo"),
@@ -437,12 +438,12 @@ public class GreedyPipelineFuserTest {
    * impulseB -> .out -> pyRead -> .out /
    *
    * becomes
-   * (impulseA.out) -> goRead -> goRead.out -> flatten -> flatten.out -> goParDo
-   * (impulseB.out) -> pyRead -> pyRead.out -> flatten -> (flatten.out)
+   * (impulseA.out) -> goRead -> (goRead.out)
+   * (impulseB.out) -> pyRead -> (pyRead.out)
    * (flatten.out) -> goParDo
    */
   @Test
-  public void flattenWithHeterogeneousInputsSingleEnvOutputPartiallyMaterialized() {
+  public void flattenWithHeterogeneousInputsSingleEnvOutputRunnerExecuted() {
     Components components =
         Components.newBuilder()
             .putTransforms(
@@ -535,17 +536,18 @@ public class GreedyPipelineFuserTest {
         fused.getRunnerExecutedTransforms(),
         containsInAnyOrder(
             PipelineNode.pTransform("pyImpulse", components.getTransformsOrThrow("pyImpulse")),
-            PipelineNode.pTransform("goImpulse", components.getTransformsOrThrow("goImpulse"))));
+            PipelineNode.pTransform("goImpulse", components.getTransformsOrThrow("goImpulse")),
+            PipelineNode.pTransform("flatten", components.getTransformsOrThrow("flatten"))));
 
     assertThat(
         fused.getFusedStages(),
         containsInAnyOrder(
             ExecutableStageMatcher.withInput("goImpulse.out")
-                .withNoOutputs()
-                .withTransforms("goRead", "flatten", "goParDo"),
+                .withOutputs("goRead.out")
+                .withTransforms("goRead"),
             ExecutableStageMatcher.withInput("pyImpulse.out")
-                .withOutputs("flatten.out")
-                .withTransforms("pyRead", "flatten"),
+                .withOutputs("pyRead.out")
+                .withTransforms("pyRead"),
             ExecutableStageMatcher.withInput("flatten.out")
                 .withNoOutputs()
                 .withTransforms("goParDo")));

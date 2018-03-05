@@ -21,10 +21,11 @@ package org.apache.beam.runners.core.construction.graph;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.ImmutableSet;
-import java.util.ArrayDeque;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
-import java.util.Queue;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
@@ -82,22 +83,25 @@ public class GreedyStageFuser {
     Set<PCollectionNode> fusedCollections = new LinkedHashSet<>();
     Set<PCollectionNode> materializedPCollections = new LinkedHashSet<>();
 
-    Queue<PCollectionNode> fusionCandidates = new ArrayDeque<>();
+    NavigableSet<PCollectionNode> fusionCandidates =
+        new TreeSet<>(Comparator.comparing(PCollectionNode::getId));
     for (PTransformNode initialConsumer : initialNodes) {
       fusionCandidates.addAll(pipeline.getOutputPCollections(initialConsumer));
     }
     while (!fusionCandidates.isEmpty()) {
-      PCollectionNode candidate = fusionCandidates.poll();
+      PCollectionNode candidate = fusionCandidates.pollFirst();
       if (fusedCollections.contains(candidate) || materializedPCollections.contains(candidate)) {
         // This should generally mean we get to a Flatten via multiple paths through the graph and
         // we've already determined what to do with the output.
         LOG.debug(
-            "Skipping fusion candidate {} because it is {} in this {}",
+            "Skipping fusion candidate {} because it is already {} in this {}",
             candidate,
             fusedCollections.contains(candidate) ? "fused" : "materialized",
             ExecutableStage.class.getSimpleName());
         continue;
       }
+      // TODO: This needs to contain all of the PCollections which are produced within this stage,
+      // not just the ones that are fused into it, for flattens.
       PCollectionFusibility fusibility =
           canFuse(pipeline, candidate, environment, fusedCollections);
       switch (fusibility) {

@@ -25,6 +25,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
 import org.apache.beam.model.pipeline.v1.RunnerApi.ParDoPayload;
@@ -255,7 +256,11 @@ class GreedyPCollectionFusers {
       @SuppressWarnings("unused") Environment environment,
       @SuppressWarnings("unused") Collection<PCollectionNode> stagePCollections,
       @SuppressWarnings("unused") QueryablePipeline pipeline) {
-    return stagePCollections.containsAll(flatten.getTransform().getInputsMap().values());
+    return stagePCollections
+        .stream()
+        .map(PCollectionNode::getId)
+        .collect(Collectors.toSet())
+        .containsAll(flatten.getTransform().getInputsMap().values());
   }
 
   private static boolean cannotFuse(
