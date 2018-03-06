@@ -59,10 +59,10 @@ public class ModelCoderRegistrar implements CoderTranslatorRegistrar {
       ImmutableMap
           .<Class<? extends Coder>, CoderTranslator<? extends Coder>>
               builder()
-          .put(ByteArrayCoder.class, CoderTranslators.atomic(ByteArrayCoder.class))
-          .put(VarLongCoder.class, CoderTranslators.atomic(VarLongCoder.class))
-          .put(IntervalWindowCoder.class, CoderTranslators.atomic(IntervalWindowCoder.class))
-          .put(GlobalWindow.Coder.class, CoderTranslators.atomic(GlobalWindow.Coder.class))
+          .put(ByteArrayCoder.class, CoderTranslators.atomicModelCoder(ByteArrayCoder.class))
+          .put(VarLongCoder.class, CoderTranslators.atomicModelCoder(VarLongCoder.class))
+          .put(IntervalWindowCoder.class, CoderTranslators.atomicModelCoder(IntervalWindowCoder.class))
+          .put(GlobalWindow.Coder.class, CoderTranslators.atomicModelCoder(GlobalWindow.Coder.class))
           .put(KvCoder.class, CoderTranslators.kv())
           .put(IterableCoder.class, CoderTranslators.iterable())
           .put(LengthPrefixCoder.class, CoderTranslators.lengthPrefix())

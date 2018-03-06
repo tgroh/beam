@@ -18,6 +18,8 @@
 
 package org.apache.beam.runners.core.construction;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.List;
@@ -34,8 +36,9 @@ import org.apache.beam.sdk.util.WindowedValue.FullWindowedValueCoder;
 class CoderTranslators {
   private CoderTranslators() {}
 
-  static <T extends Coder<?>> CoderTranslator<T> atomic(final Class<T> clazz) {
-    return new SimpleStructuredCoderTranslator<T>() {
+  static <T extends Coder<?>> CoderTranslator<T> atomicModelCoder(final Class<T> clazz) {
+    return new SimpleStructuredCoderTranslator<T>(
+        ModelCoderRegistrar.BEAM_MODEL_CODER_URNS.get(clazz)) {
       @Override
       public List<? extends Coder<?>> getComponents(T from) {
         return Collections.emptyList();
@@ -49,7 +52,8 @@ class CoderTranslators {
   }
 
   static CoderTranslator<KvCoder<?, ?>> kv() {
-    return new SimpleStructuredCoderTranslator<KvCoder<?, ?>>() {
+    return new SimpleStructuredCoderTranslator<KvCoder<?, ?>>(
+        ModelCoderRegistrar.BEAM_MODEL_CODER_URNS.get(KvCoder.class)) {
       @Override
       public List<? extends Coder<?>> getComponents(KvCoder<?, ?> from) {
         return ImmutableList.of(from.getKeyCoder(), from.getValueCoder());
@@ -63,7 +67,8 @@ class CoderTranslators {
   }
 
   static CoderTranslator<IterableCoder<?>> iterable() {
-    return new SimpleStructuredCoderTranslator<IterableCoder<?>>() {
+    return new SimpleStructuredCoderTranslator<IterableCoder<?>>(
+        ModelCoderRegistrar.BEAM_MODEL_CODER_URNS.get(IterableCoder.class)) {
       @Override
       public List<? extends Coder<?>> getComponents(IterableCoder<?> from) {
         return Collections.singletonList(from.getElemCoder());
@@ -77,7 +82,8 @@ class CoderTranslators {
   }
 
   static CoderTranslator<LengthPrefixCoder<?>> lengthPrefix() {
-    return new SimpleStructuredCoderTranslator<LengthPrefixCoder<?>>() {
+    return new SimpleStructuredCoderTranslator<LengthPrefixCoder<?>>(
+        ModelCoderRegistrar.BEAM_MODEL_CODER_URNS.get(LengthPrefixCoder.class)) {
       @Override
       public List<? extends Coder<?>> getComponents(LengthPrefixCoder<?> from) {
         return Collections.singletonList(from.getValueCoder());
@@ -91,7 +97,8 @@ class CoderTranslators {
   }
 
   static CoderTranslator<FullWindowedValueCoder<?>> fullWindowedValue() {
-    return new SimpleStructuredCoderTranslator<FullWindowedValueCoder<?>>() {
+    return new SimpleStructuredCoderTranslator<FullWindowedValueCoder<?>>(
+        ModelCoderRegistrar.BEAM_MODEL_CODER_URNS.get(FullWindowedValueCoder.class)) {
       @Override
       public List<? extends Coder<?>> getComponents(FullWindowedValueCoder<?> from) {
         return ImmutableList.of(from.getValueCoder(), from.getWindowCoder());
@@ -107,10 +114,24 @@ class CoderTranslators {
 
   public abstract static class SimpleStructuredCoderTranslator<T extends Coder<?>>
       implements CoderTranslator<T> {
+    private final String urn;
+
+    protected SimpleStructuredCoderTranslator(String urn) {
+      checkArgument(
+          urn != null,
+          "Must have a constant URN to extend %s",
+          SimpleStructuredCoderTranslator.class);
+      this.urn = urn;
+    }
+
     public final T fromComponents(List<Coder<?>> components, byte[] payload) {
       return fromComponents(components);
     }
 
     protected abstract T fromComponents(List<Coder<?>> components);
+
+    public final String getUrn(T coder) {
+      return urn;
+    }
   }
 }

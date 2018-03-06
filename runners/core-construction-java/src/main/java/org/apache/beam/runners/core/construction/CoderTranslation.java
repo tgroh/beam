@@ -18,23 +18,27 @@
 
 package org.apache.beam.runners.core.construction;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
+import com.google.auto.service.AutoService;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.ByteString;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.function.BiFunction;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.util.SerializableUtils;
 
 /** Converts to and from Beam Runner API representations of {@link Coder Coders}. */
@@ -77,12 +81,12 @@ public class CoderTranslation {
         .build();
   }
 
-  public static RunnerApi.Coder toProto(
-      Coder<?> coder, SdkComponents components) throws IOException {
-    if (KNOWN_CODER_URNS.containsKey(coder.getClass())) {
+  public static RunnerApi.Coder toProto(Coder<?> coder, SdkComponents components)
+      throws IOException {
+    if (KNOWN_TRANSLATORS.containsKey(coder.getClass())) {
       return toKnownCoder(coder, components);
     }
-    return toCustomCoder(coder);
+    return toCustomJavaCoder(coder);
   }
 
   private static RunnerApi.Coder toKnownCoder(Coder<?> coder, SdkComponents components)
@@ -95,7 +99,7 @@ public class CoderTranslation {
             SdkFunctionSpec.newBuilder()
                 .setSpec(
                     FunctionSpec.newBuilder()
-                        .setUrn(KNOWN_CODER_URNS.get(coder.getClass()))
+                        .setUrn(translator.getUrn(coder))
                         .setPayload(ByteString.copyFrom(translator.getPayload(coder)))))
         .build();
   }
@@ -109,7 +113,7 @@ public class CoderTranslation {
     return componentIds;
   }
 
-  private static RunnerApi.Coder toCustomCoder(Coder<?> coder) throws IOException {
+  private static RunnerApi.Coder toCustomJavaCoder(Coder<?> coder) {
     RunnerApi.Coder.Builder coderBuilder = RunnerApi.Coder.newBuilder();
     return coderBuilder
         .setSpec(
@@ -125,14 +129,13 @@ public class CoderTranslation {
 
   public static Coder<?> fromProto(RunnerApi.Coder protoCoder, RehydratedComponents components)
       throws IOException {
-    String coderSpecUrn = protoCoder.getSpec().getSpec().getUrn();
-    if (coderSpecUrn.equals(JAVA_SERIALIZED_CODER_URN)) {
-      return fromCustomCoder(protoCoder);
-    }
-    return fromKnownCoder(protoCoder, components);
+    return fromKnownProtoOrDefault(protoCoder, components, (coders, bytes) -> fromCustomCoder(bytes));
   }
 
-  private static Coder<?> fromKnownCoder(RunnerApi.Coder coder, RehydratedComponents components)
+  private static Coder<?> fromKnownProtoOrDefault(
+      RunnerApi.Coder coder,
+      RehydratedComponents components,
+      BiFunction<List<? extends Coder<?>>, byte[], Coder<?>> unknownHandler)
       throws IOException {
     String coderUrn = coder.getSpec().getSpec().getUrn();
     List<Coder<?>> coderComponents = new LinkedList<>();
@@ -142,18 +145,95 @@ public class CoderTranslation {
     }
     Class<? extends Coder> coderType = KNOWN_CODER_URNS.inverse().get(coderUrn);
     CoderTranslator<?> translator = KNOWN_TRANSLATORS.get(coderType);
-    checkArgument(
-        translator != null,
-        "Unknown Coder URN %s. Known URNs: %s",
-        coderUrn,
-        KNOWN_CODER_URNS.values());
+    if (translator == null) {
+      return unknownHandler.apply(coderComponents, coder.getSpec().getSpec().getPayload().toByteArray());
+    }
     return translator.fromComponents(
         coderComponents, coder.getSpec().getSpec().getPayload().toByteArray());
   }
 
-  private static Coder<?> fromCustomCoder(RunnerApi.Coder protoCoder) throws IOException {
-    return (Coder<?>)
-        SerializableUtils.deserializeFromByteArray(
-            protoCoder.getSpec().getSpec().getPayload().toByteArray(), "Custom Coder Bytes");
+  private static Coder<?> fromCustomCoder(RunnerApi.Coder coder, ) {
+    return (Coder<?>) SerializableUtils.deserializeFromByteArray(payload, "Custom Coder Bytes");
+  }
+
+  private static class RawCoder<T> extends Coder<T> {
+    private final FunctionSpec spec;
+    private final List<Coder<?>> components;
+
+    private RawCoder(FunctionSpec spec, List<Coder<?>> components) {
+      this.spec = spec;
+      this.components = components;
+    }
+
+    @Override
+    public void encode(T value, OutputStream outStream) throws CoderException, IOException {
+      throw new UnsupportedOperationException(
+          String.format("Can't encode with a %s", RawCoder.class.getSimpleName()));
+    }
+
+    @Override
+    public T decode(InputStream inStream) throws CoderException, IOException {
+      throw new UnsupportedOperationException(
+          String.format("Can't decode with a %s", RawCoder.class.getSimpleName()));
+    }
+
+    @Override
+    public List<? extends Coder<?>> getCoderArguments() {
+      throw new UnsupportedOperationException(
+          String.format("Can't getCoderArguments with a %s", RawCoder.class.getSimpleName()));
+    }
+
+    @Override
+    public void verifyDeterministic() throws NonDeterministicException {
+      throw new UnsupportedOperationException(
+          String.format("Can't verifyDeterministic with a %s", RawCoder.class.getSimpleName()));
+    }
+
+    public List<Coder<?>> getComponents() {
+      return components;
+    }
+
+    public FunctionSpec getSpec() {
+      return spec;
+    }
+  }
+
+  private static class RawCoderTranslator implements CoderTranslator<RawCoder<?>> {
+    @Override
+    public String getUrn(RawCoder<?> from) {
+      return from.getSpec().getUrn();
+    }
+
+    @Override
+    public List<? extends Coder<?>> getComponents(RawCoder<?> from) {
+      return from.getComponents();
+    }
+
+    @Override
+    public byte[] getPayload(RawCoder<?> from) {
+      return from.getSpec().getPayload().toByteArray();
+    }
+
+    @Override
+    public RawCoder<?> fromComponents(List<Coder<?>> components, byte[] payload) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Can't use fromComponents to construct a %s because the URN is not available",
+              RawCoder.class.getSimpleName()));
+    }
+  }
+
+  @AutoService(CoderTranslatorRegistrar.class)
+  static class RawCoderRegistrar implements CoderTranslatorRegistrar {
+    @Override
+    public Map<Class<? extends Coder>, String> getCoderURNs() {
+      // No fixed URN for RawCoder, so this translator isn't symmetric
+      return Collections.emptyMap();
+    }
+
+    @Override
+    public Map<Class<? extends Coder>, CoderTranslator<? extends Coder>> getCoderTranslators() {
+      return Collections.singletonMap(RawCoder.class, new RawCoderTranslator());
+    }
   }
 }

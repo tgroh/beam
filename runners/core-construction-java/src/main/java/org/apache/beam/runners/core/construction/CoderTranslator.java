@@ -26,12 +26,15 @@ import org.apache.beam.sdk.coders.Coder;
 /**
  * An interface that translates coders to components and back.
  *
- * <p>This interface is highly experimental, and incomplete. Coders must in the general case have
- * the capability to encode an additional payload, which is not currently supported. This exists as
- * a temporary measure.
+ * <p>This interface is highly experimental, and incomplete. It is eventually expected to be
+ * available for users to register coders they wish to translate by components rather than by java
+ * serialization, and thus should not expose any portability data types on its API surface.
  */
 @Experimental(Kind.CORE_RUNNERS_ONLY)
 public interface CoderTranslator<T extends Coder<?>> {
+  /** Get the URN of a {@link Coder}. */
+  String getUrn(T from);
+
   /**
   * Extract all component {@link Coder coders} within a coder.
    */
