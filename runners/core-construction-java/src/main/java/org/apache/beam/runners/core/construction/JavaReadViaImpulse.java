@@ -60,8 +60,9 @@ public class JavaReadViaImpulse {
 
   private static PTransformMatcher boundedMatcher() {
     return PTransformMatchers.urnEqualTo(PTransformTranslation.READ_TRANSFORM_URN)
-        .and(transform ->
-            ReadTranslation.sourceIsBounded(transform) == PCollection.IsBounded.BOUNDED);
+        .and(
+            transform ->
+                ReadTranslation.sourceIsBounded(transform) == PCollection.IsBounded.BOUNDED);
   }
 
   private static class BoundedReadViaImpulse<T> extends PTransform<PBegin, PCollection<T>> {
@@ -83,8 +84,9 @@ public class JavaReadViaImpulse {
     }
   }
 
-  private static class BoundedOverrideFactory<T> implements PTransformOverrideFactory<
-      PBegin, PCollection<T>, PTransform<PBegin, PCollection<T>>> {
+  private static class BoundedOverrideFactory<T>
+      implements PTransformOverrideFactory<
+          PBegin, PCollection<T>, PTransform<PBegin, PCollection<T>>> {
 
     @Override
     public PTransformReplacement<PBegin, PCollection<T>> getReplacementTransform(
@@ -100,11 +102,10 @@ public class JavaReadViaImpulse {
     }
 
     @Override
-    public Map<PValue, ReplacementOutput> mapOutputs(Map<TupleTag<?>, PValue> outputs,
-                                                     PCollection<T> newOutput) {
+    public Map<PValue, ReplacementOutput> mapOutputs(
+        Map<TupleTag<?>, PValue> outputs, PCollection<T> newOutput) {
       return ReplacementOutputs.singleton(outputs, newOutput);
     }
-
   }
 
   @VisibleForTesting
@@ -141,16 +142,15 @@ public class JavaReadViaImpulse {
 
   /**
    * A {@link Coder} for {@link BoundedSource}s that wraps a {@link SerializableCoder}. We cannot
-   * safely use an unwrapped SerializableCoder because
-   * {@link SerializableCoder#structuralValue(Serializable)} assumes that coded elements support
-   * object equality (https://issues.apache.org/jira/browse/BEAM-3807). By default, Coders compare
-   * equality by serialized bytes, which we want in this case. It is usually safe to depend on coded
+   * safely use an unwrapped SerializableCoder because {@link
+   * SerializableCoder#structuralValue(Serializable)} assumes that coded elements support object
+   * equality (https://issues.apache.org/jira/browse/BEAM-3807). By default, Coders compare equality
+   * by serialized bytes, which we want in this case. It is usually safe to depend on coded
    * representation here because we only compare objects on bundle commit, which compares
    * serializations of the same object instance.
    *
-   * <p>
-   * BoundedSources are generally not used as PCollection elements, so we do not expose this coder
-   * for wider use.
+   * <p>BoundedSources are generally not used as PCollection elements, so we do not expose this
+   * coder for wider use.
    */
   @VisibleForTesting
   static class BoundedSourceCoder<T> extends CustomCoder<BoundedSource<T>> {
@@ -161,7 +161,8 @@ public class JavaReadViaImpulse {
     }
 
     @Override
-    public void encode(BoundedSource<T> value, OutputStream outStream) throws CoderException, IOException {
+    public void encode(BoundedSource<T> value, OutputStream outStream)
+        throws CoderException, IOException {
       coder.encode(value, outStream);
     }
 
@@ -169,6 +170,5 @@ public class JavaReadViaImpulse {
     public BoundedSource<T> decode(InputStream inStream) throws CoderException, IOException {
       return coder.decode(inStream);
     }
-
   }
 }
