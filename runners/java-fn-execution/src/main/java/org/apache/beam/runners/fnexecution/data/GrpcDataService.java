@@ -53,8 +53,7 @@ public class GrpcDataService extends BeamFnDataGrpc.BeamFnDataImplBase
     implements FnService, FnDataService {
   private static final Logger LOG = LoggerFactory.getLogger(GrpcDataService.class);
 
-  public static GrpcDataService create(
-      ExecutorService executor) {
+  public static GrpcDataService create(ExecutorService executor) {
     return new GrpcDataService(executor);
   }
 

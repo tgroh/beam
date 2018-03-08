@@ -18,16 +18,36 @@
 
 package org.apache.beam.runners.direct;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
+import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
+import org.apache.beam.runners.fnexecution.GrpcFnServer;
+import org.apache.beam.runners.fnexecution.ServerFactory;
+import org.apache.beam.runners.fnexecution.control.FnApiControlClient;
+import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
+import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors;
 import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors.SimpleProcessBundleDescriptor;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient.ActiveBundle;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient.RemoteInputDestination;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient.RemoteOutputReceiver;
+import org.apache.beam.runners.fnexecution.data.GrpcDataService;
+import org.apache.beam.runners.fnexecution.environment.EnvironmentManager;
+import org.apache.beam.runners.fnexecution.environment.RemoteEnvironment;
+import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
+import org.apache.beam.runners.fnexecution.logging.Slf4jLogWriter;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.fn.data.InboundDataClient;
 import org.apache.beam.sdk.runners.AppliedPTransform;
@@ -38,24 +58,70 @@ import org.apache.beam.sdk.values.PCollection;
  * A {@link TransformEvaluatorFactory} that executes an {@link ExecutableStage} on a remote SDK
  * Harness via the Beam Portability Framework.
  */
-class RemoteStageExecutorFactory implements TransformEvaluatorFactory {
-  private final SdkHarnessClient controlClient;
+class RemoteStageEvaluatorFactory implements TransformEvaluatorFactory {
+  private final EvaluationContext ctxt;
 
-  RemoteStageExecutorFactory(EvaluationContext ctxt) {
-    // TODO: actually instantiate with real services
-    controlClient = SdkHarnessClient.usingFnApiClient(null, null);
+  private final GrpcFnServer<GrpcLoggingService> loggingServer;
+  private final GrpcFnServer<GrpcDataService> dataServer;
+  private final GrpcFnServer<FnApiControlClientPoolService> controlServer;
+  private final BlockingQueue<FnApiControlClient> clientPool;
+  private final ExecutorService dataExecutor;
+
+  private final EnvironmentManager environmentManager;
+
+  RemoteStageEvaluatorFactory(EvaluationContext ctxt) throws IOException {
+    this.ctxt = ctxt;
+    ServerFactory serverFactory = ServerFactory.createDefault();
+    loggingServer =
+        GrpcFnServer.allocatePortAndCreateFor(
+            GrpcLoggingService.forWriter(Slf4jLogWriter.getDefault()), serverFactory);
+    dataExecutor = Executors.newCachedThreadPool();
+    dataServer =
+        GrpcFnServer.allocatePortAndCreateFor(GrpcDataService.create(dataExecutor), serverFactory);
+    clientPool = new SynchronousQueue<>();
+    controlServer =
+        GrpcFnServer.allocatePortAndCreateFor(
+            FnApiControlClientPoolService.offeringClientsToPool(clientPool), serverFactory);
+    environmentManager = null;
   }
+
+  private final Supplier<String> nextId =
+      new Supplier<String>() {
+        private final AtomicLong next = new AtomicLong(-1L);
+
+        @Override
+        public String get() {
+          return Long.toString(next.getAndDecrement());
+        }
+      };
+  private final ConcurrentMap<ExecutableStage, SimpleProcessBundleDescriptor> stageDescriptors =
+      new ConcurrentHashMap<>();
 
   @Nullable
   @Override
   public <InputT> TransformEvaluator<InputT> forApplication(
       AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) throws Exception {
-    return null;
+    Components components = Components.getDefaultInstance();
+    ExecutableStage stage = null;
+    SimpleProcessBundleDescriptor descriptor =
+        stageDescriptors.computeIfAbsent(
+            stage,
+            executableStage ->
+                ProcessBundleDescriptors.fromExecutableStage(
+                    nextId.get(), stage, components, dataServer.getApiServiceDescriptor()));
+    RemoteEnvironment environment = environmentManager.getEnvironment(stage.getEnvironment());
+    SdkHarnessClient client = environment.getClient();
+    return new RemoteStageEvaluator<>(application, ctxt, client, descriptor);
   }
 
   @Override
   public void cleanup() throws Exception {
-    controlClient.close();
+    dataServer.close();
+    dataExecutor.shutdown();
+    controlServer.close();
+    loggingServer.close();
+
+    dataExecutor.shutdownNow();
   }
 
   private static class RemoteStageEvaluator<InputT> implements TransformEvaluator<InputT> {

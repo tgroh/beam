@@ -93,7 +93,7 @@ class TransformEvaluatorRegistry implements TransformEvaluatorFactory {
     ImmutableMap<String, TransformEvaluatorFactory> primitives =
         ImmutableMap.<String, TransformEvaluatorFactory>builder()
             .put(PTransformTranslation.IMPULSE_TRANSFORM_URN, new ImpulseEvaluatorFactory(ctxt))
-            .put(ExecutableStage.URN, new RemoteStageExecutorFactory(ctxt))
+            .put(ExecutableStage.URN, new RemoteStageEvaluatorFactory(ctxt))
             .put(FLATTEN_TRANSFORM_URN, new FlattenEvaluatorFactory(ctxt))
             .put(DIRECT_GBKO_URN, new GroupByKeyOnlyEvaluatorFactory(ctxt))
             .put(DIRECT_GABW_URN, new PortableGroupAlsoByWindowEvaluatorFactory(ctxt))
