@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.ProcessBundleDescriptor;
@@ -57,7 +57,7 @@ import org.apache.beam.sdk.util.WindowedValue.FullWindowedValueCoder;
 /** Utility methods for creating {@link ProcessBundleDescriptor} instances. */
 // TODO: Rename to ExecutableStages?
 public class ProcessBundleDescriptors {
-  public static SimpleProcessBundleDescriptor fromExecutableStage(
+  public static ExecutableProcessBundleDescriptor fromExecutableStage(
       String id, ExecutableStage stage, Components components, ApiServiceDescriptor dataEndpoint)
       throws IOException {
     // Create with all of the processing transforms, and all of the components.
@@ -87,7 +87,7 @@ public class ProcessBundleDescriptors {
       outputTargetCoders.put(targetEncoding.getTarget(), targetEncoding.getCoder());
     }
 
-    return SimpleProcessBundleDescriptor.of(
+    return ExecutableProcessBundleDescriptor.of(
         bundleDescriptorBuilder.build(), inputDestination, outputTargetCoders);
   }
 
@@ -172,7 +172,7 @@ public class ProcessBundleDescriptors {
   }
 
   private static MessageWithComponents getWireCoder(
-      PCollectionNode pCollectionNode, Components components, Function<String, Boolean> usedIds) {
+      PCollectionNode pCollectionNode, Components components, Predicate<String> usedIds) {
     String elementCoderId = pCollectionNode.getPCollection().getCoderId();
     String windowingStrategyId = pCollectionNode.getPCollection().getWindowingStrategyId();
     String windowCoderId =
@@ -197,12 +197,12 @@ public class ProcessBundleDescriptors {
         false);
   }
 
-  private static String uniquifyId(String idBase, Function<String, Boolean> idUsed) {
-    if (!idUsed.apply(idBase)) {
+  private static String uniquifyId(String idBase, Predicate<String> idUsed) {
+    if (!idUsed.test(idBase)) {
       return idBase;
     }
     int i = 0;
-    while (idUsed.apply(String.format("%s_%s", idBase, i))) {
+    while (idUsed.test(String.format("%s_%s", idBase, i))) {
       i++;
     }
     return String.format("%s_%s", idBase, i);
@@ -228,12 +228,12 @@ public class ProcessBundleDescriptors {
 
   /** */
   @AutoValue
-  public abstract static class SimpleProcessBundleDescriptor {
-    public static SimpleProcessBundleDescriptor of(
+  public abstract static class ExecutableProcessBundleDescriptor {
+    public static ExecutableProcessBundleDescriptor of(
         ProcessBundleDescriptor descriptor,
         RemoteInputDestination<WindowedValue<?>> inputDestination,
         Map<BeamFnApi.Target, Coder<WindowedValue<?>>> outputTargetCoders) {
-      return new AutoValue_ProcessBundleDescriptors_SimpleProcessBundleDescriptor(
+      return new AutoValue_ProcessBundleDescriptors_ExecutableProcessBundleDescriptor(
           descriptor, inputDestination, Collections.unmodifiableMap(outputTargetCoders));
     }
 
@@ -246,7 +246,7 @@ public class ProcessBundleDescriptors {
     public abstract RemoteInputDestination<WindowedValue<?>> getRemoteInputDestination();
 
     /**
-     * Get all of the targets materialized by this {@link SimpleProcessBundleDescriptor} and the
+     * Get all of the targets materialized by this {@link ExecutableProcessBundleDescriptor} and the
      * java {@link Coder} for the wire format of that {@link BeamFnApi.Target}.
      */
     public abstract Map<BeamFnApi.Target, Coder<WindowedValue<?>>> getOutputTargetCoders();
