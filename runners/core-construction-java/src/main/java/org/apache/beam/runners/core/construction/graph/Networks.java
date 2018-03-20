@@ -23,9 +23,11 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
+import com.google.common.graph.ElementOrder;
 import com.google.common.graph.EndpointPair;
 import com.google.common.graph.MutableNetwork;
 import com.google.common.graph.Network;
+import com.google.common.graph.NetworkBuilder;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -40,7 +42,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.Stack;
 import java.util.function.Function;
-import javax.annotation.Nullable;
 
 /** Static utility methods for {@link Network} instances that are directed. */
 public class Networks {
@@ -145,19 +146,44 @@ public class Networks {
     return visitedNodes;
   }
 
-  /** Returns a set of nodes sorted in topological order. */
-  public static <NodeT> Iterable<NodeT> topologicalOrder(Network<NodeT, ?> network) {
-    return topologicalOrder(network, null);
-  }
-
   /**
    * Returns a set of nodes sorted in topological order.
    *
-   * <p>The {@code nodeSubOrder} is used to provide a stable order over which to consider the nodes.
-   * If {@code nodeSubOrder} is null, the nodes are considered in arbitrary order.
+   * <p>The order that unordered nodes appear in the result iterable is arbitrary.
    */
-  public static <NodeT> Iterable<NodeT> topologicalOrder(
-      Network<NodeT, ?> network, @Nullable Comparator<? super NodeT> nodeSubOrder) {
+  public static <NodeT, EdgeT> Iterable<NodeT> topologicalOrder(Network<NodeT, EdgeT> network) {
+    return computeTopologicalOrder(network);
+  }
+
+  /**
+   * Return a set of nodes in sorted topological order.
+   *
+   * <p>If the provided {@link Comparator} is stable, the result will also be in a stable order.
+   */
+  public static <NodeT, EdgeT> Iterable<NodeT> topologicalOrder(
+      Network<NodeT, EdgeT> network, Comparator<NodeT> nodeOrder) {
+    // Copy the characteristics of the network to ensure that the result network can represent the
+    // original network, just with the provided suborder
+    MutableNetwork<NodeT, EdgeT> orderedNetwork =
+        NetworkBuilder.from(network).nodeOrder(ElementOrder.sorted(nodeOrder)).build();
+    for (NodeT node : network.nodes()) {
+      orderedNetwork.addNode(node);
+    }
+    for (EdgeT edge : network.edges()) {
+      EndpointPair<NodeT> incident = network.incidentNodes(edge);
+      orderedNetwork.addEdge(incident.source(), incident.target(), edge);
+    }
+    return computeTopologicalOrder(orderedNetwork);
+  }
+
+  /**
+   * Compute the topological order for a {@link Network}.
+   *
+   * <p>Nodes must be considered in the order specified by the {@link Network Network's} {@link
+   * Network#nodeOrder()}. This ensures that any two Networks with the same nodes and node orders
+   * produce the same result.
+   */
+  private static <NodeT> Iterable<NodeT> computeTopologicalOrder(Network<NodeT, ?> network) {
     // TODO: (github/guava/2641) Upgrade Guava and remove this method if topological sorting becomes
     // supported externally or remove this comment if its not going to be supported externally.
 
@@ -169,20 +195,13 @@ public class Networks {
 
     // Linked hashset will prevent duplicates from appearing and will maintain insertion order.
     LinkedHashSet<NodeT> nodes = new LinkedHashSet<>(network.nodes().size());
-    // Sort all of the nodes before adding them to the processing order, so we get a deterministic
-    // order. Take an explicit comparator.
-    List<NodeT> roots = new ArrayList<>();
     Queue<NodeT> processingOrder = new LinkedList<>();
     // Add all the roots
     for (NodeT node : network.nodes()) {
       if (network.inDegree(node) == 0) {
-        roots.add(node);
+        processingOrder.add(node);
       }
     }
-    if (nodeSubOrder != null) {
-      roots.sort(nodeSubOrder);
-    }
-    processingOrder.addAll(roots);
 
     while (!processingOrder.isEmpty()) {
       NodeT current = processingOrder.remove();
@@ -190,13 +209,7 @@ public class Networks {
       // we need to add the node to the back of the processing queue.
       if (nodes.containsAll(network.predecessors(current))) {
         nodes.add(current);
-        if (nodeSubOrder != null) {
-          ArrayList<NodeT> successors = new ArrayList<>(network.successors(current));
-          successors.sort(nodeSubOrder);
-          processingOrder.addAll(successors);
-        } else {
-          processingOrder.addAll(network.successors(current));
-        }
+        processingOrder.addAll(network.successors(current));
       } else {
         processingOrder.add(current);
       }
