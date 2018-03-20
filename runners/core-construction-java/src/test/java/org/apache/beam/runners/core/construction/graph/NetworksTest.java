@@ -85,7 +85,8 @@ public class NetworksTest {
 
   @Test
   public void testTopologicalSortWithSuborder() {
-    Comparator<Object> subOrder = Ordering.arbitrary();
+    // This cast is required to narrow the type accepted by the comparator
+    Comparator<String> subOrder = (Comparator<String>) (Comparator) Ordering.arbitrary();
     MutableNetwork<String, String> network = createNetwork();
 
     Iterable<String> sortedNodes = Networks.topologicalOrder(network, subOrder);

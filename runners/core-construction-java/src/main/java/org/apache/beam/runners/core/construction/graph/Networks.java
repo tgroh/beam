@@ -147,18 +147,20 @@ public class Networks {
   }
 
   /**
-   * Returns a set of nodes sorted in topological order.
+   * Return a set of nodes in sorted topological order.
    *
-   * <p>The order that unordered nodes appear in the result iterable is arbitrary.
+   * <p>Nodes will be considered in the order specified by the {@link Network Network's} {@link
+   * Network#nodeOrder()}.
    */
-  public static <NodeT, EdgeT> Iterable<NodeT> topologicalOrder(Network<NodeT, EdgeT> network) {
+  public static <NodeT> Iterable<NodeT> topologicalOrder(Network<NodeT, ?> network) {
     return computeTopologicalOrder(network);
   }
 
   /**
    * Return a set of nodes in sorted topological order.
    *
-   * <p>If the provided {@link Comparator} is stable, the result will also be in a stable order.
+   * <p>Nodes will be considered in the order specified by the {@link
+   * ElementOrder#sorted(Comparator) sorted ElementOrder} created with the provided comparator.
    */
   public static <NodeT, EdgeT> Iterable<NodeT> topologicalOrder(
       Network<NodeT, EdgeT> network, Comparator<NodeT> nodeOrder) {
