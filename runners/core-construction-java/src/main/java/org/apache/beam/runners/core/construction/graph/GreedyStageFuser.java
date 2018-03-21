@@ -128,9 +128,9 @@ public class GreedyStageFuser {
     return ImmutableExecutableStage.of(
         environment,
         inputPCollection,
-        ImmutableSet.copyOf(sideInputs),
+        sideInputs,
         fusedTransforms.build(),
-        ImmutableSet.copyOf(materializedPCollections));
+        materializedPCollections);
   }
 
   private static Environment getStageEnvironment(

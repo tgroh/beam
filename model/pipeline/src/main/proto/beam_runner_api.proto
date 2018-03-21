@@ -214,6 +214,7 @@ message ExecutableStagePayload {
   // Input PCollection id.
   string input = 2;
 
+  // Side Input PCollection ids.
   repeated string side_inputs = 3;
 
   // PTransform ids contained within this executable stage.
