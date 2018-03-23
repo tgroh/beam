@@ -21,6 +21,8 @@ package org.apache.beam.runners.core.construction.graph;
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableSet;
 import java.util.Collection;
+import java.util.stream.Collectors;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
@@ -28,19 +30,43 @@ import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNo
 /** An {@link ExecutableStage} which is constructed with all of its initial state. */
 @AutoValue
 abstract class ImmutableExecutableStage implements ExecutableStage {
+  static ImmutableExecutableStage ofFullComponents(
+      RunnerApi.Components components,
+      Environment environment,
+      PCollectionNode input,
+      Collection<PCollectionNode> sideInputs,
+      Collection<PTransformNode> transforms,
+      Collection<PCollectionNode> outputs) {
+    RunnerApi.Components prunedComponents =
+        components
+            .toBuilder()
+            .clearTransforms()
+            .putAllTransforms(
+                transforms
+                    .stream()
+                    .collect(Collectors.toMap(PTransformNode::getId, PTransformNode::getTransform)))
+            .build();
+    return of(prunedComponents, environment, input, sideInputs, transforms, outputs);
+  }
+
   static ImmutableExecutableStage of(
+      RunnerApi.Components components,
       Environment environment,
       PCollectionNode input,
       Collection<PCollectionNode> sideInputs,
       Collection<PTransformNode> transforms,
       Collection<PCollectionNode> outputs) {
     return new AutoValue_ImmutableExecutableStage(
+        components,
         environment,
         input,
         ImmutableSet.copyOf(sideInputs),
         ImmutableSet.copyOf(transforms),
         ImmutableSet.copyOf(outputs));
   }
+
+  @Override
+  public abstract RunnerApi.Components getComponents();
 
   // Redefine the methods to have a known order.
   @Override
