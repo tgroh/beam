@@ -29,6 +29,7 @@ import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionN
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.hamcrest.TypeSafeMatcher;
 
 /**
@@ -37,12 +38,12 @@ import org.hamcrest.TypeSafeMatcher;
  */
 public class ExecutableStageMatcher extends TypeSafeMatcher<ExecutableStage> {
   private final String inputPCollectionId;
-  private final Collection<String> materializedPCollection;
+  private final Matcher<Iterable<? extends String>> materializedPCollection;
   private final Collection<String> fusedTransforms;
 
   private ExecutableStageMatcher(
       String inputPCollectionId,
-      Collection<String> materializedPCollection,
+      Matcher<Iterable<? extends String>> materializedPCollection,
       Collection<String> fusedTransforms) {
     this.inputPCollectionId = inputPCollectionId;
     this.materializedPCollection = materializedPCollection;
@@ -50,16 +51,26 @@ public class ExecutableStageMatcher extends TypeSafeMatcher<ExecutableStage> {
   }
 
   public static ExecutableStageMatcher withInput(String inputId) {
-    return new ExecutableStageMatcher(inputId, ImmutableList.of(), ImmutableList.of());
+    return new ExecutableStageMatcher(inputId, Matchers.emptyIterable(), ImmutableList.of());
   }
 
   public ExecutableStageMatcher withNoOutputs() {
-    return new ExecutableStageMatcher(inputPCollectionId, ImmutableList.of(), fusedTransforms);
+    return new ExecutableStageMatcher(
+        inputPCollectionId, Matchers.emptyIterable(), fusedTransforms);
+  }
+
+  public ExecutableStageMatcher withOutputs(Matcher<String>... pCollections) {
+    return new ExecutableStageMatcher(
+        inputPCollectionId, Matchers.containsInAnyOrder(pCollections), fusedTransforms);
+  }
+
+  public ExecutableStageMatcher withOutputs(Matcher<Iterable<? extends String>> pCollections) {
+    return new ExecutableStageMatcher(inputPCollectionId, pCollections, fusedTransforms);
   }
 
   public ExecutableStageMatcher withOutputs(String... pCollections) {
     return new ExecutableStageMatcher(
-        inputPCollectionId, ImmutableList.copyOf(pCollections), fusedTransforms);
+        inputPCollectionId, Matchers.containsInAnyOrder(pCollections), fusedTransforms);
   }
 
   public ExecutableStageMatcher withTransforms(String... transforms) {
@@ -70,12 +81,11 @@ public class ExecutableStageMatcher extends TypeSafeMatcher<ExecutableStage> {
   @Override
   protected boolean matchesSafely(ExecutableStage item) {
     return item.getInputPCollection().getId().equals(inputPCollectionId)
-        && containsInAnyOrder(materializedPCollection.toArray(new String[0]))
-            .matches(
-                item.getOutputPCollections()
-                    .stream()
-                    .map(PCollectionNode::getId)
-                    .collect(Collectors.toSet()))
+        && materializedPCollection.matches(
+            item.getOutputPCollections()
+                .stream()
+                .map(PCollectionNode::getId)
+                .collect(Collectors.toSet()))
         && containsInAnyOrder(fusedTransforms.toArray(new String[0]))
             .matches(
                 item.getTransforms()
@@ -93,7 +103,7 @@ public class ExecutableStageMatcher extends TypeSafeMatcher<ExecutableStage> {
                 ExecutableStage.class.getSimpleName(), PCollection.class.getSimpleName()))
         .appendText(inputPCollectionId)
         .appendText(String.format(", output %ss ", PCollection.class.getSimpleName()))
-        .appendValueList("[", ", ", "]", materializedPCollection)
+        .appendDescriptionOf(materializedPCollection)
         .appendText(String.format(" and fused %ss ", PTransform.class.getSimpleName()))
         .appendValueList("[", ", ", "]", fusedTransforms);
   }
