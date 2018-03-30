@@ -96,8 +96,8 @@ public interface ExecutableStage {
    * follows:
    *
    * <ul>
-   *   <li>The {@link PTransform#getSubtransformsList()} is empty. This ensures
-   *       that executable stages are treated as primitive transforms.
+   *   <li>The {@link PTransform#getSubtransformsList()} is empty. This ensures that executable
+   *       stages are treated as primitive transforms.
    *   <li>The only {@link PCollection} in the {@link PTransform#getInputsMap()} is the result of
    *       {@link #getInputPCollection()}.
    *   <li>The output {@link PCollection PCollections} in the values of {@link
@@ -109,9 +109,9 @@ public interface ExecutableStage {
    * </ul>
    *
    * <p>The executable stage can be reconstructed from the resulting {@link ExecutableStagePayload}
-   * and components alone via {@link #fromPayload(ExecutableStagePayload)}.
+   * via {@link #fromPayload(ExecutableStagePayload)}.
    */
-  default PTransform toPTransform(RunnerApi.Components components) {
+  default PTransform toPTransform() {
     PTransform.Builder pt = PTransform.newBuilder();
     ExecutableStagePayload.Builder payload = ExecutableStagePayload.newBuilder();
 
@@ -142,7 +142,7 @@ public interface ExecutableStage {
       payload.addTransforms(transform.getId());
     }
     payload.setComponents(
-        components
+        getComponents()
             .toBuilder()
             .clearTransforms()
             .putAllTransforms(
@@ -162,10 +162,11 @@ public interface ExecutableStage {
    * Return an {@link ExecutableStage} constructed from the provided {@link FunctionSpec}
    * representation.
    *
-   * <p>See {@link #toPTransform(RunnerApi.Components)} for how the payload is constructed. Note
-   * that the payload contains some information redundant with the {@link PTransform} due to runner
-   * implementations not having the full transform context at translation time, but rather access to
-   * an {@link org.apache.beam.sdk.runners.AppliedPTransform}.
+   * <p>See {@link #toPTransform()} for how the payload is constructed.
+   *
+   * <p>Note: The payload contains some information redundant with the {@link PTransform} it is the
+   * payload of. The {@link ExecutableStagePayload} should be sufficiently rich to construct a
+   * {@code ProcessBundleDescriptor} using only the payload.
    */
   static ExecutableStage fromPayload(ExecutableStagePayload payload) {
     Components components = payload.getComponents();

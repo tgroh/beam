@@ -87,7 +87,7 @@ public class ImmutableExecutableStageTest {
     assertThat(stage.getComponents().containsTransforms("pt"), is(true));
     assertThat(stage.getComponents().containsTransforms("other_pt"), is(false));
 
-    PTransform stagePTransform = stage.toPTransform(components);
+    PTransform stagePTransform = stage.toPTransform();
     assertThat(stagePTransform.getOutputsMap(), hasValue("output.out"));
     assertThat(stagePTransform.getOutputsCount(), equalTo(1));
     assertThat(

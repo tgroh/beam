@@ -22,7 +22,7 @@ import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableSet;
 import java.util.Collection;
 import java.util.stream.Collectors;
-import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
@@ -31,13 +31,13 @@ import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNo
 @AutoValue
 abstract class ImmutableExecutableStage implements ExecutableStage {
   static ImmutableExecutableStage ofFullComponents(
-      RunnerApi.Components components,
+      Components components,
       Environment environment,
       PCollectionNode input,
       Collection<PCollectionNode> sideInputs,
       Collection<PTransformNode> transforms,
       Collection<PCollectionNode> outputs) {
-    RunnerApi.Components prunedComponents =
+    Components prunedComponents =
         components
             .toBuilder()
             .clearTransforms()
@@ -50,7 +50,7 @@ abstract class ImmutableExecutableStage implements ExecutableStage {
   }
 
   static ImmutableExecutableStage of(
-      RunnerApi.Components components,
+      Components components,
       Environment environment,
       PCollectionNode input,
       Collection<PCollectionNode> sideInputs,
@@ -66,7 +66,7 @@ abstract class ImmutableExecutableStage implements ExecutableStage {
   }
 
   @Override
-  public abstract RunnerApi.Components getComponents();
+  public abstract Components getComponents();
 
   // Redefine the methods to have a known order.
   @Override

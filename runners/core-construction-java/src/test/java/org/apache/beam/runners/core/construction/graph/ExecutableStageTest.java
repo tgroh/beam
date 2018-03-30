@@ -88,7 +88,7 @@ public class ExecutableStageTest {
             Collections.singleton(PipelineNode.pTransform("pt", pt)),
             Collections.singleton(PipelineNode.pCollection("output.out", output)));
 
-    PTransform stagePTransform = stage.toPTransform(components);
+    PTransform stagePTransform = stage.toPTransform();
     assertThat(stagePTransform.getOutputsMap(), hasValue("output.out"));
     assertThat(stagePTransform.getOutputsCount(), equalTo(1));
     assertThat(
@@ -156,7 +156,7 @@ public class ExecutableStageTest {
                 PipelineNode.pTransform("parDo", parDoTransform),
                 PipelineNode.pTransform("window", windowTransform)));
 
-    PTransform ptransform = subgraph.toPTransform(components);
+    PTransform ptransform = subgraph.toPTransform();
     assertThat(ptransform.getSpec().getUrn(), equalTo(ExecutableStage.URN));
     assertThat(ptransform.getInputsMap().values(), containsInAnyOrder("impulse.out"));
     assertThat(ptransform.getOutputsMap().values(), emptyIterable());
