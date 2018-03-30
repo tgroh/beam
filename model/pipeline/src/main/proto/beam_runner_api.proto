@@ -217,14 +217,15 @@ message ExecutableStagePayload {
   // PTransform the ExecutableStagePayload is the payload of.
   string input = 2;
 
-  // (Required) Side Input PCollection ids. Each must be present as a value in the inputs of
+  // Side Input PCollection ids. Each must be present as a value in the inputs of
   // any PTransform the ExecutableStagePayload is the payload of.
   repeated string side_inputs = 3;
 
-  // (Required) PTransform ids contained within this executable stage.
+  // PTransform ids contained within this executable stage. This must contain at least one
+  // PCollection ID.
   repeated string transforms = 4;
 
-  // (Required) Output PCollection ids. This must be equal to the values of the outputs of any
+  // Output PCollection ids. This must be equal to the values of the outputs of any
   // PTransform the ExecutableStagePayload is the payload of.
   repeated string outputs = 5;
 
