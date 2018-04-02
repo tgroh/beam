@@ -222,7 +222,7 @@ message ExecutableStagePayload {
   repeated string side_inputs = 3;
 
   // PTransform ids contained within this executable stage. This must contain at least one
-  // PCollection ID.
+  // PTransform ID.
   repeated string transforms = 4;
 
   // Output PCollection ids. This must be equal to the values of the outputs of any
