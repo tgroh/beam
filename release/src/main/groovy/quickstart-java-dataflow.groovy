@@ -23,6 +23,8 @@ t = new TestScripts(args)
  * Run the Dataflow quickstart from https://beam.apache.org/get-started/quickstart-java/
  */
 
+println "args: ${args}"
+println "TestScripts: ${t}"
 t.describe 'Run Apache Beam Java SDK Quickstart - Dataflow'
 
   t.intent 'Gets the WordCount Example Code'
@@ -32,15 +34,19 @@ t.describe 'Run Apache Beam Java SDK Quickstart - Dataflow'
 
     // Remove any count files
     t.run """gsutil rm gs://${t.gcsBucket()}/count* || echo 'No files'"""
-
+    constantArgs = [
+        "runner": "DataflowRunner",
+        "project": "${t.gcpProject()}",
+        "gcpTempLocation": "gs://${t.gcsBucket()}/tmp",
+        "output": "gs://${t.gcsBucket()}/counts",
+        "inputFile": "gs://apache-beam-samples/shakespeare/*"]
+    println "Constant Args: ${constantArgs} of type ${constantArgs.class}"
+    args = t.formatArgs(constantArgs)
+    println "Generated Args: ${args}"
     // Run the wordcount example with the Dataflow runner
     t.run """mvn compile exec:java \
       -Dexec.mainClass=org.apache.beam.examples.WordCount \
-      -Dexec.args="--runner=DataflowRunner \
-                   --project=${t.gcpProject()} \
-                   --gcpTempLocation=gs://${t.gcsBucket()}/tmp \
-                   --output=gs://${t.gcsBucket()}/counts \
-                   --inputFile=gs://apache-beam-samples/shakespeare/*" \
+      -Dexec.args="${args}" \
                     -Pdataflow-runner"""
 
     // Verify wordcount text

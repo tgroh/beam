@@ -762,9 +762,7 @@ ext.createJavaQuickstartValidationTask = {
   def releaseRepo = project.findProperty('repourl') ?: 'https://repository.apache.org/content/repositories/snapshots'
   def argsNeeded = ["--ver=${releaseVersion}", "--repourl=${releaseRepo}"]
   if (config.additionalArgs) {
-    for (opt in config.additionalArgs) {
-      argsNeeded.add("--${opt.key}=${opt.value}")
-    }
+    argsNeeded.add("--additionalArgs=${config.additionalArgs}")
   }
   if (config.gcpProject) {
     argsNeeded.add("--gcpProject=${config.gcpProject}")

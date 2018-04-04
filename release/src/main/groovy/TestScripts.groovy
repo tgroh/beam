@@ -34,6 +34,7 @@ class TestScripts {
      static String ver
      static String gcpProject
      static String gcsBucket
+     static Map<String,String> additionalArgs
    }
 
    def TestScripts(String[] args) {
@@ -42,11 +43,20 @@ class TestScripts {
      cli.repourl(args:1, 'Repository URL')
      cli.gcpProject(args:1, 'Google Cloud Project')
      cli.gcsBucket(args:1, 'Google Cloud Storage Bucket')
+     println "args: ${args}"
      def options = cli.parse(args)
+     println "options: ${options}"
      var.repoUrl = options.repourl
      var.ver = options.ver
      println "Repository URL: ${var.repoUrl}"
      println "Version: ${var.ver}"
+     if (options.additionalArgs) {
+       var.additionalArgs = options.additionalArgs
+       println "Additional Arguments: ${options.additionalArgs}"
+     } else {
+       var.additionalArgs = new HashMap()
+       println "No Additional Arguments"
+     }
      if (options.gcpProject) {
        var.gcpProject = options.gcpProject
        println "GCS Project: ${var.gcpProject}"
@@ -67,6 +77,10 @@ class TestScripts {
 
    def gcsBucket() {
      return var.gcsBucket
+   }
+
+   def formatArgs(Map<String,String> args) {
+     return (additionalArgs().plus(args).collect { k, v -> "--${k}=${v}" }).join(" \\\n")
    }
 
    // Both documents the overal scenario and creates a clean temp directory
