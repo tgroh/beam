@@ -25,11 +25,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.metrics.MetricUpdates;
 import org.apache.beam.runners.core.metrics.MetricsContainerImpl;
 import org.apache.beam.sdk.metrics.MetricsEnvironment;
-import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,13 +57,12 @@ class DirectTransformExecutor<T> implements TransformExecutor {
     @Override
     public TransformExecutor create(
         CommittedBundle<?> bundle,
-        AppliedPTransform<?, ?, ?> transform,
+        Executable<?> transform,
         CompletionCallback onComplete,
         TransformExecutorService executorService) {
       Collection<ModelEnforcementFactory> enforcements =
           MoreObjects.firstNonNull(
-              transformEnforcements.get(
-                  PTransformTranslation.urnForTransform(transform.getTransform())),
+              transformEnforcements.get(transform.getUrn()),
               Collections.<ModelEnforcementFactory>emptyList());
       return new DirectTransformExecutor<>(
           context, registry, enforcements, bundle, transform, onComplete, executorService);
@@ -76,7 +73,7 @@ class DirectTransformExecutor<T> implements TransformExecutor {
   private final Iterable<? extends ModelEnforcementFactory> modelEnforcements;
 
   /** The transform that will be evaluated. */
-  private final AppliedPTransform<?, ?, ?> transform;
+  private final Executable<?> transform;
   /** The inputs this {@link DirectTransformExecutor} will deliver to the transform. */
   private final CommittedBundle<T> inputBundle;
 
@@ -90,7 +87,7 @@ class DirectTransformExecutor<T> implements TransformExecutor {
       TransformEvaluatorFactory factory,
       Iterable<? extends ModelEnforcementFactory> modelEnforcements,
       CommittedBundle<T> inputBundle,
-      AppliedPTransform<?, ?, ?> transform,
+      Executable<?> transform,
       CompletionCallback completionCallback,
       TransformExecutorService transformEvaluationState) {
     this.evaluatorFactory = factory;
@@ -107,7 +104,7 @@ class DirectTransformExecutor<T> implements TransformExecutor {
 
   @Override
   public void run() {
-    MetricsContainerImpl metricsContainer = new MetricsContainerImpl(transform.getFullName());
+    MetricsContainerImpl metricsContainer = new MetricsContainerImpl(transform.getId());
     try (Closeable metricsScope = MetricsEnvironment.scopedMetricsContainer(metricsContainer)) {
       Collection<ModelEnforcement<T>> enforcements = new ArrayList<>();
       for (ModelEnforcementFactory enforcementFactory : modelEnforcements) {

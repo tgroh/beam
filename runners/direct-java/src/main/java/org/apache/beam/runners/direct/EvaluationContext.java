@@ -125,7 +125,7 @@ class EvaluationContext {
   }
 
   public void initialize(
-      Map<AppliedPTransform<?, ?, ?>, ? extends Iterable<CommittedBundle<?>>> initialInputs) {
+      Map<Executable<?>, ? extends Iterable<CommittedBundle<?>>> initialInputs) {
     watermarkManager.initialize(initialInputs);
   }
 
@@ -205,7 +205,7 @@ class EvaluationContext {
       Iterable<? extends UncommittedBundle<?>> bundles) {
     ImmutableList.Builder<CommittedBundle<?>> completed = ImmutableList.builder();
     for (UncommittedBundle<?> inProgress : bundles) {
-      AppliedPTransform<?, ?, ?> producing =
+      Executable<?> producing =
           graph.getProducer(inProgress.getPCollection());
       TransformWatermarks watermarks = watermarkManager.getWatermarks(producing);
       CommittedBundle<?> committed =
@@ -220,12 +220,12 @@ class EvaluationContext {
   }
 
   private void fireAllAvailableCallbacks() {
-    for (AppliedPTransform<?, ?, ?> transform : graph.getPrimitiveTransforms()) {
+    for (Executable<?> transform : graph.getPrimitiveTransforms()) {
       fireAvailableCallbacks(transform);
     }
   }
 
-  private void fireAvailableCallbacks(AppliedPTransform<?, ?, ?> producingTransform) {
+  private void fireAvailableCallbacks(Executable<?> producingTransform) {
     TransformWatermarks watermarks = watermarkManager.getWatermarks(producingTransform);
     Instant outputWatermark = watermarks.getOutputWatermark();
     callbackExecutor.fireForWatermark(producingTransform, outputWatermark);
@@ -289,7 +289,7 @@ class EvaluationContext {
       BoundedWindow window,
       WindowingStrategy<?, ?> windowingStrategy,
       Runnable runnable) {
-    AppliedPTransform<?, ?, ?> producing = graph.getProducer(value);
+    Executable<?> producing = graph.getProducer(value);
     callbackExecutor.callOnGuaranteedFiring(producing, window, windowingStrategy, runnable);
 
     fireAvailableCallbacks(producing);
@@ -304,7 +304,7 @@ class EvaluationContext {
       BoundedWindow window,
       WindowingStrategy<?, ?> windowingStrategy,
       Runnable runnable) {
-    AppliedPTransform<?, ?, ?> producing = graph.getWriter(view);
+    Executable<?> producing = graph.getWriter(view);
     callbackExecutor.callOnGuaranteedFiring(producing, window, windowingStrategy, runnable);
 
     fireAvailableCallbacks(producing);
@@ -316,7 +316,7 @@ class EvaluationContext {
    * <p>For example, upstream state associated with the window may be cleared.
    */
   public void scheduleAfterWindowExpiration(
-      AppliedPTransform<?, ?, ?> producing,
+      Executable<?> producing,
       BoundedWindow window,
       WindowingStrategy<?, ?> windowingStrategy,
       Runnable runnable) {
@@ -336,7 +336,7 @@ class EvaluationContext {
    * Get a {@link DirectExecutionContext} for the provided {@link AppliedPTransform} and key.
    */
   public DirectExecutionContext getExecutionContext(
-      AppliedPTransform<?, ?, ?> application, StructuralKey<?> key) {
+      Executable<?> application, StructuralKey<?> key) {
     StepAndKey stepAndKey = StepAndKey.of(application, key);
     return new DirectExecutionContext(
         clock,
@@ -349,12 +349,12 @@ class EvaluationContext {
   /**
    * Get the Step Name for the provided application.
    */
-  String getStepName(AppliedPTransform<?, ?, ?> application) {
+  String getStepName(Executable<?> application) {
     return graph.getStepName(application);
   }
 
   /** Returns all of the steps in this {@link Pipeline}. */
-  Collection<AppliedPTransform<?, ?, ?>> getSteps() {
+  Collection<Executable<?>> getSteps() {
     return graph.getPrimitiveTransforms();
   }
 
@@ -397,7 +397,7 @@ class EvaluationContext {
   /**
    * Returns true if the step will not produce additional output.
    */
-  public boolean isDone(AppliedPTransform<?, ?, ?> transform) {
+  public boolean isDone(Executable<?> transform) {
     // the PTransform is done only if watermark is at the max value
     Instant stepWatermark = watermarkManager.getWatermarks(transform).getOutputWatermark();
     return !stepWatermark.isBefore(BoundedWindow.TIMESTAMP_MAX_VALUE);
@@ -407,7 +407,7 @@ class EvaluationContext {
    * Returns true if all steps are done.
    */
   public boolean isDone() {
-    for (AppliedPTransform<?, ?, ?> transform : graph.getPrimitiveTransforms()) {
+    for (Executable<?> transform : graph.getPrimitiveTransforms()) {
       if (!isDone(transform)) {
         return false;
       }

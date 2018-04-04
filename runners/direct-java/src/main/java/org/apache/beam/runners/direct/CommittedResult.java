@@ -32,7 +32,7 @@ abstract class CommittedResult {
   /**
    * Returns the {@link AppliedPTransform} that produced this result.
    */
-  public abstract AppliedPTransform<?, ?, ?> getTransform();
+  public abstract Executable<?> getTransform();
 
   /**
    * Returns the {@link CommittedBundle} that contains the input elements that could not be
