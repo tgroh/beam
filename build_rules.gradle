@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import groovy.json.JsonOutput
+
 // This file contains common build rules that are to be applied
 // to all projects and also a set of methods called applyXYZNature which
 // sets up common build rules for sub-projects with the same needs.
@@ -733,6 +735,59 @@ ext.applyAvroNature = {
   apply plugin: "com.commercehub.gradle.plugin.avro"
 }
 
+def integrationTestRunnerProjects = [
+  dataflowRunner: ":runners:google-cloud-dataflow-java",
+]
+def integrationTestRunnerClass = [
+  dataflowRunner: "TestDataflowRunner",
+]
+def integrationTestAdditionalOptions = [
+  dataflowStreamingRunner: [ "--streaming=true" ],
+]
+
+def runnerTaskNames = [
+  dataflowRunner: "Dataflow"
+]
+
+class JavaITConfiguration {
+  // The runners to generate the postcommit for
+  List<String> runners
+
+  // A map from runner to options required to configure the runner
+  Map<String,String> runnerOptions = [
+    dataflowRunner: [
+      "--project=apache-beam-testing",
+      "--tempRoot=gs://temp-storage-for-end-to-end-tests"
+    ].join(' ')
+  ]
+}
+
+ext.createJavaIntegrationTestTasks = {
+  JavaITConfiguration config = it as JavaITConfiguration
+  def newTasks = []
+  config.runners.each { runner ->
+    def taskName = "runJava${runnerTaskNames.get(runner, runner)}IntegrationTests"
+    println "Generating :${taskName}"
+    def options = []
+    options = options.plus(integrationTestAdditionalOptions.get(runner, []))
+                     .plus(config.runnerOptions.get(runner, []))
+                     .plus("--runner=${integrationTestRunnerClass[runner]}")
+    task "${taskName}" (type: Test) {
+      include "**/*IT.class"
+      forkEvery 1
+      maxParallelForks 4
+      systemProperty "beamTestPipelineOptions", JsonOutput.toJson(options.join(' '))
+      dependencies {
+        shadow project(path: "${project.path}")
+        shadow project(path: "${integrationTestRunnerProjects[runner]}")
+        shadowTest project(path: "${project.path}")
+      }
+    }
+    newTasks.add(taskName)
+  }
+  return newTasks
+}
+
 // A class defining the set of configurable properties for createJavaQuickstartValidationTask
 class JavaQuickstartConfiguration {
   // Name for the quickstart is required.
@@ -770,3 +825,4 @@ ext.createJavaQuickstartValidationTask = {
     args argsNeeded
   }
 }
+

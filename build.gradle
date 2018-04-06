@@ -20,7 +20,6 @@
 // and properties that are enabled in addition to natures
 // that can be applied to configure a project for certain common
 // tasks.
-
 apply from: project(":").file("build_rules.gradle")
 
 // Define the set of repositories and dependencies required to
@@ -130,5 +129,14 @@ task goPreCommit() {
 task pythonPreCommit() {
   dependsOn ":rat"
   dependsOn ":sdks:python:check"
+}
+
+// Define PostCommit tasks as above
+task javaPostCommit() {
+  dependsOn ":sdks:java:core:buildNeeded"
+  dependsOn ":sdks:java:core:buildDependents"
+  dependsOn ":sdks:java:maven-archetypes:examples:generateAndBuildArchetypeTest"
+  dependsOn ":sdks:java:maven-archetypes:starter:generateAndBuildArchetypeTest"
+  dependsOn ":dataflowPostCommit"
 }
 

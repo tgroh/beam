@@ -110,11 +110,7 @@ artifacts {
   shadowTest shadowTestJar
 }
 
-/*
- * Create a ${runner}PreCommit task for each runner which runs a set
- * of integration tests for WordCount and WindowedWordCount.
- */
-def preCommitRunnerClass = [
+def integrationTestRunnerClass = [
   apexRunner: "org.apache.beam.runners.apex.TestApexRunner",
   dataflowRunner: "TestDataflowRunner",
   dataflowStreamingRunner: "TestDataflowRunner",
@@ -122,16 +118,21 @@ def preCommitRunnerClass = [
   flinkRunner: "org.apache.beam.runners.flink.TestFlinkRunner",
   sparkRunner: "org.apache.beam.runners.spark.TestSparkRunner",
 ]
-def preCommitAdditionalFlags = [
+def integrationTestAdditionalOptions = [
   dataflowStreamingRunner: [ "--streaming=true" ],
 ]
+
+/*
+ * Create a ${runner}PreCommit task for each runner which runs a set
+ * of integration tests for WordCount and WindowedWordCount.
+ */
 for (String runner : preCommitRunners) {
   tasks.create(name: runner + "PreCommit", type: Test) {
     def preCommitBeamTestPipelineOptions = [
        "--project=apache-beam-testing",
        "--tempRoot=gs://temp-storage-for-end-to-end-tests",
-       "--runner=" + preCommitRunnerClass[runner],
-    ] + preCommitAdditionalFlags[runner]
+       "--runner=" + integrationTestRunnerClass[runner],
+    ] + integrationTestAdditionalOptions[runner]
     classpath = configurations."${runner}PreCommit"
     include "**/WordCountIT.class"
     if (!"sparkRunner".equals(runner)) {
@@ -146,7 +147,13 @@ for (String runner : preCommitRunners) {
 /* Define a common precommit task which depends on all the individual precommits. */
 task preCommit() {
   for (String runner : preCommitRunners) {
-    dependsOn runner + "PreCommit"
+    dependsOn "${runner}PreCommit"
+  }
+}
+
+task postCommit() {
+  for (String itTask in createJavaIntegrationTestTasks(runners: ['dataflowRunner'])) {
+    dependsOn "${itTask}"
   }
 }
 
