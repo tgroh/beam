@@ -82,7 +82,7 @@ class EvaluationContext {
   private final WatermarkManager watermarkManager;
 
   /** Executes callbacks based on the progression of the watermark. */
-  private final WatermarkCallbackExecutor callbackExecutor;
+  private final WatermarkCallbackExecutor<AppliedPTransform<?, ?, ?>> callbackExecutor;
 
   /** The stateInternals of the world, by applied PTransform and key. */
   private final ConcurrentMap<StepAndKey, CopyOnAccessInMemoryStateInternals>

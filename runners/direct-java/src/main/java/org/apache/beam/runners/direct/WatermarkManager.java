@@ -755,7 +755,7 @@ class WatermarkManager {
    * The {@link DirectGraph} representing the {@link Pipeline} this {@link WatermarkManager} tracks
    * watermarks for.
    */
-  private final DirectGraph graph;
+  private final ExecutableGraph graph;
 
   /**
    * The input and output watermark of each {@link AppliedPTransform}.
@@ -791,7 +791,7 @@ class WatermarkManager {
     return new WatermarkManager(clock, graph);
   }
 
-  private WatermarkManager(Clock clock, DirectGraph graph) {
+  private WatermarkManager(Clock clock, ExecutableGraph graph) {
     this.clock = clock;
     this.graph = graph;
 
@@ -802,10 +802,10 @@ class WatermarkManager {
 
     transformToWatermarks = new HashMap<>();
 
-    for (Executable<?> rootTransform : graph.getRootTransforms()) {
+    for (Executable<?> rootTransform : graph.getRootExecutables()) {
       getTransformWatermark(rootTransform);
     }
-    for (Executable<?> primitiveTransform : graph.getPrimitiveTransforms()) {
+    for (Executable<?> primitiveTransform : graph.getExecutables()) {
       getTransformWatermark(primitiveTransform);
     }
   }
@@ -850,6 +850,7 @@ class WatermarkManager {
 
   private Collection<Watermark> getInputProcessingWatermarks(Executable<?> transform) {
     ImmutableList.Builder<Watermark> inputWmsBuilder = ImmutableList.builder();
+//    Collection<PValue> inputs = graph.getPerElementInputs(transform);
     Collection<PValue> inputs = TransformInputs.nonAdditionalInputs(transform);
     if (inputs.isEmpty()) {
       inputWmsBuilder.add(THE_END_OF_TIME);
@@ -1053,7 +1054,7 @@ class WatermarkManager {
     WatermarkUpdate updateResult = myWatermarks.refresh();
     if (updateResult.isAdvanced()) {
       Set<Executable<?>> additionalRefreshes = new HashSet<>();
-      for (PValue outputPValue : toRefresh.getOutputs().values()) {
+      for (PValue outputPValue : graph.getOutputs(toRefresh)) {
         additionalRefreshes.addAll(graph.getPerElementConsumers(outputPValue));
       }
       return additionalRefreshes;
