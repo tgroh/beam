@@ -23,7 +23,7 @@ import java.util.function.Predicate;
 /**
  * A utility class to interact with synthetic {@link PipelineNode Pipeline Nodes}.
  */
-class SyntheticNodes {
+public class SyntheticNodes {
   private SyntheticNodes() {}
 
   /**
