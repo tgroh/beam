@@ -61,7 +61,6 @@ import org.apache.beam.sdk.state.TimeDomain;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.PValue;
 import org.joda.time.Instant;
 
 /**
@@ -785,8 +784,8 @@ class WatermarkManager<ExecutableT, CollectionT> {
    * @param clock the clock to use to determine processing time
    * @param graph the graph representing this pipeline
    */
-  public static WatermarkManager<AppliedPTransform<?, ?, ?>, PValue> create(
-      Clock clock, DirectGraph graph) {
+  public static <ExecutableT, CollectionT> WatermarkManager<ExecutableT, CollectionT> create(
+      Clock clock, ExecutableGraph<ExecutableT, CollectionT> graph) {
     return new WatermarkManager<>(clock, graph);
   }
 

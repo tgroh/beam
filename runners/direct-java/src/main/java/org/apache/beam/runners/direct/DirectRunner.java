@@ -181,7 +181,8 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
             clockSupplier.get(),
             Enforcement.bundleFactoryFor(enabledEnforcements, graph),
             graph,
-            keyedPValueVisitor.getKeyedPValues());
+            keyedPValueVisitor.getKeyedPValues(),
+            graph.getViews());
 
     TransformEvaluatorRegistry registry = TransformEvaluatorRegistry
         .javaSdkNativeRegistry(context, options);

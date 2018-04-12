@@ -70,7 +70,7 @@ class EvaluationContext {
   /**
    * The graph representing this {@link Pipeline}.
    */
-  private final DirectGraph graph;
+  private final ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph;
 
   private final Clock clock;
 
@@ -95,23 +95,25 @@ class EvaluationContext {
   public static EvaluationContext create(
       Clock clock,
       BundleFactory bundleFactory,
-      DirectGraph graph,
-      Set<PValue> keyedPValues) {
-    return new EvaluationContext(clock, bundleFactory, graph, keyedPValues);
+      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
+      Set<PValue> keyedPValues,
+      Collection<PCollectionView<?>> views) {
+    return new EvaluationContext(clock, bundleFactory, graph, keyedPValues, views);
   }
 
   private EvaluationContext(
       Clock clock,
       BundleFactory bundleFactory,
-      DirectGraph graph,
-      Set<PValue> keyedPValues) {
+      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
+      Set<PValue> keyedPValues,
+      Collection<PCollectionView<?>> views) {
     this.clock = clock;
     this.bundleFactory = checkNotNull(bundleFactory);
     this.graph = checkNotNull(graph);
     this.keyedPValues = keyedPValues;
 
     this.watermarkManager = WatermarkManager.create(clock, graph);
-    this.sideInputContainer = SideInputContainer.create(this, graph.getViews());
+    this.sideInputContainer = SideInputContainer.create(this, views);
 
     this.applicationStateInternals = new ConcurrentHashMap<>();
     this.metrics = new DirectMetrics();
@@ -338,7 +340,7 @@ class EvaluationContext {
    * Get the Step Name for the provided application.
    */
   String getStepName(AppliedPTransform<?, ?, ?> application) {
-    return graph.getStepName(application);
+    return application.getFullName();
   }
 
   /** Returns all of the steps in this {@link Pipeline}. */
