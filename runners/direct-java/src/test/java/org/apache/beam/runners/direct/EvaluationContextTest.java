@@ -118,7 +118,8 @@ public class EvaluationContextTest {
             NanosOffsetClock.create(),
             bundleFactory,
             graph,
-            keyedPValueTrackingVisitor.getKeyedPValues());
+            keyedPValueTrackingVisitor.getKeyedPValues(),
+            graph.getViews());
 
     createdProducer = graph.getProducer(created);
     downstreamProducer = graph.getProducer(downstream);
