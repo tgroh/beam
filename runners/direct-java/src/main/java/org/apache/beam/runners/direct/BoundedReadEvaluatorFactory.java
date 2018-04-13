@@ -51,7 +51,8 @@ import org.apache.beam.sdk.values.PCollection;
  * A {@link TransformEvaluatorFactory} that produces {@link TransformEvaluator TransformEvaluators}
  * for the {@link Bounded Read.Bounded} primitive {@link PTransform}.
  */
-final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
+final class BoundedReadEvaluatorFactory
+    implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
   /**
    * The required minimum size of a source to dynamically split. Produced {@link TransformEvaluator
    * TransformEvaluators} will attempt to dynamically split all sources larger than the minimum

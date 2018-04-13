@@ -31,7 +31,7 @@ import org.apache.beam.sdk.values.PCollection;
  * A {@link TransformEvaluatorFactory} that produces {@link TransformEvaluator TransformEvaluators}
  * for the {@link Read Read} primitives, whether bounded or unbounded.
  */
-final class ReadEvaluatorFactory implements TransformEvaluatorFactory {
+final class ReadEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
 
   final BoundedReadEvaluatorFactory boundedFactory;
   final UnboundedReadEvaluatorFactory unboundedFactory;

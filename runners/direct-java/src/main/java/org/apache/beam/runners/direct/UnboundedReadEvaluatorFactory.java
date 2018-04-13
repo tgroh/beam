@@ -51,7 +51,8 @@ import org.joda.time.Instant;
  * A {@link TransformEvaluatorFactory} that produces {@link TransformEvaluator TransformEvaluators}
  * for the {@link Unbounded Read.Unbounded} primitive {@link PTransform}.
  */
-class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
+class UnboundedReadEvaluatorFactory
+    implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
   // Occasionally close an existing reader and resume from checkpoint, to exercise close-and-resume
   private static final double DEFAULT_READER_REUSE_CHANCE = 0.95;
 

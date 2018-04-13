@@ -52,7 +52,7 @@ class SplittableProcessElementsEvaluatorFactory<
         RestrictionT,
         PositionT,
         TrackerT extends RestrictionTracker<RestrictionT, PositionT>>
-    implements TransformEvaluatorFactory {
+    implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
   private final ParDoEvaluatorFactory<KeyedWorkItem<String, KV<InputT, RestrictionT>>, OutputT>
       delegateFactory;
   private final ScheduledExecutorService ses;
