@@ -53,7 +53,7 @@ import org.joda.time.Duration;
 import org.joda.time.Instant;
 
 /** The {@link TransformEvaluatorFactory} for the {@link TestStream} primitive. */
-class TestStreamEvaluatorFactory implements TransformEvaluatorFactory {
+class TestStreamEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
   private final EvaluationContext evaluationContext;
 
   TestStreamEvaluatorFactory(EvaluationContext evaluationContext) {
