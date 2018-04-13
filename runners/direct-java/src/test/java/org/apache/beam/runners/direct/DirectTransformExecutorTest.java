@@ -37,6 +37,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.direct.CommittedResult.OutputType;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.testing.TestPipeline;
@@ -118,7 +119,11 @@ public class DirectTransformExecutorTest {
           }
         };
 
-    when(registry.forApplication(createdProducer, null)).thenReturn(evaluator);
+    when(registry.forApplication(
+            PTransformTranslation.urnForTransform(createdProducer.getTransform()),
+            createdProducer,
+            null))
+        .thenReturn(evaluator);
 
     DirectTransformExecutor<Object> executor =
         new DirectTransformExecutor<>(
@@ -138,7 +143,11 @@ public class DirectTransformExecutorTest {
 
   @Test
   public void nullTransformEvaluatorTerminates() throws Exception {
-    when(registry.forApplication(createdProducer, null)).thenReturn(null);
+    when(registry.forApplication(
+            PTransformTranslation.urnForTransform(createdProducer.getTransform()),
+            createdProducer,
+            null))
+        .thenReturn(null);
 
     DirectTransformExecutor<Object> executor =
         new DirectTransformExecutor<>(
@@ -179,7 +188,11 @@ public class DirectTransformExecutorTest {
     WindowedValue<String> third = WindowedValue.valueInGlobalWindow("third");
     CommittedBundle<String> inputBundle =
         bundleFactory.createBundle(created).add(foo).add(spam).add(third).commit(Instant.now());
-    when(registry.<String>forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
+    when(registry.<String>forApplication(
+            PTransformTranslation.urnForTransform(downstreamProducer.getTransform()),
+            downstreamProducer,
+            inputBundle))
+        .thenReturn(evaluator);
 
     DirectTransformExecutor<String> executor =
         new DirectTransformExecutor<>(
@@ -221,7 +234,11 @@ public class DirectTransformExecutorTest {
     WindowedValue<String> foo = WindowedValue.valueInGlobalWindow("foo");
     CommittedBundle<String> inputBundle =
         bundleFactory.createBundle(created).add(foo).commit(Instant.now());
-    when(registry.<String>forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
+    when(registry.<String>forApplication(
+            PTransformTranslation.urnForTransform(downstreamProducer.getTransform()),
+            downstreamProducer,
+            inputBundle))
+        .thenReturn(evaluator);
 
     DirectTransformExecutor<String> executor =
         new DirectTransformExecutor<>(
@@ -255,7 +272,11 @@ public class DirectTransformExecutorTest {
         };
 
     CommittedBundle<String> inputBundle = bundleFactory.createBundle(created).commit(Instant.now());
-    when(registry.<String>forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
+    when(registry.<String>forApplication(
+            PTransformTranslation.urnForTransform(downstreamProducer.getTransform()),
+            downstreamProducer,
+            inputBundle))
+        .thenReturn(evaluator);
 
     DirectTransformExecutor<String> executor =
         new DirectTransformExecutor<>(
@@ -294,7 +315,11 @@ public class DirectTransformExecutorTest {
     WindowedValue<String> barElem = WindowedValue.valueInGlobalWindow("bar");
     CommittedBundle<String> inputBundle =
         bundleFactory.createBundle(created).add(fooElem).add(barElem).commit(Instant.now());
-    when(registry.forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
+    when(registry.forApplication(
+            PTransformTranslation.urnForTransform(downstreamProducer.getTransform()),
+            downstreamProducer,
+            inputBundle))
+        .thenReturn(evaluator);
 
     TestEnforcementFactory enforcement = new TestEnforcementFactory();
     DirectTransformExecutor<String> executor =
@@ -333,7 +358,11 @@ public class DirectTransformExecutorTest {
     WindowedValue<String> fooBytes = WindowedValue.valueInGlobalWindow("foo");
     CommittedBundle<String> inputBundle =
         bundleFactory.createBundle(created).add(fooBytes).commit(Instant.now());
-    when(registry.forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
+    when(registry.forApplication(
+            PTransformTranslation.urnForTransform(downstreamProducer.getTransform()),
+            downstreamProducer,
+            inputBundle))
+        .thenReturn(evaluator);
 
     DirectTransformExecutor<String> executor =
         new DirectTransformExecutor<>(
@@ -372,7 +401,11 @@ public class DirectTransformExecutorTest {
     WindowedValue<String> fooBytes = WindowedValue.valueInGlobalWindow("foo");
     CommittedBundle<String> inputBundle =
         bundleFactory.createBundle(created).add(fooBytes).commit(Instant.now());
-    when(registry.forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
+    when(registry.forApplication(
+            PTransformTranslation.urnForTransform(downstreamProducer.getTransform()),
+            downstreamProducer,
+            inputBundle))
+        .thenReturn(evaluator);
 
     DirectTransformExecutor<String> executor =
         new DirectTransformExecutor<>(

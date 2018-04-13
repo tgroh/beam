@@ -38,7 +38,7 @@ import org.apache.beam.sdk.values.PCollection;
  * This transform is an override for the {@link CreatePCollectionView} transform that applies
  * windowing and triggers before the view is written.
  */
-class ViewEvaluatorFactory implements TransformEvaluatorFactory {
+class ViewEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
   private final EvaluationContext context;
 
   ViewEvaluatorFactory(EvaluationContext context) {

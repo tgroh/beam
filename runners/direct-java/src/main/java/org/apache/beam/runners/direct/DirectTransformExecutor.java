@@ -115,7 +115,10 @@ class DirectTransformExecutor<T> implements TransformExecutor {
         enforcements.add(enforcement);
       }
       TransformEvaluator<T> evaluator =
-          evaluatorRegistry.forApplication(transform, inputBundle);
+          evaluatorRegistry.forApplication(
+              PTransformTranslation.urnForTransform(transform.getTransform()),
+              transform,
+              inputBundle);
       if (evaluator == null) {
         onComplete.handleEmpty(transform);
         // Nothing to do

@@ -27,10 +27,10 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionList;
 
 /**
- * The {@link DirectRunner} {@link TransformEvaluatorFactory} for the {@link Flatten}
- * {@link PTransform}.
+ * The {@link DirectRunner} {@link TransformEvaluatorFactory} for the {@link Flatten} {@link
+ * PTransform}.
  */
-class FlattenEvaluatorFactory implements TransformEvaluatorFactory {
+class FlattenEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
   private final EvaluationContext evaluationContext;
 
   FlattenEvaluatorFactory(EvaluationContext evaluationContext) {

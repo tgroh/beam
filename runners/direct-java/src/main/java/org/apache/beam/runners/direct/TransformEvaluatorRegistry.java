@@ -40,7 +40,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems;
-import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems.ProcessElements;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation.TransformPayloadTranslator;
 import org.apache.beam.runners.core.construction.TransformPayloadTranslatorRegistrar;
@@ -56,7 +55,7 @@ import org.slf4j.LoggerFactory;
  * A {@link TransformEvaluatorFactory} that delegates to primitive {@link TransformEvaluatorFactory}
  * implementations based on the type of {@link PTransform} of the application.
  */
-class TransformEvaluatorRegistry {
+class TransformEvaluatorRegistry<ExecutableT> {
   private static final Logger LOG = LoggerFactory.getLogger(TransformEvaluatorRegistry.class);
 
   /**
@@ -65,10 +64,10 @@ class TransformEvaluatorRegistry {
    *
    * <p>This is the legacy implementation of the {@link DirectRunner} engine.
    */
-  public static TransformEvaluatorRegistry javaSdkNativeRegistry(
+  public static TransformEvaluatorRegistry<AppliedPTransform<?, ?, ?>> javaSdkNativeRegistry(
       EvaluationContext ctxt, PipelineOptions options) {
-    ImmutableMap<String, TransformEvaluatorFactory> primitives =
-        ImmutableMap.<String, TransformEvaluatorFactory>builder()
+    ImmutableMap<String, TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>>> primitives =
+        ImmutableMap.<String, TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>>>builder()
             // Beam primitives
             .put(READ_TRANSFORM_URN, new ReadEvaluatorFactory(ctxt, options))
             .put(
@@ -97,7 +96,7 @@ class TransformEvaluatorRegistry {
                 SPLITTABLE_PROCESS_URN,
                 new SplittableProcessElementsEvaluatorFactory<>(ctxt, options))
             .build();
-    return new TransformEvaluatorRegistry(primitives);
+    return new TransformEvaluatorRegistry<>(primitives);
   }
 
   /** Registers classes specialized to the direct runner. */
@@ -137,45 +136,28 @@ class TransformEvaluatorRegistry {
     }
   }
 
-  /**
-   * A translator just to vend the URN. This will need to be moved to runners-core-construction-java
-   * once SDF is reorganized appropriately.
-   */
-  private static class SplittableParDoProcessElementsTranslator
-      extends TransformPayloadTranslator.NotSerializable<ProcessElements<?, ?, ?, ?>> {
-
-    private SplittableParDoProcessElementsTranslator() {}
-
-    @Override
-    public String getUrn(ProcessElements<?, ?, ?, ?> transform) {
-      return SPLITTABLE_PROCESS_URN;
-    }
-  }
-
   // the TransformEvaluatorFactories can construct instances of all generic types of transform,
   // so all instances of a primitive can be handled with the same evaluator factory.
-  private final Map<String, TransformEvaluatorFactory> factories;
+  private final Map<String, TransformEvaluatorFactory<ExecutableT>> factories;
 
   private final AtomicBoolean finished = new AtomicBoolean(false);
 
   private TransformEvaluatorRegistry(
       @SuppressWarnings("rawtypes")
-      Map<String, TransformEvaluatorFactory> factories) {
+      Map<String, TransformEvaluatorFactory<ExecutableT>> factories) {
     this.factories = factories;
   }
 
   public <InputT> TransformEvaluator<InputT> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle)
+      String urn, ExecutableT executable, CommittedBundle<?> inputBundle)
       throws Exception {
     checkState(
         !finished.get(), "Tried to get an evaluator for a finished TransformEvaluatorRegistry");
 
-    String urn = PTransformTranslation.urnForTransform(application.getTransform());
-
-    TransformEvaluatorFactory factory =
+    TransformEvaluatorFactory<ExecutableT> factory =
         checkNotNull(
             factories.get(urn), "No evaluator for PTransform \"%s\"", urn);
-    return factory.forApplication(application, inputBundle);
+    return factory.forApplication(executable, inputBundle);
   }
 
   public void cleanup() throws Exception {

@@ -31,7 +31,7 @@ import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 
 /** The evaluator for the {@link Impulse} transform. Produces only empty byte arrays. */
-class ImpulseEvaluatorFactory implements TransformEvaluatorFactory {
+class ImpulseEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
   private final EvaluationContext ctxt;
 
   ImpulseEvaluatorFactory(EvaluationContext ctxt) {

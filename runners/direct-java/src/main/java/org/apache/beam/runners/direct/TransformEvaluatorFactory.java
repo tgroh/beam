@@ -20,7 +20,6 @@ package org.apache.beam.runners.direct;
 import javax.annotation.Nullable;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.Read;
-import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
 
 /**
@@ -30,7 +29,7 @@ import org.apache.beam.sdk.transforms.PTransform;
  * <p>{@link TransformEvaluatorFactory TransformEvaluatorFactories} will be reused within a single
  * execution of a {@link Pipeline} but will not be reused across executions.
  */
-interface TransformEvaluatorFactory {
+interface TransformEvaluatorFactory<ExecutableT> {
   /**
    * Create a new {@link TransformEvaluator} for the application of the {@link PTransform}.
    *
@@ -47,13 +46,13 @@ interface TransformEvaluatorFactory {
    */
   @Nullable
   <InputT> TransformEvaluator<InputT> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle)
+      ExecutableT executable, CommittedBundle<?> inputBundle)
       throws Exception;
 
   /**
    * Cleans up any state maintained by this {@link TransformEvaluatorFactory}. Called after a
    * {@link Pipeline} is shut down. No more calls to
-   * {@link #forApplication(AppliedPTransform, CommittedBundle)} will be made after
+   * {@link #forApplication(ExecutableT, CommittedBundle)} will be made after
    * a call to {@link #cleanup()}.
    */
   void cleanup() throws Exception;
