@@ -39,6 +39,7 @@ import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
+import org.apache.beam.sdk.values.PValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,7 +60,7 @@ class QuiescenceDriver implements ExecutionDriver {
   }
 
   private final EvaluationContext evaluationContext;
-  private final DirectGraph graph;
+  private final ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph;
   private final BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> bundleProcessor;
   private final PipelineMessageReceiver pipelineMessageReceiver;
 
