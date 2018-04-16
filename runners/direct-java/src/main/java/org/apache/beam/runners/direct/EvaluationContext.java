@@ -67,7 +67,7 @@ import org.joda.time.Instant;
  * per-{@link StepAndKey} state, updating global watermarks, and executing any callbacks that can be
  * executed.
  */
-class EvaluationContext {
+class EvaluationContext implements BundleFactory {
   /**
    * The graph representing this {@link Pipeline}.
    */
@@ -232,6 +232,7 @@ class EvaluationContext {
   /**
    * Create a {@link UncommittedBundle} for use by a source.
    */
+  @Override
   public <T> UncommittedBundle<T> createRootBundle() {
     return bundleFactory.createRootBundle();
   }
@@ -240,6 +241,7 @@ class EvaluationContext {
    * Create a {@link UncommittedBundle} whose elements belong to the specified {@link
    * PCollection}.
    */
+  @Override
   public <T> UncommittedBundle<T> createBundle(PCollection<T> output) {
     return bundleFactory.createBundle(output);
   }
@@ -248,6 +250,7 @@ class EvaluationContext {
    * Create a {@link UncommittedBundle} with the specified keys at the specified step. For use by
    * {@link DirectGroupByKeyOnly} {@link PTransform PTransforms}.
    */
+  @Override
   public <K, T> UncommittedBundle<T> createKeyedBundle(
       StructuralKey<K> key, PCollection<T> output) {
     return bundleFactory.createKeyedBundle(key, output);
