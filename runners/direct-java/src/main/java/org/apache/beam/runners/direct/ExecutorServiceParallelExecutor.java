@@ -55,7 +55,8 @@ import org.slf4j.LoggerFactory;
  * EvaluationContext} to execute a {@link Pipeline}.
  */
 final class ExecutorServiceParallelExecutor
-    implements PipelineExecutor, BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> {
+    implements PipelineExecutor<AppliedPTransform<?, ?, ?>, PValue>,
+        BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> {
   private static final Logger LOG = LoggerFactory.getLogger(ExecutorServiceParallelExecutor.class);
 
   private final int targetParallelism;
@@ -135,7 +136,9 @@ final class ExecutorServiceParallelExecutor
   }
 
   @Override
-  public void start(DirectGraph graph, RootProviderRegistry rootProviderRegistry) {
+  public void start(
+      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
+      RootProviderRegistry rootProviderRegistry) {
     int numTargetSplits = Math.max(3, targetParallelism);
     ImmutableMap.Builder<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
         pendingRootBundles = ImmutableMap.builder();
@@ -199,7 +202,7 @@ final class ExecutorServiceParallelExecutor
     TransformExecutorService transformExecutor;
 
     if (isKeyed(bundle.getPCollection())) {
-      final StepAndKey stepAndKey = StepAndKey.of(transform, bundle.getKey());
+      final StepAndKey stepAndKey = StepAndKey.of(transform.getFullName(), bundle.getKey());
       // This executor will remain reachable until it has executed all scheduled transforms.
       // The TransformExecutors keep a strong reference to the Executor, the ExecutorService keeps
       // a reference to the scheduled DirectTransformExecutor callable. Follow-up TransformExecutors

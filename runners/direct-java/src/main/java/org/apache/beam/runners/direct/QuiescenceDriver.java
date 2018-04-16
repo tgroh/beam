@@ -52,7 +52,7 @@ class QuiescenceDriver implements ExecutionDriver {
 
   public static ExecutionDriver create(
       EvaluationContext context,
-      DirectGraph graph,
+      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
       BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> bundleProcessor,
       PipelineMessageReceiver messageReceiver,
       Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>> initialBundles) {
@@ -78,7 +78,7 @@ class QuiescenceDriver implements ExecutionDriver {
 
   private QuiescenceDriver(
       EvaluationContext evaluationContext,
-      DirectGraph graph,
+      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
       BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> bundleProcessor,
       PipelineMessageReceiver pipelineMessageReceiver,
       Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>

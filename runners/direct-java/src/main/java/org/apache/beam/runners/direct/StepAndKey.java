@@ -34,7 +34,11 @@ final class StepAndKey {
    * Create a new {@link StepAndKey} with the provided step and key.
    */
   public static StepAndKey of(AppliedPTransform<?, ?, ?> step, StructuralKey<?> key) {
-    return new StepAndKey(step.getFullName(), key);
+    return of(step.getFullName(), key);
+  }
+
+  public static StepAndKey of(String stepId, StructuralKey<?> key) {
+    return new StepAndKey(stepId, key);
   }
 
   private StepAndKey(String stepId, StructuralKey<?> key) {
