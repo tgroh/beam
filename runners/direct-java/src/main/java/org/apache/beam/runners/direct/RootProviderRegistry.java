@@ -36,36 +36,36 @@ import org.apache.beam.sdk.transforms.PTransform;
  * based on the type of {@link PTransform} of the application.
  */
 class RootProviderRegistry {
-  /**
-   * Returns a {@link RootProviderRegistry} that supports the Java SDK root transforms.
-   */
+  /** Returns a {@link RootProviderRegistry} that supports the Java SDK root transforms. */
   public static RootProviderRegistry javaNativeRegistry(
-      EvaluationContext context, PipelineOptions options) {
+      BundleFactory bundleFactory, PipelineOptions options) {
     return new RootProviderRegistry(
         ImmutableMap.<String, RootInputProvider<?, ?, ?>>builder()
-            .put(IMPULSE_TRANSFORM_URN, new ImpulseEvaluatorFactory.ImpulseRootProvider(context))
+            .put(
+                IMPULSE_TRANSFORM_URN,
+                new ImpulseEvaluatorFactory.ImpulseRootProvider(bundleFactory))
             .put(
                 PTransformTranslation.READ_TRANSFORM_URN,
-                ReadEvaluatorFactory.inputProvider(context, options))
-            .put(DIRECT_TEST_STREAM_URN, new TestStreamEvaluatorFactory.InputProvider(context))
+                ReadEvaluatorFactory.inputProvider(bundleFactory, options))
+            .put(
+                DIRECT_TEST_STREAM_URN, new TestStreamEvaluatorFactory.InputProvider(bundleFactory))
             .put(FLATTEN_TRANSFORM_URN, new EmptyInputProvider())
             .build());
   }
 
-  /**
-   * Returns a {@link RootProviderRegistry} that only supports the {@link Impulse} primitive.
-   */
-  public static RootProviderRegistry impulseRegistry(EvaluationContext context) {
+  /** Returns a {@link RootProviderRegistry} that only supports the {@link Impulse} primitive. */
+  public static RootProviderRegistry impulseRegistry(BundleFactory bundleFactory) {
     return new RootProviderRegistry(
         ImmutableMap.<String, RootInputProvider<?, ?, ?>>builder()
-            .put(IMPULSE_TRANSFORM_URN, new ImpulseEvaluatorFactory.ImpulseRootProvider(context))
+            .put(
+                IMPULSE_TRANSFORM_URN,
+                new ImpulseEvaluatorFactory.ImpulseRootProvider(bundleFactory))
             .build());
   }
 
   private final Map<String, RootInputProvider<?, ?, ?>> providers;
 
-  private RootProviderRegistry(
-      Map<String, RootInputProvider<?, ?, ?>> providers) {
+  private RootProviderRegistry(Map<String, RootInputProvider<?, ?, ?>> providers) {
     this.providers = providers;
   }
 
