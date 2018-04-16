@@ -68,7 +68,8 @@ class PortableDirectRunner {
   public void execute() {
     ExecutableGraph<PTransformNode, PCollectionNode> graph = PortableGraph.forPipeline(pipeline);
     EvaluationContext ctxt = null;
-    TransformEvaluatorRegistry transformRegistry = TransformEvaluatorRegistry.portableRegistry(ctxt);
+    TransformEvaluatorRegistry transformRegistry =
+        TransformEvaluatorRegistry.portableRegistry(ctxt);
     RootProviderRegistry rootRegistry = RootProviderRegistry.impulseRegistry(ctxt);
     int targetParallelism = Math.max(Runtime.getRuntime().availableProcessors(), 3);
     ExecutorServiceParallelExecutor executor =
