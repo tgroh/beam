@@ -45,10 +45,10 @@ import org.apache.beam.sdk.values.PCollection;
  */
 class GroupByKeyOnlyEvaluatorFactory
     implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
-  private final EvaluationContext evaluationContext;
+  private final BundleFactory bundleFactory;
 
-  GroupByKeyOnlyEvaluatorFactory(EvaluationContext evaluationContext) {
-    this.evaluationContext = evaluationContext;
+  GroupByKeyOnlyEvaluatorFactory(BundleFactory bundleFactory) {
+    this.bundleFactory = bundleFactory;
   }
 
   @Override
@@ -66,7 +66,7 @@ class GroupByKeyOnlyEvaluatorFactory
       final AppliedPTransform<
               PCollection<KV<K, V>>, PCollection<KeyedWorkItem<K, V>>, DirectGroupByKeyOnly<K, V>>
           application) {
-    return new GroupByKeyOnlyEvaluator<>(evaluationContext, application);
+    return new GroupByKeyOnlyEvaluator<>(bundleFactory, application);
   }
 
   /**
@@ -76,7 +76,7 @@ class GroupByKeyOnlyEvaluatorFactory
    * @see GroupByKeyViaGroupByKeyOnly
    */
   private static class GroupByKeyOnlyEvaluator<K, V> implements TransformEvaluator<KV<K, V>> {
-    private final EvaluationContext evaluationContext;
+    private final BundleFactory bundleFactory;
 
     private final AppliedPTransform<
             PCollection<KV<K, V>>, PCollection<KeyedWorkItem<K, V>>, DirectGroupByKeyOnly<K, V>>
@@ -85,11 +85,11 @@ class GroupByKeyOnlyEvaluatorFactory
     private Map<StructuralKey<K>, List<WindowedValue<V>>> groupingMap;
 
     public GroupByKeyOnlyEvaluator(
-        EvaluationContext evaluationContext,
+        BundleFactory bundleFactory,
         AppliedPTransform<
                 PCollection<KV<K, V>>, PCollection<KeyedWorkItem<K, V>>, DirectGroupByKeyOnly<K, V>>
             application) {
-      this.evaluationContext = evaluationContext;
+      this.bundleFactory = bundleFactory;
       this.application = application;
       this.keyCoder =
           getKeyCoder(
@@ -130,7 +130,7 @@ class GroupByKeyOnlyEvaluatorFactory
         KeyedWorkItem<K, V> groupedKv =
             KeyedWorkItems.elementsWorkItem(key, groupedEntry.getValue());
         UncommittedBundle<KeyedWorkItem<K, V>> bundle =
-            evaluationContext.createKeyedBundle(
+            bundleFactory.createKeyedBundle(
                 StructuralKey.of(key, keyCoder),
                 (PCollection<KeyedWorkItem<K, V>>)
                     Iterables.getOnlyElement(application.getOutputs().values()));
