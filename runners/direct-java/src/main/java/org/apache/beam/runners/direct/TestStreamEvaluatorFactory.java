@@ -215,10 +215,10 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTr
   }
 
   static class InputProvider<T> implements RootInputProvider<T, TestStreamIndex<T>, PBegin> {
-    private final EvaluationContext evaluationContext;
+    private final BundleFactory bundleFactory;
 
-    InputProvider(EvaluationContext evaluationContext) {
-      this.evaluationContext = evaluationContext;
+    InputProvider(BundleFactory bundleFactory) {
+      this.bundleFactory = bundleFactory;
     }
 
     @Override
@@ -231,7 +231,7 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTr
           (DirectTestStreamFactory.DirectTestStream<T>) transform.getTransform();
 
       CommittedBundle<TestStreamIndex<T>> initialBundle =
-          evaluationContext
+          bundleFactory
               .<TestStreamIndex<T>>createRootBundle()
               .add(WindowedValue.valueInGlobalWindow(TestStreamIndex.of(testStream.original)))
               .commit(BoundedWindow.TIMESTAMP_MAX_VALUE);

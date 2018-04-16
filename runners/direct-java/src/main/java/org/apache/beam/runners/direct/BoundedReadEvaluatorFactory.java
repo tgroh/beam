@@ -196,11 +196,11 @@ final class BoundedReadEvaluatorFactory
   }
 
   static class InputProvider<T> implements RootInputProvider<T, BoundedSourceShard<T>, PBegin> {
-    private final EvaluationContext evaluationContext;
+    private final BundleFactory bundleFactory;
     private final PipelineOptions options;
 
-    InputProvider(EvaluationContext evaluationContext, PipelineOptions options) {
-      this.evaluationContext = evaluationContext;
+    InputProvider(BundleFactory bundleFactory, PipelineOptions options) {
+      this.bundleFactory = bundleFactory;
       this.options = options;
     }
 
@@ -217,7 +217,7 @@ final class BoundedReadEvaluatorFactory
           ImmutableList.builder();
       for (BoundedSource<T> bundle : bundles) {
         CommittedBundle<BoundedSourceShard<T>> inputShard =
-            evaluationContext
+            bundleFactory
                 .<BoundedSourceShard<T>>createRootBundle()
                 .add(WindowedValue.valueInGlobalWindow(BoundedSourceShard.of(bundle)))
                 .commit(BoundedWindow.TIMESTAMP_MAX_VALUE);

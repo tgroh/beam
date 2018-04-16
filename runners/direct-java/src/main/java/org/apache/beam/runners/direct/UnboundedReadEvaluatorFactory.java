@@ -292,12 +292,12 @@ class UnboundedReadEvaluatorFactory
 
   static class InputProvider<T>
       implements RootInputProvider<T, UnboundedSourceShard<T, ?>, PBegin> {
-    private final EvaluationContext evaluationContext;
+    private final BundleFactory bundleFactory;
     private final PipelineOptions options;
 
     InputProvider(
-        EvaluationContext evaluationContext, PipelineOptions options) {
-      this.evaluationContext = evaluationContext;
+        BundleFactory bundleFactory, PipelineOptions options) {
+      this.bundleFactory = bundleFactory;
       this.options = options;
     }
 
@@ -321,7 +321,7 @@ class UnboundedReadEvaluatorFactory
         UnboundedSourceShard<T, ?> shard =
             UnboundedSourceShard.unstarted(split, deduplicator);
         initialShards.add(
-            evaluationContext
+            bundleFactory
                 .<UnboundedSourceShard<T, ?>>createRootBundle()
                 .add(WindowedValue.valueInGlobalWindow(shard))
                 .commit(BoundedWindow.TIMESTAMP_MAX_VALUE));

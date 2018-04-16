@@ -62,8 +62,7 @@ final class ReadEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTr
     unboundedFactory.cleanup();
   }
 
-  static <T> InputProvider<T> inputProvider(
-      EvaluationContext context, PipelineOptions options) {
+  static <T> InputProvider<T> inputProvider(BundleFactory context, PipelineOptions options) {
     return new InputProvider<>(context, options);
   }
 
@@ -72,7 +71,7 @@ final class ReadEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTr
     private final UnboundedReadEvaluatorFactory.InputProvider<T> unboundedInputProvider;
     private final BoundedReadEvaluatorFactory.InputProvider<T> boundedInputProvider;
 
-    InputProvider(EvaluationContext context, PipelineOptions options) {
+    InputProvider(BundleFactory context, PipelineOptions options) {
       this.unboundedInputProvider =
           new UnboundedReadEvaluatorFactory.InputProvider<>(context, options);
       this.boundedInputProvider = new BoundedReadEvaluatorFactory.InputProvider<>(context, options);
