@@ -83,10 +83,10 @@ class ImpulseEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTrans
    * {@link ImpulseShard}.
    */
   static class ImpulseRootProvider implements RootInputProvider<byte[], ImpulseShard, PBegin> {
-    private final EvaluationContext ctxt;
+    private final BundleFactory bundleFactory;
 
-    ImpulseRootProvider(EvaluationContext ctxt) {
-      this.ctxt = ctxt;
+    ImpulseRootProvider(BundleFactory bundleFactory) {
+      this.bundleFactory = bundleFactory;
     }
 
     @Override
@@ -95,7 +95,8 @@ class ImpulseEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTrans
             transform,
         int targetParallelism) {
       return Collections.singleton(
-          ctxt.<ImpulseShard>createRootBundle()
+          bundleFactory
+              .<ImpulseShard>createRootBundle()
               .add(WindowedValue.valueInGlobalWindow(new ImpulseShard()))
               .commit(BoundedWindow.TIMESTAMP_MIN_VALUE));
     }
