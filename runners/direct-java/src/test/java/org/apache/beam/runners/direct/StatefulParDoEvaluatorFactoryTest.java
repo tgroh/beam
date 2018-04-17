@@ -85,7 +85,7 @@ import org.mockito.MockitoAnnotations;
 /** Tests for {@link StatefulParDoEvaluatorFactory}. */
 @RunWith(JUnit4.class)
 public class StatefulParDoEvaluatorFactoryTest implements Serializable {
-  @Mock private transient EvaluationContext mockEvaluationContext;
+  @Mock private transient JavaNativeEvaluationContext mockEvaluationContext;
   @Mock private transient DirectExecutionContext mockExecutionContext;
   @Mock private transient DirectExecutionContext.DirectStepContext mockStepContext;
   @Mock private transient ReadyCheckingSideInputReader mockSideInputReader;

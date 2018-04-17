@@ -67,7 +67,7 @@ class PortableDirectRunner {
 
   public void execute() {
     ExecutableGraph<PTransformNode, PCollectionNode> graph = PortableGraph.forPipeline(pipeline);
-    EvaluationContext ctxt = null;
+    JavaNativeEvaluationContext ctxt = null;
     TransformEvaluatorRegistry transformRegistry =
         TransformEvaluatorRegistry.portableRegistry(ctxt);
     RootProviderRegistry rootRegistry = RootProviderRegistry.impulseRegistry(ctxt);

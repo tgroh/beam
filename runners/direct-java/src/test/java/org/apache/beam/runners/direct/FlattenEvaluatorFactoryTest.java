@@ -59,7 +59,7 @@ public class FlattenEvaluatorFactoryTest {
     CommittedBundle<Integer> leftBundle = bundleFactory.createBundle(left).commit(Instant.now());
     CommittedBundle<Integer> rightBundle = bundleFactory.createBundle(right).commit(Instant.now());
 
-    EvaluationContext context = mock(EvaluationContext.class);
+    JavaNativeEvaluationContext context = mock(JavaNativeEvaluationContext.class);
 
     UncommittedBundle<Integer> flattenedLeftBundle = bundleFactory.createBundle(flattened);
     UncommittedBundle<Integer> flattenedRightBundle = bundleFactory.createBundle(flattened);
@@ -116,7 +116,7 @@ public class FlattenEvaluatorFactoryTest {
     PCollection<Integer> flattened = list.apply(Flatten.pCollections());
     flattened.setCoder(VarIntCoder.of());
 
-    EvaluationContext evaluationContext = mock(EvaluationContext.class);
+    JavaNativeEvaluationContext evaluationContext = mock(JavaNativeEvaluationContext.class);
     when(evaluationContext.createBundle(flattened))
         .thenReturn(bundleFactory.createBundle(flattened));
 

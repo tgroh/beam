@@ -35,9 +35,9 @@ import org.joda.time.Instant;
  * {@link Window.Assign} primitive {@link PTransform}.
  */
 class WindowEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
-  private final EvaluationContext evaluationContext;
+  private final JavaNativeEvaluationContext evaluationContext;
 
-  WindowEvaluatorFactory(EvaluationContext evaluationContext) {
+  WindowEvaluatorFactory(JavaNativeEvaluationContext evaluationContext) {
     this.evaluationContext = evaluationContext;
   }
 

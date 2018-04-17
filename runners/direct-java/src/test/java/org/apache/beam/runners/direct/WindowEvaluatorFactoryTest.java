@@ -67,7 +67,7 @@ public class WindowEvaluatorFactoryTest {
   private PCollection<Long> input;
   private WindowEvaluatorFactory factory;
 
-  @Mock private EvaluationContext evaluationContext;
+  @Mock private JavaNativeEvaluationContext evaluationContext;
 
   private BundleFactory bundleFactory;
 

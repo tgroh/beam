@@ -43,12 +43,12 @@ class DirectTransformExecutor<T> implements TransformExecutor {
   private static final Logger LOG = LoggerFactory.getLogger(DirectTransformExecutor.class);
 
   static class Factory implements TransformExecutorFactory {
-    private final EvaluationContext context;
+    private final JavaNativeEvaluationContext context;
     private final TransformEvaluatorRegistry registry;
     private final Map<String, Collection<ModelEnforcementFactory>> transformEnforcements;
 
     Factory(
-        EvaluationContext context,
+        JavaNativeEvaluationContext context,
         TransformEvaluatorRegistry registry,
         Map<String, Collection<ModelEnforcementFactory>> transformEnforcements) {
       this.context = context;
@@ -82,11 +82,11 @@ class DirectTransformExecutor<T> implements TransformExecutor {
 
   private final CompletionCallback onComplete;
   private final TransformExecutorService transformEvaluationState;
-  private final EvaluationContext context;
+  private final JavaNativeEvaluationContext context;
 
   @VisibleForTesting
   DirectTransformExecutor(
-      EvaluationContext context,
+      JavaNativeEvaluationContext context,
       TransformEvaluatorRegistry factory,
       Iterable<? extends ModelEnforcementFactory> modelEnforcements,
       CommittedBundle<T> inputBundle,

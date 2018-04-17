@@ -52,11 +52,11 @@ import org.slf4j.LoggerFactory;
 
 /**
  * An {@link PipelineExecutor} that uses an underlying {@link ExecutorService} and {@link
- * EvaluationContext} to execute a {@link Pipeline}.
+ * JavaNativeEvaluationContext} to execute a {@link Pipeline}.
  */
-final class ExecutorServiceParallelExecutor
-    implements PipelineExecutor<AppliedPTransform<?, ?, ?>, PValue>,
-        BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> {
+final class ExecutorServiceParallelExecutor<ExecutableT, CollectionT>
+    implements PipelineExecutor<ExecutableT, CollectionT>,
+        BundleProcessor<CommittedBundle<?>, ExecutableT> {
   private static final Logger LOG = LoggerFactory.getLogger(ExecutorServiceParallelExecutor.class);
 
   private final int targetParallelism;
@@ -64,7 +64,7 @@ final class ExecutorServiceParallelExecutor
 
   private final TransformEvaluatorRegistry registry;
 
-  private final EvaluationContext evaluationContext;
+  private final JavaNativeEvaluationContext evaluationContext;
 
   private final TransformExecutorFactory executorFactory;
   private final TransformExecutorService parallelExecutorService;
@@ -78,7 +78,7 @@ final class ExecutorServiceParallelExecutor
       int targetParallelism,
       TransformEvaluatorRegistry registry,
       Map<String, Collection<ModelEnforcementFactory>> transformEnforcements,
-      EvaluationContext context) {
+      JavaNativeEvaluationContext context) {
     return new ExecutorServiceParallelExecutor(
         targetParallelism, registry, transformEnforcements, context);
   }
@@ -87,7 +87,7 @@ final class ExecutorServiceParallelExecutor
       int targetParallelism,
       TransformEvaluatorRegistry registry,
       Map<String, Collection<ModelEnforcementFactory>> transformEnforcements,
-      EvaluationContext context) {
+      JavaNativeEvaluationContext context) {
     this.targetParallelism = targetParallelism;
     // Don't use Daemon threads for workers. The Pipeline should continue to execute even if there
     // are no other active threads (for example, because waitUntilFinish was not called)
@@ -137,12 +137,12 @@ final class ExecutorServiceParallelExecutor
 
   @Override
   public void start(
-      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
+      ExecutableGraph<ExecutableT, CollectionT> graph,
       RootProviderRegistry rootProviderRegistry) {
     int numTargetSplits = Math.max(3, targetParallelism);
     ImmutableMap.Builder<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
         pendingRootBundles = ImmutableMap.builder();
-    for (AppliedPTransform<?, ?, ?> root : graph.getRootTransforms()) {
+    for (ExecutableT root : graph.getRootTransforms()) {
       ConcurrentLinkedQueue<CommittedBundle<?>> pending = new ConcurrentLinkedQueue<>();
       try {
         Collection<CommittedBundle<?>> initialInputs =

@@ -35,14 +35,14 @@ import org.joda.time.Instant;
  * <p>Every transform evaluator has a defined input type, but {@link ParDo} has multiple outputs
  * so there is not necesssarily a defined output type.
  */
-interface TransformResult<InputT> {
+interface TransformResult<InputT, ExecutableT> {
   /**
    * Returns the {@link AppliedPTransform} that produced this result.
    *
    * <p>This is treated as an opaque identifier so evaluators can delegate to other evaluators
    * that may not have compatible types.
    */
-  AppliedPTransform<?, ?, ?> getTransform();
+  ExecutableT getTransform();
 
   /**
    * Returns the {@link UncommittedBundle (uncommitted) Bundles} output by this transform. These
@@ -99,5 +99,5 @@ interface TransformResult<InputT> {
    * Returns a new TransformResult based on this one but overwriting any existing logical metric
    * updates with {@code metricUpdates}.
    */
-  TransformResult<InputT> withLogicalMetricUpdates(MetricUpdates metricUpdates);
+  TransformResult<InputT, ExecutableT> withLogicalMetricUpdates(MetricUpdates metricUpdates);
 }

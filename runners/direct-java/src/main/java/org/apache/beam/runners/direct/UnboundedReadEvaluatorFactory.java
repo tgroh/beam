@@ -56,17 +56,17 @@ class UnboundedReadEvaluatorFactory
   // Occasionally close an existing reader and resume from checkpoint, to exercise close-and-resume
   private static final double DEFAULT_READER_REUSE_CHANCE = 0.95;
 
-  private final EvaluationContext evaluationContext;
+  private final JavaNativeEvaluationContext evaluationContext;
   private final PipelineOptions options;
   private final double readerReuseChance;
 
-  UnboundedReadEvaluatorFactory(EvaluationContext evaluationContext, PipelineOptions options) {
+  UnboundedReadEvaluatorFactory(JavaNativeEvaluationContext evaluationContext, PipelineOptions options) {
     this(evaluationContext, options, DEFAULT_READER_REUSE_CHANCE);
   }
 
   @VisibleForTesting
   UnboundedReadEvaluatorFactory(
-      EvaluationContext evaluationContext, PipelineOptions options, double readerReuseChance) {
+      JavaNativeEvaluationContext evaluationContext, PipelineOptions options, double readerReuseChance) {
     this.evaluationContext = evaluationContext;
     this.options = options;
     this.readerReuseChance = readerReuseChance;
@@ -103,14 +103,14 @@ class UnboundedReadEvaluatorFactory
     private static final int ARBITRARY_MAX_ELEMENTS = 10;
 
     private final AppliedPTransform<?, PCollection<OutputT>, ?> transform;
-    private final EvaluationContext evaluationContext;
+    private final JavaNativeEvaluationContext evaluationContext;
     private final PipelineOptions options;
     private final double readerReuseChance;
     private final StepTransformResult.Builder resultBuilder;
 
     public UnboundedReadEvaluator(
         AppliedPTransform<?, PCollection<OutputT>, ?> transform,
-        EvaluationContext evaluationContext,
+        JavaNativeEvaluationContext evaluationContext,
         PipelineOptions options,
         double readerReuseChance) {
       this.transform = transform;

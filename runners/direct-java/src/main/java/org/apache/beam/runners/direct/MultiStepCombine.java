@@ -370,9 +370,9 @@ class MultiStepCombine<K, InputT, AccumT, OutputT>
 
   static class MergeAndExtractAccumulatorOutputEvaluatorFactory
       implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
-    private final EvaluationContext ctxt;
+    private final JavaNativeEvaluationContext ctxt;
 
-    public MergeAndExtractAccumulatorOutputEvaluatorFactory(EvaluationContext ctxt) {
+    public MergeAndExtractAccumulatorOutputEvaluatorFactory(JavaNativeEvaluationContext ctxt) {
       this.ctxt = ctxt;
     }
 
@@ -406,7 +406,7 @@ class MultiStepCombine<K, InputT, AccumT, OutputT>
     private final UncommittedBundle<KV<K, OutputT>> output;
 
     public MergeAccumulatorsAndExtractOutputEvaluator(
-        EvaluationContext ctxt,
+        JavaNativeEvaluationContext ctxt,
         AppliedPTransform<
                 PCollection<KV<K, Iterable<AccumT>>>, PCollection<KV<K, OutputT>>,
                 MergeAndExtractAccumulatorOutput<K, AccumT, OutputT>>

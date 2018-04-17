@@ -60,11 +60,11 @@ import org.joda.time.Instant;
  */
 class GroupAlsoByWindowEvaluatorFactory
     implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
-  private final EvaluationContext evaluationContext;
+  private final JavaNativeEvaluationContext evaluationContext;
   private final PipelineOptions options;
 
   GroupAlsoByWindowEvaluatorFactory(
-      EvaluationContext evaluationContext, PipelineOptions options) {
+      JavaNativeEvaluationContext evaluationContext, PipelineOptions options) {
     this.evaluationContext = evaluationContext;
     this.options = options;
   }
@@ -103,7 +103,7 @@ class GroupAlsoByWindowEvaluatorFactory
    */
   private static class GroupAlsoByWindowEvaluator<K, V>
       implements TransformEvaluator<KeyedWorkItem<K, V>> {
-    private final EvaluationContext evaluationContext;
+    private final JavaNativeEvaluationContext evaluationContext;
     private final PipelineOptions options;
     private final AppliedPTransform<
         PCollection<KeyedWorkItem<K, V>>, PCollection<KV<K, Iterable<V>>>,
@@ -122,7 +122,7 @@ class GroupAlsoByWindowEvaluatorFactory
     private final Counter droppedDueToLateness;
 
     public GroupAlsoByWindowEvaluator(
-        final EvaluationContext evaluationContext,
+        final JavaNativeEvaluationContext evaluationContext,
         PipelineOptions options,
         CommittedBundle<KeyedWorkItem<K, V>> inputBundle,
         final AppliedPTransform<

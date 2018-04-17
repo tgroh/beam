@@ -66,7 +66,7 @@ class SideInputContainer {
    * context.
    */
   public static SideInputContainer create(
-      final EvaluationContext context, Collection<PCollectionView<?>> containedViews) {
+      final JavaNativeEvaluationContext context, Collection<PCollectionView<?>> containedViews) {
     for (PCollectionView<?> pCollectionView : containedViews) {
       checkArgument(
           Materializations.MULTIMAP_MATERIALIZATION_URN.equals(
@@ -170,10 +170,10 @@ class SideInputContainer {
 
   private static class CallbackSchedulingLoader extends
       CacheLoader<PCollectionViewWindow<?>, AtomicReference<Iterable<? extends WindowedValue<?>>>> {
-    private final EvaluationContext context;
+    private final JavaNativeEvaluationContext context;
 
     public CallbackSchedulingLoader(
-        EvaluationContext context) {
+        JavaNativeEvaluationContext context) {
       this.context = context;
     }
 

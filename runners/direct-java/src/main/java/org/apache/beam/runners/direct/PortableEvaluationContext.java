@@ -18,21 +18,20 @@
 
 package org.apache.beam.runners.direct;
 
-import javax.annotation.Nullable;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
+import org.apache.beam.runners.core.construction.graph.QueryablePipeline;
 
-/** TODO: Document */
-public class PortableAssignWindowsEvaluatorFactory implements TransformEvaluatorFactory {
-  public PortableAssignWindowsEvaluatorFactory(JavaNativeEvaluationContext ctxt) {}
+/** Fuggit let's do the thing. */
+class PortableEvaluationContext extends AbstractEvaluationContext<PTransformNode, PCollectionNode> {
+  private final ExecutableGraph<PTransformNode, PCollectionNode> pipeline;
+  private final WatermarkManager<PTransformNode, PCollectionNode> watermarkManager;
 
-  @Nullable
-  @Override
-  public TransformEvaluator forApplication(
-      Object executable, CommittedBundle inputBundle) throws Exception {
-    return null;
-  }
-
-  @Override
-  public void cleanup() throws Exception {
+  private PortableEvaluationContext(
+      QueryablePipeline pipeline,
+      WatermarkManager<PTransformNode, PCollectionNode> watermarkManager) {
+    this.pipeline = pipeline;
+    this.watermarkManager = watermarkManager;
 
   }
 }

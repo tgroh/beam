@@ -60,7 +60,7 @@ final class BoundedReadEvaluatorFactory
    */
   private static final long REQUIRED_DYNAMIC_SPLIT_ORIGINAL_SIZE = 0;
 
-  private final EvaluationContext evaluationContext;
+  private final JavaNativeEvaluationContext evaluationContext;
   private final PipelineOptions options;
 
   // TODO: (BEAM-723) Create a shared ExecutorService for maintenance tasks in the DirectRunner.
@@ -75,13 +75,13 @@ final class BoundedReadEvaluatorFactory
 
   private final long minimumDynamicSplitSize;
 
-  BoundedReadEvaluatorFactory(EvaluationContext evaluationContext, PipelineOptions options) {
+  BoundedReadEvaluatorFactory(JavaNativeEvaluationContext evaluationContext, PipelineOptions options) {
     this(evaluationContext, options, REQUIRED_DYNAMIC_SPLIT_ORIGINAL_SIZE);
   }
 
   @VisibleForTesting
   BoundedReadEvaluatorFactory(
-      EvaluationContext evaluationContext, PipelineOptions options, long minimumDynamicSplitSize) {
+      JavaNativeEvaluationContext evaluationContext, PipelineOptions options, long minimumDynamicSplitSize) {
     this.evaluationContext = evaluationContext;
     this.options = options;
     this.minimumDynamicSplitSize = minimumDynamicSplitSize;
@@ -118,7 +118,7 @@ final class BoundedReadEvaluatorFactory
   private static class BoundedReadEvaluator<OutputT>
       implements TransformEvaluator<BoundedSourceShard<OutputT>> {
     private final PCollection<OutputT> outputPCollection;
-    private final EvaluationContext evaluationContext;
+    private final JavaNativeEvaluationContext evaluationContext;
     private final PipelineOptions options;
     private Builder resultBuilder;
 
@@ -127,7 +127,7 @@ final class BoundedReadEvaluatorFactory
 
     public BoundedReadEvaluator(
         AppliedPTransform<?, PCollection<OutputT>, ?> transform,
-        EvaluationContext evaluationContext,
+        JavaNativeEvaluationContext evaluationContext,
         PipelineOptions options,
         long minimumDynamicSplitSize,
         ExecutorService executor) {

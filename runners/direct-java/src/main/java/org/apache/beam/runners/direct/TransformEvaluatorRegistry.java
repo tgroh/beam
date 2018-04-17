@@ -67,7 +67,7 @@ class TransformEvaluatorRegistry<ExecutableT> {
    * <p>This is the legacy implementation of the {@link DirectRunner} engine.
    */
   public static TransformEvaluatorRegistry<AppliedPTransform<?, ?, ?>> javaSdkNativeRegistry(
-      EvaluationContext ctxt, PipelineOptions options) {
+      JavaNativeEvaluationContext ctxt, PipelineOptions options) {
     ImmutableMap<String, TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>>> primitives =
         ImmutableMap.<String, TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>>>builder()
             // Beam primitives
@@ -101,7 +101,7 @@ class TransformEvaluatorRegistry<ExecutableT> {
     return new TransformEvaluatorRegistry<>(primitives);
   }
 
-  public static TransformEvaluatorRegistry<PTransformNode> portableRegistry(EvaluationContext ctxt) {
+  public static TransformEvaluatorRegistry<PTransformNode> portableRegistry(JavaNativeEvaluationContext ctxt) {
     return new TransformEvaluatorRegistry(
         ImmutableMap.<String, TransformEvaluatorFactory>builder()
             .put(IMPULSE_TRANSFORM_URN, new ImpulseEvaluatorFactory(ctxt))

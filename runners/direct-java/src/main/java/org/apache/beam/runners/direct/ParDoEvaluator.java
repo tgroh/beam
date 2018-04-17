@@ -83,7 +83,7 @@ class ParDoEvaluator<InputT> implements TransformEvaluator<InputT> {
   }
 
   public static <InputT, OutputT> ParDoEvaluator<InputT> create(
-      EvaluationContext evaluationContext,
+      JavaNativeEvaluationContext evaluationContext,
       PipelineOptions options,
       DirectStepContext stepContext,
       AppliedPTransform<?, ?, ?> application,
@@ -125,7 +125,7 @@ class ParDoEvaluator<InputT> implements TransformEvaluator<InputT> {
   }
 
   static BundleOutputManager createOutputManager(
-      EvaluationContext evaluationContext,
+      JavaNativeEvaluationContext evaluationContext,
       StructuralKey<?> key,
       Map<TupleTag<?>, PCollection<?>> outputs) {
     Map<TupleTag<?>, UncommittedBundle<?>> outputBundles = new HashMap<>();

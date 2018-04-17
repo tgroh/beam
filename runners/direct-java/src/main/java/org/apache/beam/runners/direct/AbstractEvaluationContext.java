@@ -18,21 +18,8 @@
 
 package org.apache.beam.runners.direct;
 
-import javax.annotation.Nullable;
-
 /** TODO: Document */
-public class PortableAssignWindowsEvaluatorFactory implements TransformEvaluatorFactory {
-  public PortableAssignWindowsEvaluatorFactory(JavaNativeEvaluationContext ctxt) {}
+abstract class AbstractEvaluationContext<ExecutableT, CollectionT>
+    implements PortableEvaluationContext<ExecutableT, CollectionT> {
 
-  @Nullable
-  @Override
-  public TransformEvaluator forApplication(
-      Object executable, CommittedBundle inputBundle) throws Exception {
-    return null;
-  }
-
-  @Override
-  public void cleanup() throws Exception {
-
-  }
 }

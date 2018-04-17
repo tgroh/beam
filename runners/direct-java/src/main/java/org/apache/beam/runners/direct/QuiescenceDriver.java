@@ -47,29 +47,28 @@ import org.slf4j.LoggerFactory;
  * Pushes additional work onto a {@link BundleProcessor} based on the fact that a pipeline has
  * quiesced.
  */
-class QuiescenceDriver implements ExecutionDriver {
+class QuiescenceDriver<ExecutableT> implements ExecutionDriver {
   private static final Logger LOG = LoggerFactory.getLogger(QuiescenceDriver.class);
 
-  public static ExecutionDriver create(
-      EvaluationContext context,
-      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
-      BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> bundleProcessor,
+  public static <ExecutableT> ExecutionDriver create(
+      JavaNativeEvaluationContext context,
+      ExecutableGraph<ExecutableT, ?> graph,
+      BundleProcessor<CommittedBundle<?>, ExecutableT> bundleProcessor,
       PipelineMessageReceiver messageReceiver,
-      Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>> initialBundles) {
-    return new QuiescenceDriver(context, graph, bundleProcessor, messageReceiver, initialBundles);
+      Map<ExecutableT, ConcurrentLinkedQueue<CommittedBundle<?>>> initialBundles) {
+    return new QuiescenceDriver<>(context, graph, bundleProcessor, messageReceiver, initialBundles);
   }
 
-  private final EvaluationContext evaluationContext;
-  private final ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph;
-  private final BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> bundleProcessor;
+  private final JavaNativeEvaluationContext evaluationContext;
+  private final ExecutableGraph<ExecutableT, PValue> graph;
+  private final BundleProcessor<CommittedBundle<?>, ExecutableT> bundleProcessor;
   private final PipelineMessageReceiver pipelineMessageReceiver;
 
   private final CompletionCallback defaultCompletionCallback =
       new TimerIterableCompletionCallback(Collections.emptyList());
 
-  private final Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
-      pendingRootBundles;
-  private final Queue<WorkUpdate> pendingWork = new ConcurrentLinkedQueue<>();
+  private final Map<ExecutableT, ConcurrentLinkedQueue<CommittedBundle<?>>> pendingRootBundles;
+  private final Queue<WorkUpdate<ExecutableT>> pendingWork = new ConcurrentLinkedQueue<>();
 
   private final AtomicReference<ExecutorState> state =
       new AtomicReference<>(ExecutorState.QUIESCENT);
@@ -77,12 +76,11 @@ class QuiescenceDriver implements ExecutionDriver {
   private boolean exceptionThrown = false;
 
   private QuiescenceDriver(
-      EvaluationContext evaluationContext,
-      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
-      BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> bundleProcessor,
+      JavaNativeEvaluationContext evaluationContext,
+      ExecutableGraph<ExecutableT, PValue> graph,
+      BundleProcessor<CommittedBundle<?>, ExecutableT> bundleProcessor,
       PipelineMessageReceiver pipelineMessageReceiver,
-      Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
-          pendingRootBundles) {
+      Map<ExecutableT, ConcurrentLinkedQueue<CommittedBundle<?>>> pendingRootBundles) {
     this.evaluationContext = evaluationContext;
     this.graph = graph;
     this.bundleProcessor = bundleProcessor;
@@ -106,15 +104,15 @@ class QuiescenceDriver implements ExecutionDriver {
       state.compareAndSet(ExecutorState.QUIESCING, ExecutorState.QUIESCENT);
     }
     fireTimers();
-    Collection<WorkUpdate> updates = new ArrayList<>();
+    Collection<WorkUpdate<ExecutableT>> updates = new ArrayList<>();
     // Pull all available updates off of the queue before adding additional work. This ensures
     // both loops terminate.
-    WorkUpdate pendingUpdate = pendingWork.poll();
+    WorkUpdate<ExecutableT> pendingUpdate = pendingWork.poll();
     while (pendingUpdate != null) {
       updates.add(pendingUpdate);
       pendingUpdate = pendingWork.poll();
     }
-    for (WorkUpdate update : updates) {
+    for (WorkUpdate<ExecutableT> update : updates) {
       applyUpdate(noWorkOutstanding, startingState, update);
     }
     addWorkIfNecessary();
@@ -129,13 +127,13 @@ class QuiescenceDriver implements ExecutionDriver {
   }
 
   private void applyUpdate(
-      boolean noWorkOutstanding, ExecutorState startingState, WorkUpdate update) {
+      boolean noWorkOutstanding, ExecutorState startingState, WorkUpdate<ExecutableT> update) {
     LOG.debug("Executor Update: {}", update);
     if (update.getBundle().isPresent()) {
       if (ExecutorState.ACTIVE == startingState
           || (ExecutorState.PROCESSING == startingState && noWorkOutstanding)) {
         CommittedBundle<?> bundle = update.getBundle().get();
-        for (AppliedPTransform<?, ?, ?> consumer : update.getConsumers()) {
+        for (ExecutableT consumer : update.getConsumers()) {
           outstandingWork.incrementAndGet();
           bundleProcessor.process(bundle, consumer, defaultCompletionCallback);
         }
@@ -151,7 +149,7 @@ class QuiescenceDriver implements ExecutionDriver {
   /** Fires any available timers. */
   private void fireTimers() {
     try {
-      for (FiredTimers<AppliedPTransform<?, ?, ?>> transformTimers :
+      for (FiredTimers<ExecutableT> transformTimers :
           evaluationContext.extractFiredTimers()) {
         Collection<TimerData> delivery = transformTimers.getTimers();
         KeyedWorkItem<?, Object> work =
@@ -187,7 +185,7 @@ class QuiescenceDriver implements ExecutionDriver {
     // If any timers have fired, they will add more work; We don't need to add more
     if (state.get() == ExecutorState.QUIESCENT) {
       // All current TransformExecutors are blocked; add more work from the roots.
-      for (Map.Entry<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
+      for (Map.Entry<ExecutableT, ConcurrentLinkedQueue<CommittedBundle<?>>>
           pendingRootEntry : pendingRootBundles.entrySet()) {
         Collection<CommittedBundle<?>> bundles = new ArrayList<>();
         // Pull all available work off of the queue, then schedule it all, so this loop
@@ -306,9 +304,9 @@ class QuiescenceDriver implements ExecutionDriver {
    * <p>Used to signal when the executor should be shut down (due to an exception).
    */
   @AutoValue
-  abstract static class WorkUpdate {
+  abstract static class WorkUpdate<ExecutableT> {
     private static WorkUpdate fromBundle(
-        CommittedBundle<?> bundle, Collection<AppliedPTransform<?, ?, ?>> consumers) {
+        CommittedBundle<?> bundle, Collection<ExecutableT> consumers) {
       return new AutoValue_QuiescenceDriver_WorkUpdate(
           Optional.of(bundle), consumers, Optional.absent());
     }
@@ -325,7 +323,7 @@ class QuiescenceDriver implements ExecutionDriver {
      * Returns the transforms to process the bundle. If nonempty, {@link #getBundle()} will return a
      * present {@link Optional}.
      */
-    public abstract Collection<AppliedPTransform<?, ?, ?>> getConsumers();
+    public abstract Collection<ExecutableT> getConsumers();
 
     public abstract Optional<? extends Exception> getException();
   }

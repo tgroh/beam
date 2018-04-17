@@ -39,9 +39,9 @@ import org.apache.beam.sdk.values.PCollection;
  * windowing and triggers before the view is written.
  */
 class ViewEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
-  private final EvaluationContext context;
+  private final JavaNativeEvaluationContext context;
 
-  ViewEvaluatorFactory(EvaluationContext context) {
+  ViewEvaluatorFactory(JavaNativeEvaluationContext context) {
     this.context = context;
   }
 

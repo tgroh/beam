@@ -70,7 +70,7 @@ public class GroupByKeyOnlyEvaluatorFactoryTest {
 
     CommittedBundle<KV<String, Integer>> inputBundle =
         bundleFactory.createBundle(values).commit(Instant.now());
-    EvaluationContext evaluationContext = mock(EvaluationContext.class);
+    JavaNativeEvaluationContext evaluationContext = mock(JavaNativeEvaluationContext.class);
 
     StructuralKey<String> fooKey = StructuralKey.of("foo", StringUtf8Coder.of());
     UncommittedBundle<KeyedWorkItem<String, Integer>> fooBundle =

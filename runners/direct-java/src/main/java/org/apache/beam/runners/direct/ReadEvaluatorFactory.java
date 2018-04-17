@@ -37,7 +37,7 @@ final class ReadEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTr
   final UnboundedReadEvaluatorFactory unboundedFactory;
 
   public ReadEvaluatorFactory(
-      EvaluationContext context, PipelineOptions options) {
+      JavaNativeEvaluationContext context, PipelineOptions options) {
     boundedFactory = new BoundedReadEvaluatorFactory(context, options);
     unboundedFactory = new UnboundedReadEvaluatorFactory(context, options);
   }

@@ -49,7 +49,7 @@ import org.mockito.MockitoAnnotations;
 public class ImpulseEvaluatorFactoryTest {
   private BundleFactory bundleFactory = ImmutableListBundleFactory.create();
 
-  @Mock private EvaluationContext context;
+  @Mock private JavaNativeEvaluationContext context;
 
   @Before
   public void setup() {

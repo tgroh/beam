@@ -87,7 +87,7 @@ import org.junit.runners.JUnit4;
 public class UnboundedReadEvaluatorFactoryTest {
   private PCollection<Long> longs;
   private UnboundedReadEvaluatorFactory factory;
-  private EvaluationContext context;
+  private JavaNativeEvaluationContext context;
   private UncommittedBundle<Long> output;
 
   private BundleFactory bundleFactory = ImmutableListBundleFactory.create();
@@ -104,7 +104,7 @@ public class UnboundedReadEvaluatorFactoryTest {
     source = CountingSource.unboundedWithTimestampFn(new LongToInstantFn());
     longs = p.apply(Read.from(source));
 
-    context = mock(EvaluationContext.class);
+    context = mock(JavaNativeEvaluationContext.class);
     factory = new UnboundedReadEvaluatorFactory(context, options);
     output = bundleFactory.createBundle(longs);
     graph = DirectGraphs.getGraph(p);

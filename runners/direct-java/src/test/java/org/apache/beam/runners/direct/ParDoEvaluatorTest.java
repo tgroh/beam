@@ -68,7 +68,7 @@ import org.mockito.MockitoAnnotations;
  */
 @RunWith(JUnit4.class)
 public class ParDoEvaluatorTest {
-  @Mock private EvaluationContext evaluationContext;
+  @Mock private JavaNativeEvaluationContext evaluationContext;
   private PCollection<Integer> inputPc;
   private TupleTag<Integer> mainOutputTag;
   private List<TupleTag<?>> additionalOutputTags;

@@ -22,7 +22,7 @@ import javax.annotation.Nullable;
 
 /** TODO: Document */
 public class PortableGroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
-  public PortableGroupAlsoByWindowEvaluatorFactory(EvaluationContext ctxt) {}
+  public PortableGroupAlsoByWindowEvaluatorFactory(JavaNativeEvaluationContext ctxt) {}
 
   @Nullable
   @Override

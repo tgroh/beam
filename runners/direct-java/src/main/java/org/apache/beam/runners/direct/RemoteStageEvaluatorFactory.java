@@ -22,7 +22,7 @@ import javax.annotation.Nullable;
 
 /** TODO: Document */
 public class RemoteStageEvaluatorFactory implements TransformEvaluatorFactory {
-  public RemoteStageEvaluatorFactory(EvaluationContext ctxt) {}
+  public RemoteStageEvaluatorFactory(JavaNativeEvaluationContext ctxt) {}
 
   @Nullable
   @Override

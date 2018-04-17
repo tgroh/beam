@@ -66,7 +66,7 @@ final class StatefulParDoEvaluatorFactory<K, InputT, OutputT>
 
   private final ParDoEvaluatorFactory<KV<K, InputT>, OutputT> delegateFactory;
 
-  StatefulParDoEvaluatorFactory(EvaluationContext evaluationContext, PipelineOptions options) {
+  StatefulParDoEvaluatorFactory(JavaNativeEvaluationContext evaluationContext, PipelineOptions options) {
     this.delegateFactory =
         new ParDoEvaluatorFactory<>(
             evaluationContext,
@@ -145,9 +145,9 @@ final class StatefulParDoEvaluatorFactory<K, InputT, OutputT>
   private class CleanupSchedulingLoader
       extends CacheLoader<AppliedPTransformOutputKeyAndWindow<K, InputT, OutputT>, Runnable> {
 
-    private final EvaluationContext evaluationContext;
+    private final JavaNativeEvaluationContext evaluationContext;
 
-    public CleanupSchedulingLoader(EvaluationContext evaluationContext) {
+    public CleanupSchedulingLoader(JavaNativeEvaluationContext evaluationContext) {
       this.evaluationContext = evaluationContext;
     }
 

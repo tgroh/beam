@@ -56,11 +56,11 @@ class SplittableProcessElementsEvaluatorFactory<
   private final ParDoEvaluatorFactory<KeyedWorkItem<String, KV<InputT, RestrictionT>>, OutputT>
       delegateFactory;
   private final ScheduledExecutorService ses;
-  private final EvaluationContext evaluationContext;
+  private final JavaNativeEvaluationContext evaluationContext;
   private final PipelineOptions options;
 
   SplittableProcessElementsEvaluatorFactory(
-      EvaluationContext evaluationContext, PipelineOptions options) {
+      JavaNativeEvaluationContext evaluationContext, PipelineOptions options) {
     this.evaluationContext = evaluationContext;
     this.options = options;
     this.delegateFactory =

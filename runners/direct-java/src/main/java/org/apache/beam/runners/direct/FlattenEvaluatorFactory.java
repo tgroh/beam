@@ -31,9 +31,9 @@ import org.apache.beam.sdk.values.PCollectionList;
  * PTransform}.
  */
 class FlattenEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
-  private final EvaluationContext evaluationContext;
+  private final JavaNativeEvaluationContext evaluationContext;
 
-  FlattenEvaluatorFactory(EvaluationContext evaluationContext) {
+  FlattenEvaluatorFactory(JavaNativeEvaluationContext evaluationContext) {
     this.evaluationContext = evaluationContext;
   }
 

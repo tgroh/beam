@@ -54,9 +54,9 @@ import org.joda.time.Instant;
 
 /** The {@link TransformEvaluatorFactory} for the {@link TestStream} primitive. */
 class TestStreamEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
-  private final EvaluationContext evaluationContext;
+  private final JavaNativeEvaluationContext evaluationContext;
 
-  TestStreamEvaluatorFactory(EvaluationContext evaluationContext) {
+  TestStreamEvaluatorFactory(JavaNativeEvaluationContext evaluationContext) {
     this.evaluationContext = evaluationContext;
   }
 
@@ -85,12 +85,12 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTr
 
   private static class Evaluator<T> implements TransformEvaluator<TestStreamIndex<T>> {
     private final AppliedPTransform<PBegin, PCollection<T>, TestStream<T>> application;
-    private final EvaluationContext context;
+    private final JavaNativeEvaluationContext context;
     private final StepTransformResult.Builder resultBuilder;
 
     private Evaluator(
         AppliedPTransform<PBegin, PCollection<T>, TestStream<T>> application,
-        EvaluationContext context) {
+        JavaNativeEvaluationContext context) {
       this.application = application;
       this.context = context;
       this.resultBuilder = StepTransformResult.withoutHold(application);

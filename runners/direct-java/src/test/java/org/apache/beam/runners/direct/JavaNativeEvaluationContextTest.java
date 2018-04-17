@@ -74,11 +74,11 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 /**
- * Tests for {@link EvaluationContext}.
+ * Tests for {@link JavaNativeEvaluationContext}.
  */
 @RunWith(JUnit4.class)
-public class EvaluationContextTest {
-  private EvaluationContext context;
+public class JavaNativeEvaluationContextTest {
+  private JavaNativeEvaluationContext context;
 
   private PCollection<Integer> created;
   private PCollection<KV<String, Integer>> downstream;
@@ -114,7 +114,7 @@ public class EvaluationContextTest {
     DirectGraphs.performDirectOverrides(p);
     graph = DirectGraphs.getGraph(p);
     context =
-        EvaluationContext.create(
+        JavaNativeEvaluationContext.create(
             NanosOffsetClock.create(),
             bundleFactory,
             graph,

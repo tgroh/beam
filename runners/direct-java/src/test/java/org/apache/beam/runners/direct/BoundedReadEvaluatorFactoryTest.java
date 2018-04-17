@@ -75,7 +75,7 @@ public class BoundedReadEvaluatorFactoryTest {
   private BoundedSource<Long> source;
   private PCollection<Long> longs;
   private BoundedReadEvaluatorFactory factory;
-  @Mock private EvaluationContext context;
+  @Mock private JavaNativeEvaluationContext context;
   private BundleFactory bundleFactory;
   private AppliedPTransform<?, ?, ?> longsProducer;
 

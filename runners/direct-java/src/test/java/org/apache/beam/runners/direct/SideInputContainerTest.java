@@ -98,7 +98,7 @@ public class SideInputContainerTest {
   public ExpectedException thrown = ExpectedException.none();
 
   @Mock
-  private EvaluationContext context;
+  private JavaNativeEvaluationContext context;
 
 
   private SideInputContainer container;

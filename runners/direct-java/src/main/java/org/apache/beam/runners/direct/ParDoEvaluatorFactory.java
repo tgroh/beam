@@ -45,12 +45,12 @@ final class ParDoEvaluatorFactory<InputT, OutputT>
 
   private static final Logger LOG = LoggerFactory.getLogger(ParDoEvaluatorFactory.class);
   private final LoadingCache<AppliedPTransform<?, ?, ?>, DoFnLifecycleManager> fnClones;
-  private final EvaluationContext evaluationContext;
+  private final JavaNativeEvaluationContext evaluationContext;
   private final PipelineOptions options;
   private final ParDoEvaluator.DoFnRunnerFactory<InputT, OutputT> runnerFactory;
 
   ParDoEvaluatorFactory(
-      EvaluationContext evaluationContext,
+      JavaNativeEvaluationContext evaluationContext,
       DoFnRunnerFactory<InputT, OutputT> runnerFactory,
       CacheLoader<AppliedPTransform<?, ?, ?>, DoFnLifecycleManager> doFnCacheLoader,
       PipelineOptions options) {

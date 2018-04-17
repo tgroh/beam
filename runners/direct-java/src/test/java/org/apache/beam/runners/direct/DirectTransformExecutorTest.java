@@ -72,7 +72,7 @@ public class DirectTransformExecutorTest {
   private TransformExecutorService transformEvaluationState;
   private BundleFactory bundleFactory;
   @Mock private DirectMetrics metrics;
-  @Mock private EvaluationContext evaluationContext;
+  @Mock private JavaNativeEvaluationContext evaluationContext;
   @Mock private TransformEvaluatorRegistry registry;
 
   @Rule

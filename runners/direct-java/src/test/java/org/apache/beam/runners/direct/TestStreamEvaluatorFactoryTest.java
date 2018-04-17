@@ -51,7 +51,7 @@ import org.junit.runners.JUnit4;
 public class TestStreamEvaluatorFactoryTest {
   private TestStreamEvaluatorFactory factory;
   private BundleFactory bundleFactory;
-  private EvaluationContext context;
+  private JavaNativeEvaluationContext context;
 
   @Rule
   public TestPipeline p = TestPipeline.create().enableAbandonedNodeEnforcement(false);
@@ -59,7 +59,7 @@ public class TestStreamEvaluatorFactoryTest {
 
   @Before
   public void setup() {
-    context = mock(EvaluationContext.class);
+    context = mock(JavaNativeEvaluationContext.class);
     runner = DirectRunner.fromOptions(TestPipeline.testingPipelineOptions());
     factory = new TestStreamEvaluatorFactory(context);
     bundleFactory = ImmutableListBundleFactory.create();

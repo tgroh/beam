@@ -176,8 +176,8 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
     DisplayDataValidator.validateOptions(options);
 
     DirectGraph graph = graphVisitor.getGraph();
-    EvaluationContext context =
-        EvaluationContext.create(
+    JavaNativeEvaluationContext context =
+        JavaNativeEvaluationContext.create(
             clockSupplier.get(),
             Enforcement.bundleFactoryFor(enabledEnforcements, graph),
             graph,
@@ -272,12 +272,12 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
    */
   public static class DirectPipelineResult implements PipelineResult {
     private final PipelineExecutor executor;
-    private final EvaluationContext evaluationContext;
+    private final JavaNativeEvaluationContext evaluationContext;
     private State state;
 
     private DirectPipelineResult(
         PipelineExecutor executor,
-        EvaluationContext evaluationContext) {
+        JavaNativeEvaluationContext evaluationContext) {
       this.executor = executor;
       this.evaluationContext = evaluationContext;
       // Only ever constructed after the executor has started.
