@@ -188,10 +188,12 @@ public class DirectRunner extends PipelineRunner<DirectPipelineResult> {
     PipelineExecutor executor =
         ExecutorServiceParallelExecutor.create(
             options.getTargetParallelism(),
+            RootProviderRegistry.javaNativeRegistry(context, options),
             registry,
+            graph,
             Enforcement.defaultModelEnforcements(enabledEnforcements),
             context);
-    executor.start(graph, RootProviderRegistry.defaultRegistry(context, options));
+    executor.start();
 
     DirectPipelineResult result = new DirectPipelineResult(executor, context);
     if (options.isBlockOnRun()) {
