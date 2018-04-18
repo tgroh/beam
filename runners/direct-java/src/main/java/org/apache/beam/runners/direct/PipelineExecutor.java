@@ -32,8 +32,7 @@ interface PipelineExecutor<ExecutableT, CollectionT> {
    * Starts this executor on the provided graph. The {@link RootProviderRegistry} will be used to
    * create initial inputs for the provide {@link DirectGraph graph}.
    */
-  void start(
-      ExecutableGraph<ExecutableT, CollectionT> graph, RootProviderRegistry rootProviderRegistry);
+  void start();
 
   /**
    * Blocks until the job being executed enters a terminal state. A job is completed after all
