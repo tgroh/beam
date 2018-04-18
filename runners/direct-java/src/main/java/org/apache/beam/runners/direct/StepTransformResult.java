@@ -29,6 +29,7 @@ import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.PCollection;
 import org.joda.time.Instant;
 
 /**
@@ -65,7 +66,7 @@ abstract class StepTransformResult<InputT> implements TransformResult<InputT> {
    */
   public static class Builder<InputT> {
     private final AppliedPTransform<?, ?, ?> transform;
-    private final ImmutableList.Builder<UncommittedBundle<?>> bundlesBuilder;
+    private final ImmutableList.Builder<UncommittedBundle<?, PCollection<?>>> bundlesBuilder;
     private final ImmutableList.Builder<WindowedValue<InputT>> unprocessedElementsBuilder;
     private MetricUpdates metricUpdates;
     private CopyOnAccessInMemoryStateInternals state;
@@ -122,14 +123,14 @@ abstract class StepTransformResult<InputT> implements TransformResult<InputT> {
     }
 
     public Builder<InputT> addOutput(
-        UncommittedBundle<?> outputBundle, UncommittedBundle<?>... outputBundles) {
+        UncommittedBundle<?, PCollection<?>> outputBundle, UncommittedBundle<?, PCollection<?>>... outputBundles) {
       bundlesBuilder.add(outputBundle);
       bundlesBuilder.add(outputBundles);
       return this;
     }
 
     public Builder<InputT> addOutput(
-        Collection<UncommittedBundle<?>> outputBundles) {
+        Collection<UncommittedBundle<?, PCollection<?>>> outputBundles) {
       bundlesBuilder.addAll(outputBundles);
       return this;
     }

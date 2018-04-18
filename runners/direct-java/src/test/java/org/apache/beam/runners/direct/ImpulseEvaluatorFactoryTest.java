@@ -66,7 +66,7 @@ public class ImpulseEvaluatorFactoryTest {
     ImpulseEvaluatorFactory factory = new ImpulseEvaluatorFactory(context);
 
     WindowedValue<ImpulseShard> inputShard = WindowedValue.valueInGlobalWindow(new ImpulseShard());
-    CommittedBundle<ImpulseShard> inputShardBundle =
+    CommittedBundle<ImpulseShard, PCollection<ImpulseShard>> inputShardBundle =
         bundleFactory.<ImpulseShard>createRootBundle().add(inputShard).commit(Instant.now());
 
     when(context.createBundle(impulseOut)).thenReturn(bundleFactory.createBundle(impulseOut));
@@ -78,8 +78,8 @@ public class ImpulseEvaluatorFactoryTest {
         "Exactly one output from a single ImpulseShard",
         Iterables.size(result.getOutputBundles()),
         equalTo(1));
-    UncommittedBundle<?> outputBundle = result.getOutputBundles().iterator().next();
-    CommittedBundle<?> committedOutputBundle = outputBundle.commit(Instant.now());
+    UncommittedBundle<?, PCollection<?>> outputBundle = result.getOutputBundles().iterator().next();
+    CommittedBundle<?, PCollection<?>> committedOutputBundle = outputBundle.commit(Instant.now());
     assertThat(
         committedOutputBundle.getMinimumTimestamp(), equalTo(BoundedWindow.TIMESTAMP_MIN_VALUE));
     assertThat(committedOutputBundle.getPCollection(), equalTo(impulseOut));
@@ -108,7 +108,7 @@ public class ImpulseEvaluatorFactoryTest {
     ImpulseRootProvider rootProvider = new ImpulseRootProvider(context);
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
 
-    Collection<CommittedBundle<?>> inputs =
+    Collection<CommittedBundle<?, PCollection<?>>> inputs =
         rootProvider.getInitialInputs((AppliedPTransform) impulseApplication, 100);
 
     assertThat("Only one impulse bundle per application", inputs, hasSize(1));

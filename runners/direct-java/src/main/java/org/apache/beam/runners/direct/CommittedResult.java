@@ -23,15 +23,12 @@ import com.google.common.base.Optional;
 import java.util.Set;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.View.CreatePCollectionView;
+import org.apache.beam.sdk.values.PCollection;
 
-/**
- * A {@link TransformResult} that has been committed.
- */
+/** A {@link TransformResult} that has been committed. */
 @AutoValue
-abstract class CommittedResult<ExecutableT> {
-  /**
-   * Returns the {@link AppliedPTransform} that produced this result.
-   */
+abstract class CommittedResult<ExecutableT, CollectionT> {
+  /** Returns the {@link AppliedPTransform} that produced this result. */
   public abstract ExecutableT getExecutable();
 
   /**
@@ -39,26 +36,25 @@ abstract class CommittedResult<ExecutableT> {
    * processed by the evaluation. The returned optional is present if there were any unprocessed
    * input elements, and absent otherwise.
    */
-  public abstract Optional<? extends CommittedBundle<?>> getUnprocessedInputs();
+  public abstract Optional<? extends CommittedBundle<?, ? extends CollectionT>>
+      getUnprocessedInputs();
 
-  /**
-   * Returns the outputs produced by the transform.
-   */
-  public abstract Iterable<? extends CommittedBundle<?>> getOutputs();
+  /** Returns the outputs produced by the transform. */
+  public abstract Iterable<? extends CommittedBundle<?, ? extends CollectionT>> getOutputs();
 
   /**
    * Returns if the transform that produced this result produced outputs.
    *
-   * <p>Transforms that produce output via modifying the state of the runner (e.g.
-   * {@link CreatePCollectionView}) should explicitly set this to true. If {@link #getOutputs()}
-   * returns a nonempty iterable, this will also return true.
+   * <p>Transforms that produce output via modifying the state of the runner (e.g. {@link
+   * CreatePCollectionView}) should explicitly set this to true. If {@link #getOutputs()} returns a
+   * nonempty iterable, this will also return true.
    */
   public abstract Set<OutputType> getProducedOutputTypes();
 
-  public static CommittedResult<AppliedPTransform<?, ?, ?>> create(
+  public static CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>> create(
       TransformResult<?> original,
-      Optional<? extends CommittedBundle<?>> unprocessedElements,
-      Iterable<? extends CommittedBundle<?>> outputs,
+      Optional<? extends CommittedBundle<?, ? extends PCollection<?>>> unprocessedElements,
+      Iterable<? extends CommittedBundle<?, ? extends PCollection<?>>> outputs,
       Set<OutputType> producedOutputs) {
     return new AutoValue_CommittedResult<>(
         original.getTransform(), unprocessedElements, outputs, producedOutputs);

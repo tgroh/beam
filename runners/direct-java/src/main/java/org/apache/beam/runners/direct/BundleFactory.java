@@ -32,19 +32,19 @@ interface BundleFactory {
    *
    * <p>For use in creating inputs to root transforms.
    */
-  <T> UncommittedBundle<T> createRootBundle();
+  <T> UncommittedBundle<T, PCollection<T>> createRootBundle();
 
   /**
    * Create an {@link UncommittedBundle} from the specified input. Elements added to the bundle
    * belong to the {@code output} {@link PCollection}.
    */
-  <T> UncommittedBundle<T> createBundle(PCollection<T> output);
+  <T> UncommittedBundle<T, PCollection<T>> createBundle(PCollection<T> output);
 
   /**
    * Create an {@link UncommittedBundle} with the specified keys at the specified step. For use by
    * {@link DirectGroupByKeyOnly} {@link PTransform PTransforms}. Elements added to the bundle
    * belong to the {@code output} {@link PCollection}.
    */
-  <K, T> UncommittedBundle<T> createKeyedBundle(
+  <K, T> UncommittedBundle<T, PCollection<T>> createKeyedBundle(
       StructuralKey<K> key, PCollection<T> output);
 }

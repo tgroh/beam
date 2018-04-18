@@ -44,6 +44,7 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult.State;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.util.UserCodeException;
+import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PValue;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
@@ -55,7 +56,7 @@ import org.slf4j.LoggerFactory;
  * EvaluationContext} to execute a {@link Pipeline}.
  */
 final class ExecutorServiceParallelExecutor
-    implements PipelineExecutor, BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> {
+    implements PipelineExecutor, BundleProcessor<CommittedBundle<?, PCollection<?>>, AppliedPTransform<?, ?, ?>> {
   private static final Logger LOG = LoggerFactory.getLogger(ExecutorServiceParallelExecutor.class);
 
   private final int targetParallelism;
@@ -65,7 +66,7 @@ final class ExecutorServiceParallelExecutor
 
   private final EvaluationContext evaluationContext;
 
-  private final TransformExecutorFactory executorFactory;
+  private final TransformExecutorFactory<AppliedPTransform<?, ?, ?>, PCollection<?>> executorFactory;
   private final TransformExecutorService parallelExecutorService;
   private final LoadingCache<StepAndKey, TransformExecutorService> serialExecutorServices;
 
@@ -137,12 +138,12 @@ final class ExecutorServiceParallelExecutor
   @Override
   public void start(DirectGraph graph, RootProviderRegistry rootProviderRegistry) {
     int numTargetSplits = Math.max(3, targetParallelism);
-    ImmutableMap.Builder<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
+    ImmutableMap.Builder<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?, PCollection<?>>>>
         pendingRootBundles = ImmutableMap.builder();
     for (AppliedPTransform<?, ?, ?> root : graph.getRootTransforms()) {
-      ConcurrentLinkedQueue<CommittedBundle<?>> pending = new ConcurrentLinkedQueue<>();
+      ConcurrentLinkedQueue<CommittedBundle<?, PCollection<?>>> pending = new ConcurrentLinkedQueue<>();
       try {
-        Collection<CommittedBundle<?>> initialInputs =
+        Collection<CommittedBundle<?, PCollection<?>>> initialInputs =
             rootProviderRegistry.getInitialInputs(root, numTargetSplits);
         pending.addAll(initialInputs);
       } catch (Exception e) {
@@ -186,7 +187,7 @@ final class ExecutorServiceParallelExecutor
   @SuppressWarnings("unchecked")
   @Override
   public void process(
-      CommittedBundle<?> bundle,
+      CommittedBundle<?, PCollection<?>> bundle,
       AppliedPTransform<?, ?, ?> consumer,
       CompletionCallback onComplete) {
     evaluateBundle(consumer, bundle, onComplete);
@@ -194,7 +195,7 @@ final class ExecutorServiceParallelExecutor
 
   private <T> void evaluateBundle(
       final AppliedPTransform<?, ?, ?> transform,
-      final CommittedBundle<T> bundle,
+      final CommittedBundle<T, PCollection<T>> bundle,
       final CompletionCallback onComplete) {
     TransformExecutorService transformExecutor;
 

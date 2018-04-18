@@ -34,7 +34,7 @@ class EmptyInputProvider<T> implements RootInputProvider<T, Void, PCollectionLis
    * <p>Returns an empty collection.
    */
   @Override
-  public Collection<CommittedBundle<Void>> getInitialInputs(
+  public Collection<CommittedBundle<Void, PCollection<Void>>> getInitialInputs(
       AppliedPTransform<
               PCollectionList<T>, PCollection<T>, PTransform<PCollectionList<T>, PCollection<T>>>
           transform,

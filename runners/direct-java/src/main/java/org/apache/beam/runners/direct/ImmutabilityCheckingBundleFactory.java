@@ -68,12 +68,12 @@ class ImmutabilityCheckingBundleFactory implements BundleFactory {
    * runner, which is required to use the contents in a way that is mutation-safe.
    */
   @Override
-  public <T> UncommittedBundle<T> createRootBundle() {
+  public <T> UncommittedBundle<T, PCollection<T>> createRootBundle() {
     return underlying.createRootBundle();
   }
 
   @Override
-  public <T> UncommittedBundle<T> createBundle(PCollection<T> output) {
+  public <T> UncommittedBundle<T, PCollection<T>> createBundle(PCollection<T> output) {
     if (Enforcement.IMMUTABILITY.appliesTo(output, graph)) {
       return new ImmutabilityEnforcingBundle<>(underlying.createBundle(output));
     }
@@ -81,7 +81,7 @@ class ImmutabilityCheckingBundleFactory implements BundleFactory {
   }
 
   @Override
-  public <K, T> UncommittedBundle<T> createKeyedBundle(
+  public <K, T> UncommittedBundle<T, PCollection<T>> createKeyedBundle(
       StructuralKey<K> key, PCollection<T> output) {
     if (Enforcement.IMMUTABILITY.appliesTo(output, graph)) {
       return new ImmutabilityEnforcingBundle<>(underlying.createKeyedBundle(key, output));
@@ -89,12 +89,12 @@ class ImmutabilityCheckingBundleFactory implements BundleFactory {
     return underlying.createKeyedBundle(key, output);
   }
 
-  private class ImmutabilityEnforcingBundle<T> implements UncommittedBundle<T> {
-    private final UncommittedBundle<T> underlying;
+  private class ImmutabilityEnforcingBundle<T> implements UncommittedBundle<T, PCollection<T>> {
+    private final UncommittedBundle<T, PCollection<T>> underlying;
     private final SetMultimap<WindowedValue<T>, MutationDetector> mutationDetectors;
     private Coder<T> coder;
 
-    public ImmutabilityEnforcingBundle(UncommittedBundle<T> underlying) {
+    public ImmutabilityEnforcingBundle(UncommittedBundle<T, PCollection<T>> underlying) {
       this.underlying = underlying;
       mutationDetectors = HashMultimap.create();
       coder = getPCollection().getCoder();
@@ -106,7 +106,7 @@ class ImmutabilityCheckingBundleFactory implements BundleFactory {
     }
 
     @Override
-    public UncommittedBundle<T> add(WindowedValue<T> element) {
+    public UncommittedBundle<T, PCollection<T>> add(WindowedValue<T> element) {
       try {
         mutationDetectors.put(
             element, MutationDetectors.forValueWithCoder(element.getValue(), coder));
@@ -118,7 +118,7 @@ class ImmutabilityCheckingBundleFactory implements BundleFactory {
     }
 
     @Override
-    public CommittedBundle<T> commit(Instant synchronizedProcessingTime) {
+    public CommittedBundle<T, PCollection<T>> commit(Instant synchronizedProcessingTime) {
       for (MutationDetector detector : mutationDetectors.values()) {
         try {
           detector.verifyUnmodified();

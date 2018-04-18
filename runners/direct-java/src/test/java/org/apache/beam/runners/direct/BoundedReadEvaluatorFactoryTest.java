@@ -100,14 +100,14 @@ public class BoundedReadEvaluatorFactoryTest {
   @Test
   public void boundedSourceInMemoryTransformEvaluatorProducesElements() throws Exception {
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
-    UncommittedBundle<Long> outputBundle = bundleFactory.createBundle(longs);
+    UncommittedBundle<Long, PCollection<Long>> outputBundle = bundleFactory.createBundle(longs);
     when(context.createBundle(longs)).thenReturn(outputBundle);
 
-    Collection<CommittedBundle<?>> initialInputs =
+    Collection<CommittedBundle<?, PCollection<?>>> initialInputs =
         new BoundedReadEvaluatorFactory.InputProvider(context, options)
             .getInitialInputs(longsProducer, 1);
     List<WindowedValue<?>> outputs = new ArrayList<>();
-    for (CommittedBundle<?> shardBundle : initialInputs) {
+    for (CommittedBundle<?, PCollection<?>> shardBundle : initialInputs) {
       TransformEvaluator<?> evaluator =
           factory.forApplication(longsProducer, null);
       for (WindowedValue<?> shard : shardBundle.getElements()) {
@@ -118,8 +118,8 @@ public class BoundedReadEvaluatorFactoryTest {
       assertThat(
           Iterables.size(result.getOutputBundles()),
           equalTo(Iterables.size(shardBundle.getElements())));
-      for (UncommittedBundle<?> output : result.getOutputBundles()) {
-        CommittedBundle<?> committed = output.commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
+      for (UncommittedBundle<?, PCollection<?>> output : result.getOutputBundles()) {
+        CommittedBundle<?, PCollection<?>> committed = output.commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
         for (WindowedValue<?> val : committed.getElements()) {
           outputs.add(val);
         }
@@ -145,7 +145,7 @@ public class BoundedReadEvaluatorFactoryTest {
     PCollection<Long> read =
         p.apply(Read.from(new TestSource<>(VarLongCoder.of(), 5, elems)));
     AppliedPTransform<?, ?, ?> transform = DirectGraphs.getProducer(read);
-    Collection<CommittedBundle<?>> unreadInputs =
+    Collection<CommittedBundle<?, PCollection<?>>> unreadInputs =
         new BoundedReadEvaluatorFactory.InputProvider(context, options)
             .getInitialInputs(transform, 1);
 
@@ -153,11 +153,11 @@ public class BoundedReadEvaluatorFactoryTest {
     int numIterations = 0;
     while (!unreadInputs.isEmpty()) {
       numIterations++;
-      UncommittedBundle<Long> outputBundle = bundleFactory.createBundle(read);
+      UncommittedBundle<Long, PCollection<Long>> outputBundle = bundleFactory.createBundle(read);
       when(context.createBundle(read)).thenReturn(outputBundle);
 
-      Collection<CommittedBundle<?>> newUnreadInputs = new ArrayList<>();
-      for (CommittedBundle<?> shardBundle : unreadInputs) {
+      Collection<CommittedBundle<?, PCollection<?>>> newUnreadInputs = new ArrayList<>();
+      for (CommittedBundle<?, PCollection<?>> shardBundle : unreadInputs) {
         TransformEvaluator<Long> evaluator = factory.forApplication(transform, null);
         for (WindowedValue<?> shard : shardBundle.getElements()) {
           evaluator.processElement((WindowedValue) shard);
@@ -167,8 +167,8 @@ public class BoundedReadEvaluatorFactoryTest {
         assertThat(
             Iterables.size(result.getOutputBundles()),
             equalTo(Iterables.size(shardBundle.getElements())));
-        for (UncommittedBundle<?> output : result.getOutputBundles()) {
-          CommittedBundle<?> committed = output.commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
+        for (UncommittedBundle<?, PCollection<?>> output : result.getOutputBundles()) {
+          CommittedBundle<?, PCollection<?>> committed = output.commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
           for (WindowedValue<?> val : committed.getElements()) {
             outputs.add(val);
           }
@@ -198,14 +198,14 @@ public class BoundedReadEvaluatorFactoryTest {
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
-    Collection<CommittedBundle<?>> initialInputs =
+    Collection<CommittedBundle<?, PCollection<?>>> initialInputs =
         new BoundedReadEvaluatorFactory.InputProvider(context, options)
             .getInitialInputs(transform, 1);
 
-    UncommittedBundle<Long> outputBundle = bundleFactory.createBundle(read);
+    UncommittedBundle<Long, PCollection<Long>> outputBundle = bundleFactory.createBundle(read);
     when(context.createBundle(read)).thenReturn(outputBundle);
     List<WindowedValue<?>> outputs = new ArrayList<>();
-    for (CommittedBundle<?> shardBundle : initialInputs) {
+    for (CommittedBundle<?, PCollection<?>> shardBundle : initialInputs) {
       TransformEvaluator<?> evaluator =
           factory.forApplication(transform, null);
       for (WindowedValue<?> shard : shardBundle.getElements()) {
@@ -216,8 +216,8 @@ public class BoundedReadEvaluatorFactoryTest {
       assertThat(
           Iterables.size(result.getOutputBundles()),
           equalTo(Iterables.size(shardBundle.getElements())));
-      for (UncommittedBundle<?> output : result.getOutputBundles()) {
-        CommittedBundle<?> committed = output.commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
+      for (UncommittedBundle<?, PCollection<?>> output : result.getOutputBundles()) {
+        CommittedBundle<?, PCollection<?>> committed = output.commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
         for (WindowedValue<?> val : committed.getElements()) {
           outputs.add(val);
         }
@@ -233,14 +233,14 @@ public class BoundedReadEvaluatorFactoryTest {
   @Test
   public void getInitialInputsSplitsIntoBundles() throws Exception {
     when(context.createRootBundle()).thenAnswer(invocation -> bundleFactory.createRootBundle());
-    Collection<CommittedBundle<?>> initialInputs =
+    Collection<CommittedBundle<?, PCollection<?>>> initialInputs =
         new BoundedReadEvaluatorFactory.InputProvider(context, options)
             .getInitialInputs(longsProducer, 3);
 
     assertThat(initialInputs, hasSize(allOf(greaterThanOrEqualTo(3), lessThanOrEqualTo(4))));
 
     Collection<BoundedSource<Long>> sources = new ArrayList<>();
-    for (CommittedBundle<?> initialInput : initialInputs) {
+    for (CommittedBundle<?, PCollection<?>> initialInput : initialInputs) {
       Iterable<WindowedValue<BoundedSourceShard<Long>>> shards =
           (Iterable) initialInput.getElements();
       WindowedValue<BoundedSourceShard<Long>> shard = Iterables.getOnlyElement(shards);
@@ -260,17 +260,17 @@ public class BoundedReadEvaluatorFactoryTest {
     List<? extends BoundedSource<Long>> splits =
         source.split(source.getEstimatedSizeBytes(options) / 2, options);
 
-    UncommittedBundle<BoundedSourceShard<Long>> rootBundle = bundleFactory.createRootBundle();
+    UncommittedBundle<BoundedSourceShard<Long>, PCollection<BoundedSourceShard<Long>>> rootBundle = bundleFactory.createRootBundle();
     for (BoundedSource<Long> split : splits) {
       BoundedSourceShard<Long> shard = BoundedSourceShard.of(split);
       rootBundle.add(WindowedValue.valueInGlobalWindow(shard));
     }
-    CommittedBundle<BoundedSourceShard<Long>> shards = rootBundle.commit(Instant.now());
+    CommittedBundle<BoundedSourceShard<Long>, PCollection<BoundedSourceShard<Long>>> shards = rootBundle.commit(Instant.now());
 
     TransformEvaluator<BoundedSourceShard<Long>> evaluator =
         factory.forApplication(longsProducer, shards);
     for (WindowedValue<BoundedSourceShard<Long>> shard : shards.getElements()) {
-      UncommittedBundle<Long> outputBundle = bundleFactory.createBundle(longs);
+      UncommittedBundle<Long, PCollection<Long>> outputBundle = bundleFactory.createBundle(longs);
       when(context.createBundle(longs)).thenReturn(outputBundle);
       evaluator.processElement(shard);
     }
@@ -278,8 +278,8 @@ public class BoundedReadEvaluatorFactoryTest {
     assertThat(Iterables.size(result.getOutputBundles()), equalTo(splits.size()));
 
     List<WindowedValue<?>> outputElems = new ArrayList<>();
-    for (UncommittedBundle<?> outputBundle : result.getOutputBundles()) {
-      CommittedBundle<?> outputs = outputBundle.commit(Instant.now());
+    for (UncommittedBundle<?, PCollection<?>> outputBundle : result.getOutputBundles()) {
+      CommittedBundle<?, PCollection<?>> outputs = outputBundle.commit(Instant.now());
       for (WindowedValue<?> outputElem : outputs.getElements()) {
         outputElems.add(outputElem);
       }
@@ -296,7 +296,7 @@ public class BoundedReadEvaluatorFactoryTest {
     PCollection<Long> pcollection = p.apply(Read.from(source));
     AppliedPTransform<?, ?, ?> sourceTransform = DirectGraphs.getProducer(pcollection);
 
-    UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
+    UncommittedBundle<Long, PCollection<Long>> output = bundleFactory.createBundle(pcollection);
     when(context.createBundle(pcollection)).thenReturn(output);
 
     TransformEvaluator<BoundedSourceShard<Long>> evaluator =
@@ -304,7 +304,7 @@ public class BoundedReadEvaluatorFactoryTest {
             sourceTransform, bundleFactory.createRootBundle().commit(Instant.now()));
     evaluator.processElement(WindowedValue.valueInGlobalWindow(BoundedSourceShard.of(source)));
     evaluator.finishBundle();
-    CommittedBundle<Long> committed = output.commit(Instant.now());
+    CommittedBundle<Long, PCollection<Long>> committed = output.commit(Instant.now());
     assertThat(committed.getElements(), containsInAnyOrder(gw(2L), gw(3L), gw(1L)));
     assertThat(TestSource.readerClosed, is(true));
   }
@@ -316,7 +316,7 @@ public class BoundedReadEvaluatorFactoryTest {
     PCollection<Long> pcollection = p.apply(Read.from(source));
     AppliedPTransform<?, ?, ?> sourceTransform = DirectGraphs.getProducer(pcollection);
 
-    UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
+    UncommittedBundle<Long, PCollection<Long>> output = bundleFactory.createBundle(pcollection);
     when(context.createBundle(pcollection)).thenReturn(output);
 
     TransformEvaluator<BoundedSourceShard<Long>> evaluator =
@@ -324,7 +324,7 @@ public class BoundedReadEvaluatorFactoryTest {
             sourceTransform, bundleFactory.createRootBundle().commit(Instant.now()));
     evaluator.processElement(WindowedValue.valueInGlobalWindow(BoundedSourceShard.of(source)));
     evaluator.finishBundle();
-    CommittedBundle<Long> committed = output.commit(Instant.now());
+    CommittedBundle<Long, PCollection<Long>> committed = output.commit(Instant.now());
     assertThat(committed.getElements(), emptyIterable());
     assertThat(TestSource.readerClosed, is(true));
   }

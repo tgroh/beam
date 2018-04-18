@@ -52,11 +52,11 @@ interface ModelEnforcement<T> {
 
   /**
    * Called after a bundle has been completed and {@link TransformEvaluator#finishBundle()} has been
-   * called, producing the provided {@link TransformResult} and
-   * {@link CommittedBundle output bundles}.
+   * called, producing the provided {@link TransformResult} and {@link CommittedBundle output
+   * bundles}.
    */
   void afterFinish(
-      CommittedBundle<T> input,
+      CommittedBundle<T, ? extends PCollection<T>> input,
       TransformResult<T> result,
-      Iterable<? extends CommittedBundle<?>> outputs);
+      Iterable<? extends CommittedBundle<?, ? extends PCollection<?>>> outputs);
 }

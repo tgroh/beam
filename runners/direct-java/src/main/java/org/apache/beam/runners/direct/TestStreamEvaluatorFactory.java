@@ -63,7 +63,7 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory {
   @Nullable
   @Override
   public <InputT> TransformEvaluator<InputT> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) {
+      AppliedPTransform<?, ?, ?> application, CommittedBundle<?, PCollection<?>> inputBundle) {
     return createEvaluator((AppliedPTransform) application);
   }
 
@@ -105,7 +105,7 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory {
       Event<T> event = events.get(index);
 
       if (event.getType().equals(EventType.ELEMENT)) {
-        UncommittedBundle<T> bundle =
+        UncommittedBundle<T, PCollection<T>> bundle =
             context.createBundle(
                 (PCollection<T>) Iterables.getOnlyElement(application.getOutputs().values()));
         for (TimestampedValue<T> elem : ((ElementEvent<T>) event).getElements()) {
@@ -222,7 +222,7 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory {
     }
 
     @Override
-    public Collection<CommittedBundle<TestStreamIndex<T>>> getInitialInputs(
+    public Collection<CommittedBundle<TestStreamIndex<T>, PCollection<TestStreamIndex<T>>>> getInitialInputs(
         AppliedPTransform<PBegin, PCollection<T>, PTransform<PBegin, PCollection<T>>> transform,
         int targetParallelism) {
 
@@ -230,7 +230,7 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory {
       DirectTestStreamFactory.DirectTestStream<T> testStream =
           (DirectTestStreamFactory.DirectTestStream<T>) transform.getTransform();
 
-      CommittedBundle<TestStreamIndex<T>> initialBundle =
+      CommittedBundle<TestStreamIndex<T>, PCollection<TestStreamIndex<T>>> initialBundle =
           evaluationContext
               .<TestStreamIndex<T>>createRootBundle()
               .add(WindowedValue.valueInGlobalWindow(TestStreamIndex.of(testStream.original)))

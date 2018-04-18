@@ -379,7 +379,7 @@ class MultiStepCombine<K, InputT, AccumT, OutputT>
     @Nullable
     @Override
     public <InputT> TransformEvaluator<InputT> forApplication(
-        AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) throws Exception {
+        AppliedPTransform<?, ?, ?> application, CommittedBundle<?, PCollection<?>> inputBundle) throws Exception {
       return createEvaluator((AppliedPTransform) application, (CommittedBundle) inputBundle);
     }
 
@@ -388,7 +388,7 @@ class MultiStepCombine<K, InputT, AccumT, OutputT>
                 PCollection<KV<K, Iterable<AccumT>>>, PCollection<KV<K, OutputT>>,
                 MergeAndExtractAccumulatorOutput<K, AccumT, OutputT>>
             application,
-        CommittedBundle<KV<K, Iterable<AccumT>>> inputBundle) {
+        CommittedBundle<KV<K, Iterable<AccumT>>, PCollection<KV<K, Iterable<AccumT>>>> inputBundle) {
       return new MergeAccumulatorsAndExtractOutputEvaluator<>(ctxt, application);
     }
 
@@ -403,7 +403,7 @@ class MultiStepCombine<K, InputT, AccumT, OutputT>
             MergeAndExtractAccumulatorOutput<K, AccumT, OutputT>>
         application;
     private final CombineFn<?, AccumT, OutputT> combineFn;
-    private final UncommittedBundle<KV<K, OutputT>> output;
+    private final UncommittedBundle<KV<K, OutputT>, PCollection<KV<K, OutputT>>> output;
 
     public MergeAccumulatorsAndExtractOutputEvaluator(
         EvaluationContext ctxt,

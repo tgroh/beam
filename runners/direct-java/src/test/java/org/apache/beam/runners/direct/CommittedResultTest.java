@@ -70,7 +70,7 @@ public class CommittedResultTest implements Serializable {
 
   @Test
   public void getTransformExtractsFromResult() {
-    CommittedResult<AppliedPTransform<?, ?, ?>> result =
+    CommittedResult<AppliedPTransform<?, ?, ?>, CollectionT> result =
         CommittedResult.create(
             StepTransformResult.withoutHold(transform).build(),
             Optional.absent(),
@@ -82,11 +82,11 @@ public class CommittedResultTest implements Serializable {
 
   @Test
   public void getUncommittedElementsEqualInput() {
-    CommittedBundle<Integer> bundle =
+    CommittedBundle<Integer, PCollection<Integer>> bundle =
         bundleFactory.createBundle(created)
             .add(WindowedValue.valueInGlobalWindow(2))
             .commit(Instant.now());
-    CommittedResult<AppliedPTransform<?, ?, ?>> result =
+    CommittedResult<AppliedPTransform<?, ?, ?>, CollectionT> result =
         CommittedResult.create(
             StepTransformResult.withoutHold(transform).build(),
             Optional.of(bundle),
@@ -98,7 +98,7 @@ public class CommittedResultTest implements Serializable {
 
   @Test
   public void getUncommittedElementsNull() {
-    CommittedResult<AppliedPTransform<?, ?, ?>> result =
+    CommittedResult<AppliedPTransform<?, ?, ?>, CollectionT> result =
         CommittedResult.create(
             StepTransformResult.withoutHold(transform).build(),
             Optional.absent(),
@@ -110,7 +110,7 @@ public class CommittedResultTest implements Serializable {
 
   @Test
   public void getOutputsEqualInput() {
-    List<? extends CommittedBundle<Integer>> outputs =
+    List<? extends CommittedBundle<Integer, PCollection<Integer>>> outputs =
         ImmutableList.of(
             bundleFactory
                 .createBundle(
@@ -128,7 +128,7 @@ public class CommittedResultTest implements Serializable {
                         PCollection.IsBounded.UNBOUNDED,
                         VarIntCoder.of()))
                 .commit(Instant.now()));
-    CommittedResult<AppliedPTransform<?, ?, ?>> result =
+    CommittedResult<AppliedPTransform<?, ?, ?>, CollectionT> result =
         CommittedResult.create(
             StepTransformResult.withoutHold(transform).build(),
             Optional.absent(),

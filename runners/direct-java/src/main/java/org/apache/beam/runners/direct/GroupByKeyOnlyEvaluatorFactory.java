@@ -56,7 +56,7 @@ class GroupByKeyOnlyEvaluatorFactory implements TransformEvaluatorFactory {
   @Override
   public <InputT> TransformEvaluator<InputT> forApplication(
       AppliedPTransform<?, ?, ?> application,
-      CommittedBundle<?> inputBundle) {
+      CommittedBundle<?, PCollection<?>> inputBundle) {
     @SuppressWarnings({"cast", "unchecked", "rawtypes"})
     TransformEvaluator<InputT> evaluator =
         createEvaluator(
@@ -73,7 +73,7 @@ class GroupByKeyOnlyEvaluatorFactory implements TransformEvaluatorFactory {
           PCollection<KeyedWorkItem<K, V>>,
           DirectGroupByKeyOnly<K, V>>
           application,
-      final CommittedBundle<KV<K, V>> inputBundle) {
+      final CommittedBundle<KV<K, V>, PCollection<KV<K, V>>> inputBundle) {
     return new GroupByKeyOnlyEvaluator<>(evaluationContext, application);
   }
 
@@ -150,7 +150,7 @@ class GroupByKeyOnlyEvaluatorFactory implements TransformEvaluatorFactory {
         K key = groupedEntry.getKey().key;
         KeyedWorkItem<K, V> groupedKv =
             KeyedWorkItems.elementsWorkItem(key, groupedEntry.getValue());
-        UncommittedBundle<KeyedWorkItem<K, V>> bundle =
+        UncommittedBundle<KeyedWorkItem<K, V>, PCollection<KeyedWorkItem<K, V>>> bundle =
             evaluationContext.createKeyedBundle(
                 StructuralKey.of(key, keyCoder),
                 (PCollection<KeyedWorkItem<K, V>>)

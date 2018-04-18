@@ -27,6 +27,7 @@ import org.apache.beam.sdk.util.MutationDetector;
 import org.apache.beam.sdk.util.MutationDetectors;
 import org.apache.beam.sdk.util.UserCodeException;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.PCollection;
 
 /**
  * {@link ModelEnforcement} that enforces elements are not modified over the course of processing
@@ -39,7 +40,7 @@ class ImmutabilityEnforcementFactory implements ModelEnforcementFactory {
 
   @Override
   public <T> ModelEnforcement<T> forBundle(
-      CommittedBundle<T> input, AppliedPTransform<?, ?, ?> consumer) {
+      CommittedBundle<T, PCollection<T>> input, AppliedPTransform<?, ?, ?> consumer) {
     return new ImmutabilityCheckingEnforcement<>(input, consumer);
   }
 
@@ -49,7 +50,7 @@ class ImmutabilityEnforcementFactory implements ModelEnforcementFactory {
     private final Coder<T> coder;
 
     private ImmutabilityCheckingEnforcement(
-        CommittedBundle<T> input, AppliedPTransform<?, ?, ?> transform) {
+        CommittedBundle<T, PCollection<T>> input, AppliedPTransform<?, ?, ?> transform) {
       this.transform = transform;
       coder = input.getPCollection().getCoder();
       mutationElements = new IdentityHashMap<>();
@@ -72,9 +73,9 @@ class ImmutabilityEnforcementFactory implements ModelEnforcementFactory {
 
     @Override
     public void afterFinish(
-        CommittedBundle<T> input,
+        CommittedBundle<T, PCollection<T>> input,
         TransformResult<T> result,
-        Iterable<? extends CommittedBundle<?>> outputs) {
+        Iterable<? extends CommittedBundle<?, PCollection<?>>> outputs) {
       for (MutationDetector detector : mutationElements.values()) {
         verifyUnmodified(detector);
       }

@@ -22,6 +22,7 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.Read;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.values.PCollection;
 
 /**
  * A factory for creating instances of {@link TransformEvaluator} for the application of a
@@ -38,8 +39,8 @@ interface TransformEvaluatorFactory {
    * DoFn.StartBundle}) must be done before the {@link TransformEvaluator} is made available to the
    * caller.
    *
-   * <p>May return null if the application cannot produce an evaluator (for example, it is a
-   * {@link Read} {@link PTransform} where all evaluators are in-use).
+   * <p>May return null if the application cannot produce an evaluator (for example, it is a {@link
+   * Read} {@link PTransform} where all evaluators are in-use).
    *
    * @return An evaluator capable of processing the transform on the bundle, or null if no evaluator
    *     can be constructed.
@@ -47,7 +48,8 @@ interface TransformEvaluatorFactory {
    */
   @Nullable
   <InputT> TransformEvaluator<InputT> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle)
+      AppliedPTransform<?, ?, ?> application,
+      CommittedBundle<?, ? extends PCollection<?>> inputBundle)
       throws Exception;
 
   /**

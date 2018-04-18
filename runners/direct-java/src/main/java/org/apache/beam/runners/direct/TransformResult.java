@@ -27,6 +27,7 @@ import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.PCollection;
 import org.joda.time.Instant;
 
 /**
@@ -51,7 +52,7 @@ interface TransformResult<InputT> {
    * <p>Note that the bundles need not have a uniform type, for example in the case of multi-output
    * {@link ParDo}.
    */
-  Iterable<? extends UncommittedBundle<?>> getOutputBundles();
+  Iterable<? extends UncommittedBundle<?, PCollection<?>>> getOutputBundles();
 
   /**
    * Returns elements that were provided to the {@link TransformEvaluator} as input but were not

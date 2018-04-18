@@ -35,12 +35,12 @@ import org.joda.time.Instant;
  * a part of at a later point.
  * @param <T> the type of elements contained within this bundle
  */
-interface CommittedBundle<T> extends Bundle<T> {
+interface CommittedBundle<T, CollectionT> extends Bundle<T> {
   /**
    * Returns the PCollection that the elements of this bundle belong to.
    */
   @Nullable
-  PCollection<T> getPCollection();
+  CollectionT getPCollection();
 
   /**
    * Returns the key that was output in the most recent {@link GroupByKey} in the
@@ -78,5 +78,5 @@ interface CommittedBundle<T> extends Bundle<T> {
    * complete processing on input elements properly holds the synchronized processing time to the
    * appropriate value.
    */
-  CommittedBundle<T> withElements(Iterable<WindowedValue<T>> elements);
+  CommittedBundle<T, PCollection<T>> withElements(Iterable<WindowedValue<T>> elements);
 }

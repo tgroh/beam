@@ -88,7 +88,7 @@ public class UnboundedReadEvaluatorFactoryTest {
   private PCollection<Long> longs;
   private UnboundedReadEvaluatorFactory factory;
   private EvaluationContext context;
-  private UncommittedBundle<Long> output;
+  private UncommittedBundle<Long, PCollection<Long>> output;
 
   private BundleFactory bundleFactory = ImmutableListBundleFactory.create();
 
@@ -116,7 +116,7 @@ public class UnboundedReadEvaluatorFactoryTest {
     when(context.createRootBundle()).thenAnswer(invocation -> bundleFactory.createRootBundle());
 
     int numSplits = 5;
-    Collection<CommittedBundle<?>> initialInputs =
+    Collection<CommittedBundle<?, PCollection<?>>> initialInputs =
         new UnboundedReadEvaluatorFactory.InputProvider(context, options)
             .getInitialInputs(graph.getProducer(longs), numSplits);
     // CountingSource.unbounded has very good splitting behavior
@@ -128,9 +128,9 @@ public class UnboundedReadEvaluatorFactoryTest {
         ContiguousSet.create(Range.closedOpen(0L, (long) totalSize), DiscreteDomain.longs());
 
     Collection<Long> readItems = new ArrayList<>(totalSize);
-    for (CommittedBundle<?> initialInput : initialInputs) {
-      CommittedBundle<UnboundedSourceShard<Long, ?>> shardBundle =
-          (CommittedBundle<UnboundedSourceShard<Long, ?>>) initialInput;
+    for (CommittedBundle<?, PCollection<?>> initialInput : initialInputs) {
+      CommittedBundle<UnboundedSourceShard<Long, ?>, PCollection<UnboundedSourceShard<Long, ?>>> shardBundle =
+          (CommittedBundle<UnboundedSourceShard<Long, ?>, PCollection<UnboundedSourceShard<Long, ?>>>) initialInput;
       WindowedValue<UnboundedSourceShard<Long, ?>> shard =
           Iterables.getOnlyElement(shardBundle.getElements());
       assertThat(shard.getTimestamp(), equalTo(BoundedWindow.TIMESTAMP_MIN_VALUE));
@@ -149,11 +149,11 @@ public class UnboundedReadEvaluatorFactoryTest {
   public void unboundedSourceInMemoryTransformEvaluatorProducesElements() throws Exception {
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
 
-    Collection<CommittedBundle<?>> initialInputs =
+    Collection<CommittedBundle<?, PCollection<?>>> initialInputs =
         new UnboundedReadEvaluatorFactory.InputProvider(context, options)
             .getInitialInputs(graph.getProducer(longs), 1);
 
-    CommittedBundle<?> inputShards = Iterables.getOnlyElement(initialInputs);
+    CommittedBundle<?, PCollection<?>> inputShards = Iterables.getOnlyElement(initialInputs);
     UnboundedSourceShard<Long, ?> inputShard =
         (UnboundedSourceShard<Long, ?>)
             Iterables.getOnlyElement(inputShards.getElements()).getValue();
@@ -191,13 +191,13 @@ public class UnboundedReadEvaluatorFactoryTest {
     AppliedPTransform<?, ?, ?> sourceTransform = getProducer(pcollection);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
-    Collection<CommittedBundle<?>> initialInputs =
+    Collection<CommittedBundle<?, PCollection<?>>> initialInputs =
         new UnboundedReadEvaluatorFactory.InputProvider(context, options)
             .getInitialInputs(sourceTransform, 1);
 
-    UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
+    UncommittedBundle<Long, PCollection<Long>> output = bundleFactory.createBundle(pcollection);
     when(context.createBundle(pcollection)).thenReturn(output);
-    CommittedBundle<?> inputBundle = Iterables.getOnlyElement(initialInputs);
+    CommittedBundle<?, PCollection<?>> inputBundle = Iterables.getOnlyElement(initialInputs);
     TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> evaluator =
         factory.forApplication(sourceTransform, inputBundle);
 
@@ -211,7 +211,7 @@ public class UnboundedReadEvaluatorFactoryTest {
         output.commit(Instant.now()).getElements(),
         containsInAnyOrder(tgw(1L), tgw(2L), tgw(4L), tgw(3L), tgw(0L)));
 
-    UncommittedBundle<Long> secondOutput = bundleFactory.createBundle(longs);
+    UncommittedBundle<Long, PCollection<Long>> secondOutput = bundleFactory.createBundle(longs);
     when(context.createBundle(longs)).thenReturn(secondOutput);
     TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> secondEvaluator =
         factory.forApplication(sourceTransform, inputBundle);
@@ -231,14 +231,14 @@ public class UnboundedReadEvaluatorFactoryTest {
     AppliedPTransform<?, ?, ?> sourceTransform = DirectGraphs.getProducer(pcollection);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
-    Collection<CommittedBundle<?>> initialInputs =
+    Collection<CommittedBundle<?, PCollection<?>>> initialInputs =
         new UnboundedReadEvaluatorFactory.InputProvider(context, options)
             .getInitialInputs(sourceTransform, 1);
 
     // Process the initial shard. This might produce some output, and will produce a residual shard
     // which should produce no output when read from within the following day.
     when(context.createBundle(pcollection)).thenReturn(bundleFactory.createBundle(pcollection));
-    CommittedBundle<?> inputBundle = Iterables.getOnlyElement(initialInputs);
+    CommittedBundle<?, PCollection<?>> inputBundle = Iterables.getOnlyElement(initialInputs);
     TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> evaluator =
         factory.forApplication(sourceTransform, inputBundle);
     for (WindowedValue<?> value : inputBundle.getElements()) {
@@ -250,7 +250,7 @@ public class UnboundedReadEvaluatorFactoryTest {
 
     // Read from the residual of the first read. This should not produce any output, but should
     // include a residual shard in the result.
-    UncommittedBundle<Long> secondOutput = bundleFactory.createBundle(longs);
+    UncommittedBundle<Long, PCollection<Long>> secondOutput = bundleFactory.createBundle(longs);
     when(context.createBundle(longs)).thenReturn(secondOutput);
     TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> secondEvaluator =
         factory.forApplication(sourceTransform, inputBundle);
@@ -290,13 +290,13 @@ public class UnboundedReadEvaluatorFactoryTest {
         graph.getProducer(pcollection);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
-    UncommittedBundle<Long> output = mock(UncommittedBundle.class);
+    UncommittedBundle<Long, PCollection<Long>> output = mock(UncommittedBundle.class);
     when(context.createBundle(pcollection)).thenReturn(output);
 
     WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>> shard =
         WindowedValue.valueInGlobalWindow(
             UnboundedSourceShard.unstarted(source, NeverDeduplicator.create()));
-    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>> inputBundle =
+    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>, PCollection<UnboundedSourceShard<Long, TestCheckpointMark>>> inputBundle =
         bundleFactory
             .<UnboundedSourceShard<Long, TestCheckpointMark>>createRootBundle()
             .add(shard)
@@ -306,7 +306,7 @@ public class UnboundedReadEvaluatorFactoryTest {
     new UnboundedReadEvaluatorFactory.InputProvider(context, options)
         .getInitialInputs(sourceTransform, 1);
 
-    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>> residual = inputBundle;
+    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>, PCollection<UnboundedSourceShard<Long, TestCheckpointMark>>> residual = inputBundle;
 
     do {
       TransformEvaluator<UnboundedSourceShard<Long, TestCheckpointMark>> evaluator =
@@ -335,13 +335,13 @@ public class UnboundedReadEvaluatorFactoryTest {
         DirectGraphs.getGraph(p).getProducer(pcollection);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
-    UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
+    UncommittedBundle<Long, PCollection<Long>> output = bundleFactory.createBundle(pcollection);
     when(context.createBundle(pcollection)).thenReturn(output);
 
     WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>> shard =
         WindowedValue.valueInGlobalWindow(
             UnboundedSourceShard.unstarted(source, NeverDeduplicator.create()));
-    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>> inputBundle =
+    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>, PCollection<UnboundedSourceShard<Long, TestCheckpointMark>>> inputBundle =
         bundleFactory
             .<UnboundedSourceShard<Long, TestCheckpointMark>>createRootBundle()
             .add(shard)
@@ -354,7 +354,7 @@ public class UnboundedReadEvaluatorFactoryTest {
     TransformResult<UnboundedSourceShard<Long, TestCheckpointMark>> result =
         evaluator.finishBundle();
 
-    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>> residual =
+    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>, PCollection<UnboundedSourceShard<Long, TestCheckpointMark>>> residual =
         inputBundle.withElements(
             (Iterable<WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>>>)
                 result.getUnprocessedElements());
@@ -382,13 +382,13 @@ public class UnboundedReadEvaluatorFactoryTest {
         DirectGraphs.getGraph(p).getProducer(pcollection);
 
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
-    UncommittedBundle<Long> output = bundleFactory.createBundle(pcollection);
+    UncommittedBundle<Long, PCollection<Long>> output = bundleFactory.createBundle(pcollection);
     when(context.createBundle(pcollection)).thenReturn(output);
 
     WindowedValue<UnboundedSourceShard<Long, TestCheckpointMark>> shard =
         WindowedValue.valueInGlobalWindow(
             UnboundedSourceShard.unstarted(source, NeverDeduplicator.create()));
-    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>> inputBundle =
+    CommittedBundle<UnboundedSourceShard<Long, TestCheckpointMark>, PCollection<UnboundedSourceShard<Long, TestCheckpointMark>>> inputBundle =
         bundleFactory
             .<UnboundedSourceShard<Long, TestCheckpointMark>>createRootBundle()
             .add(shard)

@@ -71,7 +71,7 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
   @Override
   public <InputT> TransformEvaluator<InputT> forApplication(
       AppliedPTransform<?, ?, ?> application,
-      CommittedBundle<?> inputBundle) {
+      CommittedBundle<?, PCollection<?>> inputBundle) {
     @SuppressWarnings({"cast", "unchecked", "rawtypes"})
     TransformEvaluator<InputT> evaluator =
         createEvaluator(
@@ -88,7 +88,7 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
               PCollection<KV<K, Iterable<V>>>,
               DirectGroupAlsoByWindow<K, V>>
           application,
-      CommittedBundle<KeyedWorkItem<K, V>> inputBundle) {
+      CommittedBundle<KeyedWorkItem<K, V>, PCollection<KeyedWorkItem<K, V>>> inputBundle) {
     return new GroupAlsoByWindowEvaluator<>(
         evaluationContext, options, inputBundle, application);
   }
@@ -114,7 +114,7 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
         windowingStrategy;
 
     private final StructuralKey<?> structuralKey;
-    private final Collection<UncommittedBundle<?>> outputBundles;
+    private final Collection<UncommittedBundle<?, PCollection<?>>> outputBundles;
     private final ImmutableList.Builder<WindowedValue<KeyedWorkItem<K, V>>> unprocessedElements;
 
     private final SystemReduceFn<K, V, Iterable<V>, Iterable<V>, BoundedWindow> reduceFn;
@@ -123,7 +123,7 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
     public GroupAlsoByWindowEvaluator(
         final EvaluationContext evaluationContext,
         PipelineOptions options,
-        CommittedBundle<KeyedWorkItem<K, V>> inputBundle,
+        CommittedBundle<KeyedWorkItem<K, V>, PCollection<KeyedWorkItem<K, V>>> inputBundle,
         final AppliedPTransform<
                 PCollection<KeyedWorkItem<K, V>>,
                 PCollection<KV<K, Iterable<V>>>,
@@ -157,7 +157,7 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
       KeyedWorkItem<K, V> workItem = element.getValue();
       K key = workItem.key();
 
-      UncommittedBundle<KV<K, Iterable<V>>> bundle =
+      UncommittedBundle<KV<K, Iterable<V>>, PCollection<KV<K, Iterable<V>>>> bundle =
           evaluationContext.createKeyedBundle(
               structuralKey,
               (PCollection<KV<K, Iterable<V>>>)
@@ -237,9 +237,9 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
 
   private static class OutputWindowedValueToBundle<K, V>
       implements OutputWindowedValue<KV<K, Iterable<V>>> {
-    private final UncommittedBundle<KV<K, Iterable<V>>> bundle;
+    private final UncommittedBundle<KV<K, Iterable<V>>, PCollection<KV<K, Iterable<V>>>> bundle;
 
-    private OutputWindowedValueToBundle(UncommittedBundle<KV<K, Iterable<V>>> bundle) {
+    private OutputWindowedValueToBundle(UncommittedBundle<KV<K, Iterable<V>>, PCollection<KV<K, Iterable<V>>>> bundle) {
       this.bundle = bundle;
     }
 

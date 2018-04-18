@@ -46,6 +46,7 @@ import org.apache.beam.sdk.metrics.MetricQueryResults;
 import org.apache.beam.sdk.metrics.MetricResult;
 import org.apache.beam.sdk.metrics.MetricResults;
 import org.apache.beam.sdk.metrics.MetricsFilter;
+import org.apache.beam.sdk.values.PCollection;
 
 /**
  * Implementation of {@link MetricResults} for the Direct Runner.
@@ -81,9 +82,10 @@ class DirectMetrics extends MetricResults {
     private final Object attemptedLock = new Object();
     @GuardedBy("attemptedLock")
     private volatile UpdateT finishedAttempted;
+
     @GuardedBy("attemptedLock")
-    private final ConcurrentMap<CommittedBundle<?>, UpdateT> inflightAttempted =
-        new ConcurrentHashMap<>();
+    private final ConcurrentMap<CommittedBundle<?, ? extends PCollection<?>>, UpdateT>
+        inflightAttempted = new ConcurrentHashMap<>();
 
     public DirectMetric(MetricAggregation<UpdateT, ResultT> aggregation) {
       this.aggregation = aggregation;
@@ -97,7 +99,8 @@ class DirectMetrics extends MetricResults {
      * @param bundle The bundle receiving an update.
      * @param tentativeCumulative The new cumulative value for the given bundle.
      */
-    public void updatePhysical(CommittedBundle<?> bundle, UpdateT tentativeCumulative) {
+    public void updatePhysical(
+        CommittedBundle<?, ? extends PCollection<?>> bundle, UpdateT tentativeCumulative) {
       // Add (or update) the cumulatiev value for the given bundle.
       inflightAttempted.put(bundle, tentativeCumulative);
     }
@@ -108,7 +111,8 @@ class DirectMetrics extends MetricResults {
      * @param bundle The bundle being committed.
      * @param finalCumulative The final cumulative value for the given bundle.
      */
-    public void commitPhysical(final CommittedBundle<?> bundle, final UpdateT finalCumulative) {
+    public void commitPhysical(
+        final CommittedBundle<?, ? extends PCollection<?>> bundle, final UpdateT finalCumulative) {
       // To prevent a query from blocking the commit, we perform the commit in two steps.
       // 1. We perform a non-blocking write to the uncommitted table to make the new vaule
       //    available immediately.
@@ -142,7 +146,8 @@ class DirectMetrics extends MetricResults {
      * @param bundle The bundle being committed.
      * @param finalCumulative The final cumulative value for the given bundle.
      */
-    public void commitLogical(final CommittedBundle<?> bundle, final UpdateT finalCumulative) {
+    public void commitLogical(
+        final CommittedBundle<?, ? extends PCollection<?>> bundle, final UpdateT finalCumulative) {
       UpdateT current;
       do {
         current = finishedCommitted.get();
@@ -293,7 +298,7 @@ class DirectMetrics extends MetricResults {
   }
 
   /** Apply metric updates that represent physical counter deltas to the current metric values. */
-  public void updatePhysical(CommittedBundle<?> bundle, MetricUpdates updates) {
+  public void updatePhysical(CommittedBundle<?, ? extends PCollection<?>> bundle, MetricUpdates updates) {
     for (MetricUpdate<Long> counter : updates.counterUpdates()) {
       counters.get(counter.getKey()).updatePhysical(bundle, counter.getUpdate());
     }
@@ -307,7 +312,8 @@ class DirectMetrics extends MetricResults {
     }
   }
 
-  public void commitPhysical(CommittedBundle<?> bundle, MetricUpdates updates) {
+  public void commitPhysical(
+      CommittedBundle<?, ? extends PCollection<?>> bundle, MetricUpdates updates) {
     for (MetricUpdate<Long> counter : updates.counterUpdates()) {
       counters.get(counter.getKey()).commitPhysical(bundle, counter.getUpdate());
     }
@@ -322,7 +328,8 @@ class DirectMetrics extends MetricResults {
   }
 
   /** Apply metric updates that represent new logical values from a bundle being committed. */
-  public void commitLogical(CommittedBundle<?> bundle, MetricUpdates updates) {
+  public void commitLogical(
+      CommittedBundle<?, ? extends PCollection<?>> bundle, MetricUpdates updates) {
     for (MetricUpdate<Long> counter : updates.counterUpdates()) {
       counters.get(counter.getKey()).commitLogical(bundle, counter.getUpdate());
     }

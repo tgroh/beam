@@ -90,7 +90,7 @@ final class StatefulParDoEvaluatorFactory<K, InputT, OutputT> implements Transfo
 
   @Override
   public <T> TransformEvaluator<T> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) throws Exception {
+      AppliedPTransform<?, ?, ?> application, CommittedBundle<?, PCollection<?>> inputBundle) throws Exception {
     @SuppressWarnings({"unchecked", "rawtypes"})
     TransformEvaluator<T> evaluator =
         (TransformEvaluator<T>)
@@ -109,7 +109,7 @@ final class StatefulParDoEvaluatorFactory<K, InputT, OutputT> implements Transfo
               PCollection<? extends KeyedWorkItem<K, KV<K, InputT>>>, PCollectionTuple,
               StatefulParDo<K, InputT, OutputT>>
           application,
-      CommittedBundle<KeyedWorkItem<K, KV<K, InputT>>> inputBundle)
+      CommittedBundle<KeyedWorkItem<K, KV<K, InputT>>, PCollection<KeyedWorkItem<K, KV<K, InputT>>>> inputBundle)
       throws Exception {
 
     final DoFn<KV<K, InputT>, OutputT> doFn =

@@ -70,7 +70,7 @@ final class ParDoEvaluatorFactory<InputT, OutputT> implements TransformEvaluator
 
   @Override
   public <T> TransformEvaluator<T> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) throws Exception {
+      AppliedPTransform<?, ?, ?> application, CommittedBundle<?, PCollection<?>> inputBundle) throws Exception {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     TransformEvaluator<T> evaluator =

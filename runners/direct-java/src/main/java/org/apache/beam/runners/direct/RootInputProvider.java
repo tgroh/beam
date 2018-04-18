@@ -42,7 +42,7 @@ interface RootInputProvider<T, ShardT, InputT extends PInput> {
    * @param targetParallelism the target amount of parallelism to obtain from the source. Must be
    *     greater than or equal to 1.
    */
-  Collection<CommittedBundle<ShardT>> getInitialInputs(
+  Collection<CommittedBundle<ShardT, PCollection<ShardT>>> getInitialInputs(
       AppliedPTransform<InputT, PCollection<T>, PTransform<InputT, PCollection<T>>>
           transform,
       int targetParallelism)

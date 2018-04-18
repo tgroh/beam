@@ -66,10 +66,10 @@ public class ImmutabilityCheckingBundleFactoryTest {
 
   @Test
   public void rootBundleSucceeds() {
-    UncommittedBundle<byte[]> root = factory.createRootBundle();
+    UncommittedBundle<byte[], PCollection<byte[]>> root = factory.createRootBundle();
     byte[] array = new byte[] {0, 1, 2};
     root.add(WindowedValue.valueInGlobalWindow(array));
-    CommittedBundle<byte[]> committed = root.commit(Instant.now());
+    CommittedBundle<byte[], PCollection<byte[]>> committed = root.commit(Instant.now());
 
     assertThat(
         committed.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(array)));
@@ -77,7 +77,7 @@ public class ImmutabilityCheckingBundleFactoryTest {
 
   @Test
   public void noMutationKeyedBundleSucceeds() {
-    UncommittedBundle<byte[]> keyed =
+    UncommittedBundle<byte[], PCollection<byte[]>> keyed =
         factory.createKeyedBundle(StructuralKey.of("mykey", StringUtf8Coder.of()), transformed);
 
     WindowedValue<byte[]> windowedArray =
@@ -88,13 +88,13 @@ public class ImmutabilityCheckingBundleFactoryTest {
             PaneInfo.ON_TIME_AND_ONLY_FIRING);
     keyed.add(windowedArray);
 
-    CommittedBundle<byte[]> committed = keyed.commit(Instant.now());
+    CommittedBundle<byte[], PCollection<byte[]>> committed = keyed.commit(Instant.now());
     assertThat(committed.getElements(), containsInAnyOrder(windowedArray));
   }
 
   @Test
   public void noMutationCreateBundleSucceeds() {
-    UncommittedBundle<byte[]> intermediate = factory.createBundle(transformed);
+    UncommittedBundle<byte[], PCollection<byte[]>> intermediate = factory.createBundle(transformed);
 
     WindowedValue<byte[]> windowedArray =
         WindowedValue.of(
@@ -104,13 +104,13 @@ public class ImmutabilityCheckingBundleFactoryTest {
             PaneInfo.ON_TIME_AND_ONLY_FIRING);
     intermediate.add(windowedArray);
 
-    CommittedBundle<byte[]> committed = intermediate.commit(Instant.now());
+    CommittedBundle<byte[], PCollection<byte[]>> committed = intermediate.commit(Instant.now());
     assertThat(committed.getElements(), containsInAnyOrder(windowedArray));
   }
 
   @Test
   public void mutationBeforeAddKeyedBundleSucceeds() {
-    UncommittedBundle<byte[]> keyed =
+    UncommittedBundle<byte[], PCollection<byte[]>> keyed =
         factory.createKeyedBundle(StructuralKey.of("mykey", StringUtf8Coder.of()), transformed);
 
     byte[] array = new byte[] {4, 8, 12};
@@ -123,13 +123,13 @@ public class ImmutabilityCheckingBundleFactoryTest {
             PaneInfo.ON_TIME_AND_ONLY_FIRING);
     keyed.add(windowedArray);
 
-    CommittedBundle<byte[]> committed = keyed.commit(Instant.now());
+    CommittedBundle<byte[], PCollection<byte[]>> committed = keyed.commit(Instant.now());
     assertThat(committed.getElements(), containsInAnyOrder(windowedArray));
   }
 
   @Test
   public void mutationBeforeAddCreateBundleSucceeds() {
-    UncommittedBundle<byte[]> intermediate = factory.createBundle(transformed);
+    UncommittedBundle<byte[], PCollection<byte[]>> intermediate = factory.createBundle(transformed);
 
     byte[] array = new byte[] {4, 8, 12};
     WindowedValue<byte[]> windowedArray =
@@ -141,13 +141,13 @@ public class ImmutabilityCheckingBundleFactoryTest {
     array[2] = -3;
     intermediate.add(windowedArray);
 
-    CommittedBundle<byte[]> committed = intermediate.commit(Instant.now());
+    CommittedBundle<byte[], PCollection<byte[]>> committed = intermediate.commit(Instant.now());
     assertThat(committed.getElements(), containsInAnyOrder(windowedArray));
   }
 
   @Test
   public void mutationAfterAddKeyedBundleThrows() {
-    UncommittedBundle<byte[]> keyed =
+    UncommittedBundle<byte[], PCollection<byte[]>> keyed =
         factory.createKeyedBundle(StructuralKey.of("mykey", StringUtf8Coder.of()), transformed);
 
     byte[] array = new byte[] {4, 8, 12};
@@ -167,7 +167,7 @@ public class ImmutabilityCheckingBundleFactoryTest {
 
   @Test
   public void mutationAfterAddCreateBundleThrows() {
-    UncommittedBundle<byte[]> intermediate = factory.createBundle(transformed);
+    UncommittedBundle<byte[], PCollection<byte[]>> intermediate = factory.createBundle(transformed);
 
     byte[] array = new byte[] {4, 8, 12};
     WindowedValue<byte[]> windowedArray =

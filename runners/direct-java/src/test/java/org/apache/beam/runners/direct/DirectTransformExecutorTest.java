@@ -177,7 +177,7 @@ public class DirectTransformExecutorTest {
     WindowedValue<String> foo = WindowedValue.valueInGlobalWindow("foo");
     WindowedValue<String> spam = WindowedValue.valueInGlobalWindow("spam");
     WindowedValue<String> third = WindowedValue.valueInGlobalWindow("third");
-    CommittedBundle<String> inputBundle =
+    CommittedBundle<String, PCollection<String>> inputBundle =
         bundleFactory.createBundle(created).add(foo).add(spam).add(third).commit(Instant.now());
     when(registry.<String>forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
 
@@ -219,7 +219,7 @@ public class DirectTransformExecutorTest {
         };
 
     WindowedValue<String> foo = WindowedValue.valueInGlobalWindow("foo");
-    CommittedBundle<String> inputBundle =
+    CommittedBundle<String, PCollection<String>> inputBundle =
         bundleFactory.createBundle(created).add(foo).commit(Instant.now());
     when(registry.<String>forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
 
@@ -254,7 +254,7 @@ public class DirectTransformExecutorTest {
           }
         };
 
-    CommittedBundle<String> inputBundle = bundleFactory.createBundle(created).commit(Instant.now());
+    CommittedBundle<String, PCollection<String>> inputBundle = bundleFactory.createBundle(created).commit(Instant.now());
     when(registry.<String>forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
 
     DirectTransformExecutor<String> executor =
@@ -292,7 +292,7 @@ public class DirectTransformExecutorTest {
 
     WindowedValue<String> fooElem = WindowedValue.valueInGlobalWindow("foo");
     WindowedValue<String> barElem = WindowedValue.valueInGlobalWindow("bar");
-    CommittedBundle<String> inputBundle =
+    CommittedBundle<String, PCollection<String>> inputBundle =
         bundleFactory.createBundle(created).add(fooElem).add(barElem).commit(Instant.now());
     when(registry.forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
 
@@ -331,7 +331,7 @@ public class DirectTransformExecutorTest {
         };
 
     WindowedValue<String> fooBytes = WindowedValue.valueInGlobalWindow("foo");
-    CommittedBundle<String> inputBundle =
+    CommittedBundle<String, PCollection<String>> inputBundle =
         bundleFactory.createBundle(created).add(fooBytes).commit(Instant.now());
     when(registry.forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
 
@@ -370,7 +370,7 @@ public class DirectTransformExecutorTest {
         };
 
     WindowedValue<String> fooBytes = WindowedValue.valueInGlobalWindow("foo");
-    CommittedBundle<String> inputBundle =
+    CommittedBundle<String, PCollection<String>> inputBundle =
         bundleFactory.createBundle(created).add(fooBytes).commit(Instant.now());
     when(registry.forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
 
@@ -403,7 +403,7 @@ public class DirectTransformExecutorTest {
     }
 
     @Override
-    public CommittedResult handleResult(CommittedBundle<?> inputBundle, TransformResult<?> result) {
+    public CommittedResult handleResult(CommittedBundle<?, PCollection<?>> inputBundle, TransformResult<?> result) {
       handledResult = result;
       onMethod.countDown();
       @SuppressWarnings("rawtypes")
@@ -412,12 +412,12 @@ public class DirectTransformExecutorTest {
               ? Collections.emptyList()
               : result.getUnprocessedElements();
 
-      Optional<? extends CommittedBundle<?>> unprocessedBundle;
+      Optional<? extends CommittedBundle<?, PCollection<?>>> unprocessedBundle;
       if (inputBundle == null || Iterables.isEmpty(unprocessedElements)) {
         unprocessedBundle = Optional.absent();
       } else {
         unprocessedBundle =
-            Optional.<CommittedBundle<?>>of(inputBundle.withElements(unprocessedElements));
+            Optional.<CommittedBundle<?, PCollection<?>>>of(inputBundle.withElements(unprocessedElements));
       }
       return CommittedResult.create(
           result, unprocessedBundle, Collections.emptyList(), EnumSet.noneOf(OutputType.class));
@@ -430,7 +430,7 @@ public class DirectTransformExecutorTest {
     }
 
     @Override
-    public void handleException(CommittedBundle<?> inputBundle, Exception e) {
+    public void handleException(CommittedBundle<?, PCollection<?>> inputBundle, Exception e) {
       handledException = e;
       onMethod.countDown();
     }
@@ -446,7 +446,7 @@ public class DirectTransformExecutorTest {
 
     @Override
     public <T> TestEnforcement<T> forBundle(
-        CommittedBundle<T> input, AppliedPTransform<?, ?, ?> consumer) {
+        CommittedBundle<T, PCollection<T>> input, AppliedPTransform<?, ?, ?> consumer) {
       TestEnforcement<T> newEnforcement = new TestEnforcement<>();
       instance = newEnforcement;
       return newEnforcement;
@@ -470,9 +470,9 @@ public class DirectTransformExecutorTest {
 
     @Override
     public void afterFinish(
-        CommittedBundle<T> input,
+        CommittedBundle<T, PCollection<T>> input,
         TransformResult<T> result,
-        Iterable<? extends CommittedBundle<?>> outputs) {
+        Iterable<? extends CommittedBundle<?, PCollection<?>>> outputs) {
       finishedBundles.add(result);
     }
   }
@@ -493,7 +493,7 @@ public class DirectTransformExecutorTest {
 
     @Override
     public <T> ModelEnforcement<T> forBundle(
-        CommittedBundle<T> input, AppliedPTransform<?, ?, ?> consumer) {
+        CommittedBundle<T, PCollection<T>> input, AppliedPTransform<?, ?, ?> consumer) {
       if (when == When.BEFORE_BUNDLE) {
         throw new RuntimeException("forBundle");
       }
@@ -517,9 +517,9 @@ public class DirectTransformExecutorTest {
 
       @Override
       public void afterFinish(
-          CommittedBundle<T> input,
+          CommittedBundle<T, PCollection<T>> input,
           TransformResult<T> result,
-          Iterable<? extends CommittedBundle<?>> outputs) {
+          Iterable<? extends CommittedBundle<?, PCollection<?>>> outputs) {
         if (when == When.AFTER_BUNDLE) {
           throw new RuntimeException("afterFinish");
         }

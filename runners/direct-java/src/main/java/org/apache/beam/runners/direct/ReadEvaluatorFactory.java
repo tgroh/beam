@@ -45,7 +45,7 @@ final class ReadEvaluatorFactory implements TransformEvaluatorFactory {
   @Nullable
   @Override
   public <InputT> TransformEvaluator<InputT> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) throws Exception {
+      AppliedPTransform<?, ?, ?> application, CommittedBundle<?, PCollection<?>> inputBundle) throws Exception {
     switch (ReadTranslation.sourceIsBounded(application)) {
       case BOUNDED:
         return boundedFactory.forApplication(application, inputBundle);
@@ -79,7 +79,7 @@ final class ReadEvaluatorFactory implements TransformEvaluatorFactory {
     }
 
     @Override
-    public Collection<CommittedBundle<SourceShard<T>>> getInitialInputs(
+    public Collection<CommittedBundle<SourceShard<T>, PCollection<SourceShard<T>>>> getInitialInputs(
         AppliedPTransform<PBegin, PCollection<T>, PTransform<PBegin, PCollection<T>>>
             appliedTransform,
         int targetParallelism)

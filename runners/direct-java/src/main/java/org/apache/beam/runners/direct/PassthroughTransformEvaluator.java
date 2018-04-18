@@ -19,18 +19,19 @@ package org.apache.beam.runners.direct;
 
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.PCollection;
 
 class PassthroughTransformEvaluator<InputT> implements TransformEvaluator<InputT> {
   public static <InputT> PassthroughTransformEvaluator<InputT> create(
-      AppliedPTransform<?, ?, ?> transform, UncommittedBundle<InputT> output) {
+      AppliedPTransform<?, ?, ?> transform, UncommittedBundle<InputT, PCollection<InputT>> output) {
     return new PassthroughTransformEvaluator<>(transform, output);
   }
 
   private final AppliedPTransform<?, ?, ?> transform;
-  private final UncommittedBundle<InputT> output;
+  private final UncommittedBundle<InputT, PCollection<InputT>> output;
 
   private PassthroughTransformEvaluator(
-      AppliedPTransform<?, ?, ?> transform, UncommittedBundle<InputT> output) {
+      AppliedPTransform<?, ?, ?> transform, UncommittedBundle<InputT, PCollection<InputT>> output) {
     this.transform = transform;
     this.output = output;
   }

@@ -44,7 +44,7 @@ class WindowEvaluatorFactory implements TransformEvaluatorFactory {
   @Override
   public <InputT> TransformEvaluator<InputT> forApplication(
       AppliedPTransform<?, ?, ?> application,
-      @Nullable CommittedBundle<?> inputBundle
+      @Nullable CommittedBundle<?, PCollection<?>> inputBundle
  )
       throws Exception {
     return createTransformEvaluator((AppliedPTransform) application);
@@ -56,7 +56,7 @@ class WindowEvaluatorFactory implements TransformEvaluatorFactory {
 
     WindowFn<? super InputT, ?> fn = (WindowFn) WindowIntoTranslation.getWindowFn(transform);
 
-    UncommittedBundle<InputT> outputBundle =
+    UncommittedBundle<InputT, PCollection<InputT>> outputBundle =
         evaluationContext.createBundle(
             (PCollection<InputT>) Iterables.getOnlyElement(transform.getOutputs().values()));
     if (fn == null) {
@@ -72,14 +72,14 @@ class WindowEvaluatorFactory implements TransformEvaluatorFactory {
     private final AppliedPTransform<PCollection<InputT>, PCollection<InputT>, Window.Assign<InputT>>
         transform;
     private final WindowFn<InputT, ?> windowFn;
-    private final UncommittedBundle<InputT> outputBundle;
+    private final UncommittedBundle<InputT, PCollection<InputT>> outputBundle;
 
     @SuppressWarnings("unchecked")
     public WindowIntoEvaluator(
         AppliedPTransform<PCollection<InputT>, PCollection<InputT>, Window.Assign<InputT>>
             transform,
         WindowFn<? super InputT, ?> windowFn,
-        UncommittedBundle<InputT> outputBundle) {
+        UncommittedBundle<InputT, PCollection<InputT>> outputBundle) {
       this.outputBundle = outputBundle;
       this.transform = transform;
       // Safe contravariant cast

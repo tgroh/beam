@@ -56,13 +56,13 @@ public class FlattenEvaluatorFactoryTest {
 
     PCollection<Integer> flattened = list.apply(Flatten.pCollections());
 
-    CommittedBundle<Integer> leftBundle = bundleFactory.createBundle(left).commit(Instant.now());
-    CommittedBundle<Integer> rightBundle = bundleFactory.createBundle(right).commit(Instant.now());
+    CommittedBundle<Integer, PCollection<Integer>> leftBundle = bundleFactory.createBundle(left).commit(Instant.now());
+    CommittedBundle<Integer, PCollection<Integer>> rightBundle = bundleFactory.createBundle(right).commit(Instant.now());
 
     EvaluationContext context = mock(EvaluationContext.class);
 
-    UncommittedBundle<Integer> flattenedLeftBundle = bundleFactory.createBundle(flattened);
-    UncommittedBundle<Integer> flattenedRightBundle = bundleFactory.createBundle(flattened);
+    UncommittedBundle<Integer, PCollection<Integer>> flattenedLeftBundle = bundleFactory.createBundle(flattened);
+    UncommittedBundle<Integer, PCollection<Integer>> flattenedRightBundle = bundleFactory.createBundle(flattened);
 
     when(context.createBundle(flattened)).thenReturn(flattenedLeftBundle, flattenedRightBundle);
 
@@ -129,7 +129,7 @@ public class FlattenEvaluatorFactoryTest {
 
     TransformResult<Integer> leftSideResult = emptyEvaluator.finishBundle();
 
-    CommittedBundle<?> outputBundle =
+    CommittedBundle<?, PCollection<?>> outputBundle =
         Iterables.getOnlyElement(leftSideResult.getOutputBundles()).commit(Instant.now());
     assertThat(outputBundle.getElements(), emptyIterable());
     assertThat(

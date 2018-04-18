@@ -89,7 +89,7 @@ public class StatefulParDoEvaluatorFactoryTest implements Serializable {
   @Mock private transient DirectExecutionContext mockExecutionContext;
   @Mock private transient DirectExecutionContext.DirectStepContext mockStepContext;
   @Mock private transient ReadyCheckingSideInputReader mockSideInputReader;
-  @Mock private transient UncommittedBundle<Integer> mockUncommittedBundle;
+  @Mock private transient UncommittedBundle<Integer, PCollection<Integer>> mockUncommittedBundle;
 
   private static final String KEY = "any-key";
   private final transient PipelineOptions options = PipelineOptionsFactory.create();
@@ -176,7 +176,7 @@ public class StatefulParDoEvaluatorFactoryTest implements Serializable {
     // A single bundle with some elements in the global window; it should register cleanup for the
     // global window state merely by having the evaluator created. The cleanup logic does not
     // depend on the window.
-    CommittedBundle<KV<String, Integer>> inputBundle =
+    CommittedBundle<KV<String, Integer>, PCollection<KV<String, Integer>>> inputBundle =
         BUNDLE_FACTORY
             .createBundle(input)
             .add(
@@ -291,7 +291,7 @@ public class StatefulParDoEvaluatorFactoryTest implements Serializable {
                     firstKv.withValue(KV.of(key, 13)),
                     firstKv.withValue(KV.of(key, 15)))));
 
-    CommittedBundle<KeyedWorkItem<String, KV<String, Integer>>> inputBundle =
+    CommittedBundle<KeyedWorkItem<String, KV<String, Integer>>, PCollection<KeyedWorkItem<String, KV<String, Integer>>>> inputBundle =
         BUNDLE_FACTORY
             .createBundle(
                 (PCollection<KeyedWorkItem<String, KV<String, Integer>>>)

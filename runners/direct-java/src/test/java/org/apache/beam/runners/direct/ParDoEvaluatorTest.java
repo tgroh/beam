@@ -96,7 +96,7 @@ public class ParDoEvaluatorTest {
     RecorderFn fn = new RecorderFn(singletonView);
     PCollection<Integer> output = inputPc.apply(ParDo.of(fn).withSideInputs(singletonView));
 
-    UncommittedBundle<Integer> outputBundle = bundleFactory.createBundle(output);
+    UncommittedBundle<Integer, PCollection<Integer>> outputBundle = bundleFactory.createBundle(output);
     when(evaluationContext.createBundle(output)).thenReturn(outputBundle);
 
     ParDoEvaluator<Integer> evaluator =

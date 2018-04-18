@@ -90,7 +90,7 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
   @Override
   @Nullable
   public <InputT> TransformEvaluator<InputT> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) throws IOException {
+      AppliedPTransform<?, ?, ?> application, CommittedBundle<?, PCollection<?>> inputBundle) throws IOException {
     return createEvaluator((AppliedPTransform) application);
   }
 
@@ -146,7 +146,7 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
       try (final BoundedReader<OutputT> reader = source.createReader(options)) {
         boolean contentsRemaining = reader.start();
         Future<BoundedSource<OutputT>> residualFuture = startDynamicSplitThread(source, reader);
-        UncommittedBundle<OutputT> output = evaluationContext.createBundle(outputPCollection);
+        UncommittedBundle<OutputT, PCollection<OutputT>> output = evaluationContext.createBundle(outputPCollection);
         while (contentsRemaining) {
           output.add(
               WindowedValue.timestampedValueInGlobalWindow(
@@ -204,7 +204,7 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
     }
 
     @Override
-    public Collection<CommittedBundle<BoundedSourceShard<T>>> getInitialInputs(
+    public Collection<CommittedBundle<BoundedSourceShard<T>, PCollection<BoundedSourceShard<T>>>> getInitialInputs(
         AppliedPTransform<PBegin, PCollection<T>, PTransform<PBegin, PCollection<T>>> transform,
         int targetParallelism)
         throws Exception {
@@ -212,10 +212,10 @@ final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
       long estimatedBytes = source.getEstimatedSizeBytes(options);
       long bytesPerBundle = estimatedBytes / targetParallelism;
       List<? extends BoundedSource<T>> bundles = source.split(bytesPerBundle, options);
-      ImmutableList.Builder<CommittedBundle<BoundedSourceShard<T>>> shards =
+      ImmutableList.Builder<CommittedBundle<BoundedSourceShard<T>, PCollection<BoundedSourceShard<T>>>> shards =
           ImmutableList.builder();
       for (BoundedSource<T> bundle : bundles) {
-        CommittedBundle<BoundedSourceShard<T>> inputShard =
+        CommittedBundle<BoundedSourceShard<T>, PCollection<BoundedSourceShard<T>>> inputShard =
             evaluationContext
                 .<BoundedSourceShard<T>>createRootBundle()
                 .add(WindowedValue.valueInGlobalWindow(BoundedSourceShard.of(bundle)))

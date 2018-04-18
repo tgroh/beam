@@ -69,7 +69,7 @@ public class CloningBundleFactoryTest {
   public void rootBundleSucceedsIgnoresCoder() {
     WindowedValue<Record> one = WindowedValue.valueInGlobalWindow(new Record());
     WindowedValue<Record> two = WindowedValue.valueInGlobalWindow(new Record());
-    CommittedBundle<Record> root =
+    CommittedBundle<Record, PCollection<Record>> root =
         factory.<Record>createRootBundle().add(one).add(two).commit(Instant.now());
 
     assertThat(root.getElements(), containsInAnyOrder(one, two));
@@ -85,7 +85,7 @@ public class CloningBundleFactoryTest {
     WindowedValue<KV<String, Integer>> fooOne = WindowedValue.valueInGlobalWindow(KV.of("foo", 1));
     WindowedValue<KV<String, Integer>> fooThree =
         WindowedValue.valueInGlobalWindow(KV.of("foo", 3));
-    CommittedBundle<KV<String, Integer>> bundle =
+    CommittedBundle<KV<String, Integer>, PCollection<KV<String, Integer>>> bundle =
         factory.createBundle(kvs).add(fooOne).add(fooThree).commit(Instant.now());
 
     assertThat(bundle.getElements(), containsInAnyOrder(fooOne, fooThree));
@@ -111,7 +111,7 @@ public class CloningBundleFactoryTest {
     WindowedValue<KV<String, Iterable<Integer>>> foos =
         WindowedValue.valueInGlobalWindow(
             KV.<String, Iterable<Integer>>of("foo", ImmutableList.of(1, 3)));
-    CommittedBundle<KV<String, Iterable<Integer>>> keyedBundle =
+    CommittedBundle<KV<String, Iterable<Integer>>, PCollection<KV<String, Iterable<Integer>>>> keyedBundle =
         factory
             .createKeyedBundle(StructuralKey.of("foo", StringUtf8Coder.of()), keyed)
             .add(foos)
@@ -129,7 +129,7 @@ public class CloningBundleFactoryTest {
   @Test
   public void bundleEncodeFailsAddFails() {
     PCollection<Record> pc = p.apply(Create.empty(new RecordNoEncodeCoder()));
-    UncommittedBundle<Record> bundle = factory.createBundle(pc);
+    UncommittedBundle<Record, PCollection<Record>> bundle = factory.createBundle(pc);
 
     thrown.expect(UserCodeException.class);
     thrown.expectCause(isA(CoderException.class));
@@ -140,7 +140,7 @@ public class CloningBundleFactoryTest {
   @Test
   public void bundleDecodeFailsAddFails() {
     PCollection<Record> pc = p.apply(Create.empty(new RecordNoDecodeCoder()));
-    UncommittedBundle<Record> bundle = factory.createBundle(pc);
+    UncommittedBundle<Record, PCollection<Record>> bundle = factory.createBundle(pc);
 
     thrown.expect(UserCodeException.class);
     thrown.expectCause(isA(CoderException.class));
@@ -151,7 +151,7 @@ public class CloningBundleFactoryTest {
   @Test
   public void keyedBundleEncodeFailsAddFails() {
     PCollection<Record> pc = p.apply(Create.empty(new RecordNoEncodeCoder()));
-    UncommittedBundle<Record> bundle =
+    UncommittedBundle<Record, PCollection<Record>> bundle =
         factory.createKeyedBundle(StructuralKey.of("foo", StringUtf8Coder.of()), pc);
 
     thrown.expect(UserCodeException.class);
@@ -163,7 +163,7 @@ public class CloningBundleFactoryTest {
   @Test
   public void keyedBundleDecodeFailsAddFails() {
     PCollection<Record> pc = p.apply(Create.empty(new RecordNoDecodeCoder()));
-    UncommittedBundle<Record> bundle =
+    UncommittedBundle<Record, PCollection<Record>> bundle =
         factory.createKeyedBundle(StructuralKey.of("foo", StringUtf8Coder.of()), pc);
 
     thrown.expect(UserCodeException.class);

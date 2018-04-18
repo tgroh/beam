@@ -377,7 +377,7 @@ public class EvaluationContextTest {
   @Test
   public void createKeyedBundleKeyed() {
     StructuralKey<String> key = StructuralKey.of("foo", StringUtf8Coder.of());
-    CommittedBundle<KV<String, Integer>> keyedBundle =
+    CommittedBundle<KV<String, Integer>, PCollection<KV<String, Integer>>> keyedBundle =
         context.createKeyedBundle(
             key,
             downstream).commit(Instant.now());
@@ -398,7 +398,7 @@ public class EvaluationContextTest {
   public void isDoneWithPartiallyDone() {
     assertThat(context.isDone(), is(false));
 
-    UncommittedBundle<Integer> rootBundle = context.createBundle(created);
+    UncommittedBundle<Integer, PCollection<Integer>> rootBundle = context.createBundle(created);
     rootBundle.add(WindowedValue.valueInGlobalWindow(1));
     CommittedResult handleResult =
         context.handleResult(
@@ -408,8 +408,8 @@ public class EvaluationContextTest {
                 .addOutput(rootBundle)
                 .build());
     @SuppressWarnings("unchecked")
-    CommittedBundle<Integer> committedBundle =
-        (CommittedBundle<Integer>) Iterables.getOnlyElement(handleResult.getOutputs());
+    CommittedBundle<Integer, PCollection<Integer>> committedBundle =
+        (CommittedBundle<Integer, PCollection<Integer>>) Iterables.getOnlyElement(handleResult.getOutputs());
     context.handleResult(
         null, ImmutableList.of(), StepTransformResult.withoutHold(unboundedProducer).build());
     assertThat(context.isDone(), is(false));

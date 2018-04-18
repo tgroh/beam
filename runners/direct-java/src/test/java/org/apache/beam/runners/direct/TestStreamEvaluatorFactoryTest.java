@@ -85,12 +85,12 @@ public class TestStreamEvaluatorFactoryTest {
         .thenReturn(bundleFactory.createBundle(streamVals), bundleFactory.createBundle(streamVals));
 
     AppliedPTransform<?, ?, ?> streamProducer = DirectGraphs.getProducer(streamVals);
-    Collection<CommittedBundle<?>> initialInputs =
+    Collection<CommittedBundle<?, PCollection<?>>> initialInputs =
         new TestStreamEvaluatorFactory.InputProvider(context)
             .getInitialInputs(streamProducer, 1);
     @SuppressWarnings("unchecked")
-    CommittedBundle<TestStreamIndex<Integer>> initialBundle =
-        (CommittedBundle<TestStreamIndex<Integer>>) Iterables.getOnlyElement(initialInputs);
+    CommittedBundle<TestStreamIndex<Integer>, PCollection<TestStreamIndex<Integer>>> initialBundle =
+        (CommittedBundle<TestStreamIndex<Integer>, PCollection<TestStreamIndex<Integer>>>) Iterables.getOnlyElement(initialInputs);
 
     TransformEvaluator<TestStreamIndex<Integer>> firstEvaluator =
         factory.forApplication(streamProducer, initialBundle);
@@ -103,7 +103,7 @@ public class TestStreamEvaluatorFactoryTest {
     assertThat(firstResidual.getValue().getIndex(), equalTo(1));
     assertThat(firstResidual.getTimestamp(), equalTo(BoundedWindow.TIMESTAMP_MIN_VALUE));
 
-    CommittedBundle<TestStreamIndex<Integer>> secondBundle =
+    CommittedBundle<TestStreamIndex<Integer>, PCollection<TestStreamIndex<Integer>>> secondBundle =
         initialBundle.withElements(Collections.singleton(firstResidual));
     TransformEvaluator<TestStreamIndex<Integer>> secondEvaluator =
         factory.forApplication(streamProducer, secondBundle);
@@ -116,7 +116,7 @@ public class TestStreamEvaluatorFactoryTest {
     assertThat(secondResidual.getValue().getIndex(), equalTo(2));
     assertThat(secondResidual.getTimestamp(), equalTo(new Instant(0)));
 
-    CommittedBundle<TestStreamIndex<Integer>> thirdBundle =
+    CommittedBundle<TestStreamIndex<Integer>, PCollection<TestStreamIndex<Integer>>> thirdBundle =
         secondBundle.withElements(Collections.singleton(secondResidual));
     TransformEvaluator<TestStreamIndex<Integer>> thirdEvaluator =
         factory.forApplication(streamProducer, thirdBundle);
@@ -130,7 +130,7 @@ public class TestStreamEvaluatorFactoryTest {
     assertThat(thirdResidual.getTimestamp(), equalTo(new Instant(0)));
 
     Instant start = clock.now();
-    CommittedBundle<TestStreamIndex<Integer>> fourthBundle =
+    CommittedBundle<TestStreamIndex<Integer>, PCollection<TestStreamIndex<Integer>>> fourthBundle =
         thirdBundle.withElements(Collections.singleton(thirdResidual));
     TransformEvaluator<TestStreamIndex<Integer>> fourthEvaluator =
         factory.forApplication(streamProducer, fourthBundle);
@@ -144,7 +144,7 @@ public class TestStreamEvaluatorFactoryTest {
     assertThat(fourthResidual.getValue().getIndex(), equalTo(4));
     assertThat(fourthResidual.getTimestamp(), equalTo(new Instant(0)));
 
-    CommittedBundle<TestStreamIndex<Integer>> fifthBundle =
+    CommittedBundle<TestStreamIndex<Integer>, PCollection<TestStreamIndex<Integer>>> fifthBundle =
         thirdBundle.withElements(Collections.singleton(fourthResidual));
     TransformEvaluator<TestStreamIndex<Integer>> fifthEvaluator =
         factory.forApplication(streamProducer, fifthBundle);

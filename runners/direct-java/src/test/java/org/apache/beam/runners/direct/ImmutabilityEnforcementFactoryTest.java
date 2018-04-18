@@ -72,7 +72,7 @@ public class ImmutabilityEnforcementFactoryTest implements Serializable {
   @Test
   public void unchangedSucceeds() {
     WindowedValue<byte[]> element = WindowedValue.valueInGlobalWindow("bar".getBytes());
-    CommittedBundle<byte[]> elements =
+    CommittedBundle<byte[], PCollection<byte[]>> elements =
         bundleFactory.createBundle(pcollection).add(element).commit(Instant.now());
 
     ModelEnforcement<byte[]> enforcement = factory.forBundle(elements, consumer);
@@ -87,7 +87,7 @@ public class ImmutabilityEnforcementFactoryTest implements Serializable {
   @Test
   public void mutatedDuringProcessElementThrows() {
     WindowedValue<byte[]> element = WindowedValue.valueInGlobalWindow("bar".getBytes());
-    CommittedBundle<byte[]> elements =
+    CommittedBundle<byte[], PCollection<byte[]>> elements =
         bundleFactory.createBundle(pcollection).add(element).commit(Instant.now());
 
     ModelEnforcement<byte[]> enforcement = factory.forBundle(elements, consumer);
@@ -108,7 +108,7 @@ public class ImmutabilityEnforcementFactoryTest implements Serializable {
   public void mutatedAfterProcessElementFails() {
 
     WindowedValue<byte[]> element = WindowedValue.valueInGlobalWindow("bar".getBytes());
-    CommittedBundle<byte[]> elements =
+    CommittedBundle<byte[], PCollection<byte[]>> elements =
         bundleFactory.createBundle(pcollection).add(element).commit(Instant.now());
 
     ModelEnforcement<byte[]> enforcement = factory.forBundle(elements, consumer);

@@ -31,6 +31,7 @@ import org.apache.beam.runners.core.metrics.MetricsContainerImpl;
 import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.PCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,7 +43,8 @@ import org.slf4j.LoggerFactory;
 class DirectTransformExecutor<T> implements TransformExecutor {
   private static final Logger LOG = LoggerFactory.getLogger(DirectTransformExecutor.class);
 
-  static class Factory implements TransformExecutorFactory {
+  static class Factory
+      implements TransformExecutorFactory<AppliedPTransform<?, ?, ?>, PCollection<?>> {
     private final EvaluationContext context;
     private final TransformEvaluatorRegistry registry;
     private final Map<String, Collection<ModelEnforcementFactory>> transformEnforcements;
@@ -58,7 +60,7 @@ class DirectTransformExecutor<T> implements TransformExecutor {
 
     @Override
     public TransformExecutor create(
-        CommittedBundle<?> bundle,
+        CommittedBundle<?, ? extends PCollection<?>> bundle,
         AppliedPTransform<?, ?, ?> transform,
         CompletionCallback onComplete,
         TransformExecutorService executorService) {
@@ -68,7 +70,13 @@ class DirectTransformExecutor<T> implements TransformExecutor {
                   PTransformTranslation.urnForTransform(transform.getTransform())),
               Collections.<ModelEnforcementFactory>emptyList());
       return new DirectTransformExecutor<>(
-          context, registry, enforcements, bundle, transform, onComplete, executorService);
+          context,
+          registry,
+          enforcements,
+          (CommittedBundle) bundle,
+          transform,
+          onComplete,
+          executorService);
     }
   }
 
@@ -78,7 +86,7 @@ class DirectTransformExecutor<T> implements TransformExecutor {
   /** The transform that will be evaluated. */
   private final AppliedPTransform<?, ?, ?> transform;
   /** The inputs this {@link DirectTransformExecutor} will deliver to the transform. */
-  private final CommittedBundle<T> inputBundle;
+  private final CommittedBundle<T, ? extends PCollection<T>> inputBundle;
 
   private final CompletionCallback onComplete;
   private final TransformExecutorService transformEvaluationState;
@@ -89,7 +97,7 @@ class DirectTransformExecutor<T> implements TransformExecutor {
       EvaluationContext context,
       TransformEvaluatorFactory factory,
       Iterable<? extends ModelEnforcementFactory> modelEnforcements,
-      CommittedBundle<T> inputBundle,
+      CommittedBundle<T, ? extends PCollection<T>> inputBundle,
       AppliedPTransform<?, ?, ?> transform,
       CompletionCallback completionCallback,
       TransformExecutorService transformEvaluationState) {

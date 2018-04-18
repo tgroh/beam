@@ -41,7 +41,7 @@ class ImpulseEvaluatorFactory implements TransformEvaluatorFactory {
   @Nullable
   @Override
   public <InputT> TransformEvaluator<InputT> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) {
+      AppliedPTransform<?, ?, ?> application, CommittedBundle<?, PCollection<?>> inputBundle) {
     return (TransformEvaluator<InputT>) new ImpulseEvaluator(ctxt, (AppliedPTransform) application);
   }
 
@@ -88,7 +88,7 @@ class ImpulseEvaluatorFactory implements TransformEvaluatorFactory {
     }
 
     @Override
-    public Collection<CommittedBundle<ImpulseShard>> getInitialInputs(
+    public Collection<CommittedBundle<ImpulseShard, PCollection<ImpulseShard>>> getInitialInputs(
         AppliedPTransform<PBegin, PCollection<byte[]>, PTransform<PBegin, PCollection<byte[]>>>
             transform,
         int targetParallelism) {

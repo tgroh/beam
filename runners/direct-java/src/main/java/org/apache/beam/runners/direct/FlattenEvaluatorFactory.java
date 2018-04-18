@@ -39,7 +39,7 @@ class FlattenEvaluatorFactory implements TransformEvaluatorFactory {
 
   @Override
   public <InputT> TransformEvaluator<InputT> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) {
+      AppliedPTransform<?, ?, ?> application, CommittedBundle<?, PCollection<?>> inputBundle) {
     @SuppressWarnings({"cast", "unchecked", "rawtypes"})
     TransformEvaluator<InputT> evaluator =
         (TransformEvaluator<InputT>) createInMemoryEvaluator((AppliedPTransform) application);
@@ -53,7 +53,7 @@ class FlattenEvaluatorFactory implements TransformEvaluatorFactory {
       final AppliedPTransform<
               PCollectionList<InputT>, PCollection<InputT>, PCollections<InputT>>
           application) {
-    final UncommittedBundle<InputT> outputBundle =
+    final UncommittedBundle<InputT, PCollection<InputT>> outputBundle =
         evaluationContext.createBundle(
             (PCollection<InputT>) Iterables.getOnlyElement(application.getOutputs().values()));
     final TransformResult<InputT> result =
@@ -62,11 +62,11 @@ class FlattenEvaluatorFactory implements TransformEvaluatorFactory {
   }
 
   private static class FlattenEvaluator<InputT> implements TransformEvaluator<InputT> {
-    private final UncommittedBundle<InputT> outputBundle;
+    private final UncommittedBundle<InputT, PCollection<InputT>> outputBundle;
     private final TransformResult<InputT> result;
 
     public FlattenEvaluator(
-        UncommittedBundle<InputT> outputBundle, TransformResult<InputT> result) {
+        UncommittedBundle<InputT, PCollection<InputT>> outputBundle, TransformResult<InputT> result) {
       this.outputBundle = outputBundle;
       this.result = result;
     }

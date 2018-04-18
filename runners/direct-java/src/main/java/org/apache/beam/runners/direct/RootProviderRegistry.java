@@ -29,6 +29,7 @@ import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.PTransform;
+import org.apache.beam.sdk.values.PCollection;
 
 /**
  * A {@link RootInputProvider} that delegates to primitive {@link RootInputProvider} implementations
@@ -56,7 +57,7 @@ class RootProviderRegistry {
     this.providers = providers;
   }
 
-  public Collection<CommittedBundle<?>> getInitialInputs(
+  public Collection<CommittedBundle<?, PCollection<?>>> getInitialInputs(
       AppliedPTransform<?, ?, ?> transform, int targetParallelism) throws Exception {
     String transformUrn = PTransformTranslation.urnForTransform(transform.getTransform());
     RootInputProvider provider =

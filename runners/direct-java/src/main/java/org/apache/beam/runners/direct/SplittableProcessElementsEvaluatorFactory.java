@@ -92,7 +92,7 @@ class SplittableProcessElementsEvaluatorFactory<
 
   @Override
   public <T> TransformEvaluator<T> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) throws Exception {
+      AppliedPTransform<?, ?, ?> application, CommittedBundle<?, PCollection<?>> inputBundle) throws Exception {
     @SuppressWarnings({"unchecked", "rawtypes"})
     TransformEvaluator<T> evaluator =
         (TransformEvaluator<T>)
@@ -112,7 +112,7 @@ class SplittableProcessElementsEvaluatorFactory<
               PCollection<KeyedWorkItem<String, KV<InputT, RestrictionT>>>, PCollectionTuple,
               ProcessElements<InputT, OutputT, RestrictionT, TrackerT>>
           application,
-      CommittedBundle<InputT> inputBundle)
+      CommittedBundle<InputT, PCollection<InputT>> inputBundle)
       throws Exception {
     final ProcessElements<InputT, OutputT, RestrictionT, TrackerT> transform =
         application.getTransform();

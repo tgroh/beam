@@ -44,17 +44,17 @@ class ImmutableListBundleFactory implements BundleFactory {
   private ImmutableListBundleFactory() {}
 
   @Override
-  public <T> UncommittedBundle<T> createRootBundle() {
+  public <T> UncommittedBundle<T, PCollection<T>> createRootBundle() {
     return UncommittedImmutableListBundle.create(null, StructuralKey.empty());
   }
 
   @Override
-  public <T> UncommittedBundle<T> createBundle(PCollection<T> output) {
+  public <T> UncommittedBundle<T, PCollection<T>> createBundle(PCollection<T> output) {
     return UncommittedImmutableListBundle.create(output, StructuralKey.empty());
   }
 
   @Override
-  public <K, T> UncommittedBundle<T> createKeyedBundle(
+  public <K, T> UncommittedBundle<T, PCollection<T>> createKeyedBundle(
       StructuralKey<K> key, PCollection<T> output) {
     return UncommittedImmutableListBundle.create(output, key);
   }
@@ -62,7 +62,7 @@ class ImmutableListBundleFactory implements BundleFactory {
   /**
    * A {@link UncommittedBundle} that buffers elements in memory.
    */
-  private static final class UncommittedImmutableListBundle<T> implements UncommittedBundle<T> {
+  private static final class UncommittedImmutableListBundle<T> implements UncommittedBundle<T, PCollection<T>> {
     private final PCollection<T> pcollection;
     private final StructuralKey<?> key;
     private boolean committed = false;
@@ -109,7 +109,7 @@ class ImmutableListBundleFactory implements BundleFactory {
     }
 
     @Override
-    public CommittedBundle<T> commit(final Instant synchronizedCompletionTime) {
+    public CommittedBundle<T, PCollection<T>> commit(final Instant synchronizedCompletionTime) {
       checkState(!committed, "Can't commit already committed bundle %s", this);
       committed = true;
       final Iterable<WindowedValue<T>> committedElements = elements.build();
@@ -119,7 +119,7 @@ class ImmutableListBundleFactory implements BundleFactory {
   }
 
   @AutoValue
-  abstract static class CommittedImmutableListBundle<T> implements CommittedBundle<T> {
+  abstract static class CommittedImmutableListBundle<T> implements CommittedBundle<T, PCollection<T>> {
     public static <T> CommittedImmutableListBundle<T> create(
         @Nullable PCollection<T> pcollection,
         StructuralKey<?> key,
@@ -137,7 +137,7 @@ class ImmutableListBundleFactory implements BundleFactory {
     }
 
     @Override
-    public CommittedBundle<T> withElements(Iterable<WindowedValue<T>> elements) {
+    public CommittedBundle<T, PCollection<T>> withElements(Iterable<WindowedValue<T>> elements) {
       return create(
           getPCollection(),
           getKey(),

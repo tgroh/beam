@@ -128,7 +128,7 @@ class ParDoEvaluator<InputT> implements TransformEvaluator<InputT> {
       EvaluationContext evaluationContext,
       StructuralKey<?> key,
       Map<TupleTag<?>, PCollection<?>> outputs) {
-    Map<TupleTag<?>, UncommittedBundle<?>> outputBundles = new HashMap<>();
+    Map<TupleTag<?>, UncommittedBundle<?, PCollection<?>>> outputBundles = new HashMap<>();
     for (Map.Entry<TupleTag<?>, PCollection<?>> outputEntry : outputs.entrySet()) {
       // Just trust the context's decision as to whether the output should be keyed.
       // The logic for whether this ParDo is key-preserving and whether the input
@@ -225,13 +225,13 @@ class ParDoEvaluator<InputT> implements TransformEvaluator<InputT> {
   }
 
   static class BundleOutputManager implements OutputManager {
-    private final Map<TupleTag<?>, UncommittedBundle<?>> bundles;
+    private final Map<TupleTag<?>, UncommittedBundle<?, PCollection<?>>> bundles;
 
-    public static BundleOutputManager create(Map<TupleTag<?>, UncommittedBundle<?>> outputBundles) {
+    public static BundleOutputManager create(Map<TupleTag<?>, UncommittedBundle<?, PCollection<?>>> outputBundles) {
       return new BundleOutputManager(outputBundles);
     }
 
-    private BundleOutputManager(Map<TupleTag<?>, UncommittedBundle<?>> bundles) {
+    private BundleOutputManager(Map<TupleTag<?>, UncommittedBundle<?, PCollection<?>>> bundles) {
       this.bundles = bundles;
     }
 

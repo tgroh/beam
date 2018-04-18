@@ -114,9 +114,9 @@ public class WindowEvaluatorFactoryTest {
     Window<Long> transform = Window.into(FixedWindows.of(windowDuration));
     PCollection<Long> windowed = input.apply(transform);
 
-    CommittedBundle<Long> inputBundle = createInputBundle();
+    CommittedBundle<Long, PCollection<Long>> inputBundle = createInputBundle();
 
-    UncommittedBundle<Long> outputBundle = createOutputBundle(windowed, inputBundle);
+    UncommittedBundle<Long, PCollection<Long>> outputBundle = createOutputBundle(windowed, inputBundle);
 
     BoundedWindow firstSecondWindow = new IntervalWindow(EPOCH, EPOCH.plus(windowDuration));
     BoundedWindow thirdWindow = new IntervalWindow(EPOCH.minus(windowDuration), EPOCH);
@@ -124,7 +124,7 @@ public class WindowEvaluatorFactoryTest {
     TransformResult<Long> result = runEvaluator(windowed, inputBundle);
 
     assertThat(Iterables.getOnlyElement(result.getOutputBundles()), Matchers.equalTo(outputBundle));
-    CommittedBundle<Long> committed = outputBundle.commit(Instant.now());
+    CommittedBundle<Long, PCollection<Long>> committed = outputBundle.commit(Instant.now());
 
     assertThat(
         committed.getElements(),
@@ -151,13 +151,13 @@ public class WindowEvaluatorFactoryTest {
     Window<Long> transform = Window.into(SlidingWindows.of(windowDuration).every(slidingBy));
     PCollection<Long> windowed = input.apply(transform);
 
-    CommittedBundle<Long> inputBundle = createInputBundle();
-    UncommittedBundle<Long> outputBundle = createOutputBundle(windowed, inputBundle);
+    CommittedBundle<Long, PCollection<Long>> inputBundle = createInputBundle();
+    UncommittedBundle<Long, PCollection<Long>> outputBundle = createOutputBundle(windowed, inputBundle);
 
     TransformResult<Long> result = runEvaluator(windowed, inputBundle);
 
     assertThat(Iterables.getOnlyElement(result.getOutputBundles()), Matchers.equalTo(outputBundle));
-    CommittedBundle<Long> committed = outputBundle.commit(Instant.now());
+    CommittedBundle<Long, PCollection<Long>> committed = outputBundle.commit(Instant.now());
 
     BoundedWindow w1 = new IntervalWindow(EPOCH, EPOCH.plus(windowDuration));
     BoundedWindow w2 =
@@ -206,13 +206,13 @@ public class WindowEvaluatorFactoryTest {
     Window<Long> transform = Window.into(new EvaluatorTestWindowFn());
     PCollection<Long> windowed = input.apply(transform);
 
-    CommittedBundle<Long> inputBundle = createInputBundle();
-    UncommittedBundle<Long> outputBundle = createOutputBundle(windowed, inputBundle);
+    CommittedBundle<Long, PCollection<Long>> inputBundle = createInputBundle();
+    UncommittedBundle<Long, PCollection<Long>> outputBundle = createOutputBundle(windowed, inputBundle);
 
     TransformResult<Long> result = runEvaluator(windowed, inputBundle);
 
     assertThat(Iterables.getOnlyElement(result.getOutputBundles()), Matchers.equalTo(outputBundle));
-    CommittedBundle<Long> committed = outputBundle.commit(Instant.now());
+    CommittedBundle<Long, PCollection<Long>> committed = outputBundle.commit(Instant.now());
 
     assertThat(
         committed.getElements(),
@@ -253,8 +253,8 @@ public class WindowEvaluatorFactoryTest {
                 valueInGlobalAndTwoIntervalWindows.getPane())));
   }
 
-  private CommittedBundle<Long> createInputBundle() {
-    CommittedBundle<Long> inputBundle =
+  private CommittedBundle<Long, PCollection<Long>> createInputBundle() {
+    CommittedBundle<Long, PCollection<Long>> inputBundle =
         bundleFactory
             .createBundle(input)
             .add(valueInGlobalWindow)
@@ -264,15 +264,15 @@ public class WindowEvaluatorFactoryTest {
     return inputBundle;
   }
 
-  private UncommittedBundle<Long> createOutputBundle(
-      PCollection<Long> output, CommittedBundle<Long> inputBundle) {
-    UncommittedBundle<Long> outputBundle = bundleFactory.createBundle(output);
+  private UncommittedBundle<Long, PCollection<Long>> createOutputBundle(
+      PCollection<Long> output, CommittedBundle<Long, PCollection<Long>> inputBundle) {
+    UncommittedBundle<Long, PCollection<Long>> outputBundle = bundleFactory.createBundle(output);
     when(evaluationContext.createBundle(output)).thenReturn(outputBundle);
     return outputBundle;
   }
 
   private TransformResult<Long> runEvaluator(
-      PCollection<Long> windowed, CommittedBundle<Long> inputBundle) throws Exception {
+      PCollection<Long> windowed, CommittedBundle<Long, PCollection<Long>> inputBundle) throws Exception {
     TransformEvaluator<Long> evaluator =
         factory.forApplication(DirectGraphs.getProducer(windowed), inputBundle);
 

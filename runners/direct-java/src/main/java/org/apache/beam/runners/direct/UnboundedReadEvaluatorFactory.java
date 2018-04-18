@@ -75,7 +75,7 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
   @Override
   @Nullable
   public <InputT> TransformEvaluator<InputT> forApplication(
-      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle) {
+      AppliedPTransform<?, ?, ?> application, CommittedBundle<?, PCollection<?>> inputBundle) {
     return createEvaluator((AppliedPTransform) application);
   }
 
@@ -122,7 +122,7 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
     @Override
     public void processElement(
         WindowedValue<UnboundedSourceShard<OutputT, CheckpointMarkT>> element) throws IOException {
-      UncommittedBundle<OutputT> output =
+      UncommittedBundle<OutputT, PCollection<OutputT>> output =
           evaluationContext.createBundle(
               (PCollection<OutputT>) getOnlyElement(transform.getOutputs().values()));
       UnboundedSourceShard<OutputT, CheckpointMarkT> shard = element.getValue();
@@ -301,7 +301,7 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
     }
 
     @Override
-    public Collection<CommittedBundle<UnboundedSourceShard<T, ?>>> getInitialInputs(
+    public Collection<CommittedBundle<UnboundedSourceShard<T, ?>, PCollection<UnboundedSourceShard<T, ?>>>> getInitialInputs(
         AppliedPTransform<PBegin, PCollection<T>, PTransform<PBegin, PCollection<T>>>
             transform,
         int targetParallelism)
@@ -314,7 +314,7 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
               ? UnboundedReadDeduplicator.CachedIdDeduplicator.create()
               : NeverDeduplicator.create();
 
-      ImmutableList.Builder<CommittedBundle<UnboundedSourceShard<T, ?>>> initialShards =
+      ImmutableList.Builder<CommittedBundle<UnboundedSourceShard<T, ?>, PCollection<UnboundedSourceShard<T, ?>>>> initialShards =
           ImmutableList.builder();
       for (UnboundedSource<T, ?> split : splits) {
         UnboundedSourceShard<T, ?> shard =

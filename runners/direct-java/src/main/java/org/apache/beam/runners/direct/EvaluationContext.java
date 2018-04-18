@@ -121,30 +121,29 @@ class EvaluationContext {
   }
 
   public void initialize(
-      Map<AppliedPTransform<?, ?, ?>, ? extends Iterable<CommittedBundle<?>>> initialInputs) {
+      Map<AppliedPTransform<?, ?, ?>, ? extends Iterable<CommittedBundle<?, PCollection<?>>>> initialInputs) {
     watermarkManager.initialize(initialInputs);
   }
 
   /**
-   * Handle the provided {@link TransformResult}, produced after evaluating the provided
-   * {@link CommittedBundle} (potentially null, if the result of a root {@link PTransform}).
+   * Handle the provided {@link TransformResult}, produced after evaluating the provided {@link
+   * CommittedBundle} (potentially null, if the result of a root {@link PTransform}).
    *
-   * <p>The result is the output of running the transform contained in the
-   * {@link TransformResult} on the contents of the provided bundle.
+   * <p>The result is the output of running the transform contained in the {@link TransformResult}
+   * on the contents of the provided bundle.
    *
-   * @param completedBundle the bundle that was processed to produce the result. Potentially
-   *                        {@code null} if the transform that produced the result is a root
-   *                        transform
+   * @param completedBundle the bundle that was processed to produce the result. Potentially {@code
+   *     null} if the transform that produced the result is a root transform
    * @param completedTimers the timers that were delivered to produce the {@code completedBundle},
-   *                        or an empty iterable if no timers were delivered
+   *     or an empty iterable if no timers were delivered
    * @param result the result of evaluating the input bundle
    * @return the committed bundles contained within the handled {@code result}
    */
-  public CommittedResult<AppliedPTransform<?, ?, ?>> handleResult(
-      @Nullable CommittedBundle<?> completedBundle,
+  public CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>> handleResult(
+      @Nullable CommittedBundle<?, ? extends PCollection<?>> completedBundle,
       Iterable<TimerData> completedTimers,
       TransformResult<?> result) {
-    Iterable<? extends CommittedBundle<?>> committedBundles =
+    Iterable<? extends CommittedBundle<?, PCollection<?>>> committedBundles =
         commitBundles(result.getOutputBundles());
     metrics.commitLogical(completedBundle, result.getLogicalMetricUpdates());
 
@@ -155,7 +154,7 @@ class EvaluationContext {
     } else {
       outputTypes.add(OutputType.BUNDLE);
     }
-    CommittedResult<AppliedPTransform<?, ?, ?>> committedResult =
+    CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>> committedResult =
         CommittedResult.create(
             result, getUnprocessedInput(completedBundle, result), committedBundles, outputTypes);
     // Update state internals
@@ -187,24 +186,25 @@ class EvaluationContext {
    * completedBundle} were processed, or if {@code completedBundle} is null, returns an absent
    * {@link Optional}.
    */
-  private Optional<? extends CommittedBundle<?>> getUnprocessedInput(
-      @Nullable CommittedBundle<?> completedBundle, TransformResult<?> result) {
+  private Optional<? extends CommittedBundle<?, ? extends PCollection<?>>> getUnprocessedInput(
+      @Nullable CommittedBundle<?, ? extends PCollection<?>> completedBundle,
+      TransformResult<?> result) {
     if (completedBundle == null || Iterables.isEmpty(result.getUnprocessedElements())) {
       return Optional.absent();
     }
-    CommittedBundle<?> residual =
+    CommittedBundle<?, PCollection<?>> residual =
         completedBundle.withElements((Iterable) result.getUnprocessedElements());
     return Optional.of(residual);
   }
 
-  private Iterable<? extends CommittedBundle<?>> commitBundles(
-      Iterable<? extends UncommittedBundle<?>> bundles) {
-    ImmutableList.Builder<CommittedBundle<?>> completed = ImmutableList.builder();
-    for (UncommittedBundle<?> inProgress : bundles) {
+  private Iterable<? extends CommittedBundle<?, PCollection<?>>> commitBundles(
+      Iterable<? extends UncommittedBundle<?, PCollection<?>>> bundles) {
+    ImmutableList.Builder<CommittedBundle<?, PCollection<?>>> completed = ImmutableList.builder();
+    for (UncommittedBundle<?, PCollection<?>> inProgress : bundles) {
       AppliedPTransform<?, ?, ?> producing =
           graph.getProducer(inProgress.getPCollection());
       TransformWatermarks watermarks = watermarkManager.getWatermarks(producing);
-      CommittedBundle<?> committed =
+      CommittedBundle<?, PCollection<?>> committed =
           inProgress.commit(watermarks.getSynchronizedProcessingOutputTime());
       // Empty bundles don't impact watermarks and shouldn't trigger downstream execution, so
       // filter them out
@@ -230,7 +230,7 @@ class EvaluationContext {
   /**
    * Create a {@link UncommittedBundle} for use by a source.
    */
-  public <T> UncommittedBundle<T> createRootBundle() {
+  public <T> UncommittedBundle<T, PCollection<T>> createRootBundle() {
     return bundleFactory.createRootBundle();
   }
 
@@ -238,7 +238,7 @@ class EvaluationContext {
    * Create a {@link UncommittedBundle} whose elements belong to the specified {@link
    * PCollection}.
    */
-  public <T> UncommittedBundle<T> createBundle(PCollection<T> output) {
+  public <T> UncommittedBundle<T, PCollection<T>> createBundle(PCollection<T> output) {
     return bundleFactory.createBundle(output);
   }
 
@@ -246,7 +246,7 @@ class EvaluationContext {
    * Create a {@link UncommittedBundle} with the specified keys at the specified step. For use by
    * {@link DirectGroupByKeyOnly} {@link PTransform PTransforms}.
    */
-  public <K, T> UncommittedBundle<T> createKeyedBundle(
+  public <K, T> UncommittedBundle<T, PCollection<T>> createKeyedBundle(
       StructuralKey<K> key, PCollection<T> output) {
     return bundleFactory.createKeyedBundle(key, output);
   }

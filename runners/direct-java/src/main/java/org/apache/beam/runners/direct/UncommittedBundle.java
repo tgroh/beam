@@ -31,12 +31,12 @@ import org.joda.time.Instant;
  *
  * @param <T> the type of elements that can be added to this bundle
  */
-interface UncommittedBundle<T> {
+interface UncommittedBundle<T, CollectionT> {
   /**
    * Returns the PCollection that the elements of this {@link UncommittedBundle} belong to.
    */
   @Nullable
-  PCollection<T> getPCollection();
+  CollectionT getPCollection();
 
   /**
    * Outputs an element to this bundle.
@@ -44,7 +44,7 @@ interface UncommittedBundle<T> {
    * @param element the element to add to this bundle
    * @return this bundle
    */
-  UncommittedBundle<T> add(WindowedValue<T> element);
+  UncommittedBundle<T, CollectionT> add(WindowedValue<T> element);
 
   /**
    * Commits this {@link UncommittedBundle}, returning an immutable {@link CommittedBundle}
@@ -53,5 +53,5 @@ interface UncommittedBundle<T> {
    * @param synchronizedProcessingTime the synchronized processing time at which this bundle was
    *                                   committed
    */
-  CommittedBundle<T> commit(Instant synchronizedProcessingTime);
+  CommittedBundle<T, CollectionT> commit(Instant synchronizedProcessingTime);
 }

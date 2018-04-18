@@ -75,9 +75,9 @@ public class ImmutableListBundleFactoryTest {
     PCollection<Integer> pcollection = p.apply("Create", Create.of(1));
     StructuralKey<?> skey = StructuralKey.of(key, coder);
 
-    UncommittedBundle<Integer> inFlightBundle = bundleFactory.createKeyedBundle(skey, pcollection);
+    UncommittedBundle<Integer, PCollection<Integer>> inFlightBundle = bundleFactory.createKeyedBundle(skey, pcollection);
 
-    CommittedBundle<Integer> bundle = inFlightBundle.commit(Instant.now());
+    CommittedBundle<Integer, PCollection<Integer>> bundle = inFlightBundle.commit(Instant.now());
     assertThat(bundle.getKey(), Matchers.equalTo(skey));
   }
 
@@ -101,9 +101,9 @@ public class ImmutableListBundleFactoryTest {
     createKeyedBundle(ByteArrayCoder.of(), new byte[] {0, 2, 4, 99});
   }
 
-  private <T> CommittedBundle<T>
+  private <T> CommittedBundle<T, PCollection<T>>
   afterCommitGetElementsShouldHaveAddedElements(Iterable<WindowedValue<T>> elems) {
-    UncommittedBundle<T> bundle = bundleFactory.createRootBundle();
+    UncommittedBundle<T, PCollection<T>> bundle = bundleFactory.createRootBundle();
     Collection<Matcher<? super WindowedValue<T>>> expectations = new ArrayList<>();
     Instant minElementTs = BoundedWindow.TIMESTAMP_MAX_VALUE;
     for (WindowedValue<T> elem : elems) {
@@ -116,7 +116,7 @@ public class ImmutableListBundleFactoryTest {
     Matcher<Iterable<? extends WindowedValue<T>>> containsMatcher =
         Matchers.containsInAnyOrder(expectations);
     Instant commitTime = Instant.now();
-    CommittedBundle<T> committed = bundle.commit(commitTime);
+    CommittedBundle<T, PCollection<T>> committed = bundle.commit(commitTime);
     assertThat(committed.getElements(), containsMatcher);
 
     // Sanity check that the test is meaningful.
@@ -146,7 +146,7 @@ public class ImmutableListBundleFactoryTest {
     Instant timestamp = BoundedWindow.TIMESTAMP_MAX_VALUE;
     WindowedValue<Integer> value = WindowedValue.timestampedValueInGlobalWindow(1, timestamp);
 
-    UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle();
+    UncommittedBundle<Integer, PCollection<Integer>> bundle = bundleFactory.createRootBundle();
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage(timestamp.toString());
     bundle.add(value);
@@ -157,7 +157,7 @@ public class ImmutableListBundleFactoryTest {
     Instant timestamp = BoundedWindow.TIMESTAMP_MAX_VALUE.plus(Duration.standardMinutes(2));
     WindowedValue<Integer> value = WindowedValue.timestampedValueInGlobalWindow(1, timestamp);
 
-    UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle();
+    UncommittedBundle<Integer, PCollection<Integer>> bundle = bundleFactory.createRootBundle();
     thrown.expect(IllegalArgumentException.class);
     thrown.expectMessage(timestamp.toString());
     bundle.add(value);
@@ -170,7 +170,7 @@ public class ImmutableListBundleFactoryTest {
     WindowedValue<Integer> secondValue =
         WindowedValue.timestampedValueInGlobalWindow(2, new Instant(1000L));
 
-    CommittedBundle<Integer> committed =
+    CommittedBundle<Integer, PCollection<Integer>> committed =
         afterCommitGetElementsShouldHaveAddedElements(ImmutableList.of(firstValue, secondValue));
 
     WindowedValue<Integer> firstReplacement =
@@ -181,7 +181,7 @@ public class ImmutableListBundleFactoryTest {
             PaneInfo.NO_FIRING);
     WindowedValue<Integer> secondReplacement =
         WindowedValue.timestampedValueInGlobalWindow(-1, Instant.now());
-    CommittedBundle<Integer> withed =
+    CommittedBundle<Integer, PCollection<Integer>> withed =
         committed.withElements(ImmutableList.of(firstReplacement, secondReplacement));
 
     assertThat(withed.getElements(), containsInAnyOrder(firstReplacement, secondReplacement));
@@ -196,9 +196,9 @@ public class ImmutableListBundleFactoryTest {
 
   @Test
   public void addAfterCommitShouldThrowException() {
-    UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle();
+    UncommittedBundle<Integer, PCollection<Integer>> bundle = bundleFactory.createRootBundle();
     bundle.add(WindowedValue.valueInGlobalWindow(1));
-    CommittedBundle<Integer> firstCommit = bundle.commit(Instant.now());
+    CommittedBundle<Integer, PCollection<Integer>> firstCommit = bundle.commit(Instant.now());
     assertThat(firstCommit.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(1)));
 
     thrown.expect(IllegalStateException.class);
@@ -210,9 +210,9 @@ public class ImmutableListBundleFactoryTest {
 
   @Test
   public void commitAfterCommitShouldThrowException() {
-    UncommittedBundle<Integer> bundle = bundleFactory.createRootBundle();
+    UncommittedBundle<Integer, PCollection<Integer>> bundle = bundleFactory.createRootBundle();
     bundle.add(WindowedValue.valueInGlobalWindow(1));
-    CommittedBundle<Integer> firstCommit = bundle.commit(Instant.now());
+    CommittedBundle<Integer, PCollection<Integer>> firstCommit = bundle.commit(Instant.now());
     assertThat(firstCommit.getElements(), containsInAnyOrder(WindowedValue.valueInGlobalWindow(1)));
 
     thrown.expect(IllegalStateException.class);
@@ -223,7 +223,7 @@ public class ImmutableListBundleFactoryTest {
 
   @Test
   public void createKeyedBundleKeyed() {
-    CommittedBundle<KV<String, Integer>> keyedBundle = bundleFactory.createKeyedBundle(
+    CommittedBundle<KV<String, Integer>, PCollection<KV<String, Integer>>> keyedBundle = bundleFactory.createKeyedBundle(
         StructuralKey.of("foo", StringUtf8Coder.of()),
         downstream).commit(Instant.now());
     assertThat(keyedBundle.getKey().getKey(), Matchers.equalTo("foo"));

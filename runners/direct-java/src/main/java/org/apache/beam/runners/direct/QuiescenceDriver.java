@@ -52,21 +52,21 @@ class QuiescenceDriver implements ExecutionDriver {
   public static ExecutionDriver create(
       EvaluationContext context,
       DirectGraph graph,
-      BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> bundleProcessor,
+      BundleProcessor<CommittedBundle<?, PCollection<?>>, AppliedPTransform<?, ?, ?>> bundleProcessor,
       PipelineMessageReceiver messageReceiver,
-      Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>> initialBundles) {
+      Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?, PCollection<?>>>> initialBundles) {
     return new QuiescenceDriver(context, graph, bundleProcessor, messageReceiver, initialBundles);
   }
 
   private final EvaluationContext evaluationContext;
   private final DirectGraph graph;
-  private final BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> bundleProcessor;
+  private final BundleProcessor<CommittedBundle<?, PCollection<?>>, AppliedPTransform<?, ?, ?>> bundleProcessor;
   private final PipelineMessageReceiver pipelineMessageReceiver;
 
   private final CompletionCallback defaultCompletionCallback =
       new TimerIterableCompletionCallback(Collections.emptyList());
 
-  private final Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
+  private final Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?, PCollection<?>>>>
       pendingRootBundles;
   private final Queue<WorkUpdate> pendingWork = new ConcurrentLinkedQueue<>();
 
@@ -78,9 +78,9 @@ class QuiescenceDriver implements ExecutionDriver {
   private QuiescenceDriver(
       EvaluationContext evaluationContext,
       DirectGraph graph,
-      BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> bundleProcessor,
+      BundleProcessor<CommittedBundle<?, PCollection<?>>, AppliedPTransform<?, ?, ?>> bundleProcessor,
       PipelineMessageReceiver pipelineMessageReceiver,
-      Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
+      Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?, PCollection<?>>>>
           pendingRootBundles) {
     this.evaluationContext = evaluationContext;
     this.graph = graph;
@@ -133,7 +133,7 @@ class QuiescenceDriver implements ExecutionDriver {
     if (update.getBundle().isPresent()) {
       if (ExecutorState.ACTIVE == startingState
           || (ExecutorState.PROCESSING == startingState && noWorkOutstanding)) {
-        CommittedBundle<?> bundle = update.getBundle().get();
+        CommittedBundle<?, PCollection<?>> bundle = update.getBundle().get();
         for (AppliedPTransform<?, ?, ?> consumer : update.getConsumers()) {
           outstandingWork.incrementAndGet();
           bundleProcessor.process(bundle, consumer, defaultCompletionCallback);
@@ -156,7 +156,7 @@ class QuiescenceDriver implements ExecutionDriver {
         KeyedWorkItem<?, Object> work =
             KeyedWorkItems.timersWorkItem(transformTimers.getKey().getKey(), delivery);
         @SuppressWarnings({"unchecked", "rawtypes"})
-        CommittedBundle<?> bundle =
+        CommittedBundle<?, PCollection<?>> bundle =
             evaluationContext
                 .createKeyedBundle(
                     transformTimers.getKey(),
@@ -186,16 +186,16 @@ class QuiescenceDriver implements ExecutionDriver {
     // If any timers have fired, they will add more work; We don't need to add more
     if (state.get() == ExecutorState.QUIESCENT) {
       // All current TransformExecutors are blocked; add more work from the roots.
-      for (Map.Entry<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
+      for (Map.Entry<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?, PCollection<?>>>>
           pendingRootEntry : pendingRootBundles.entrySet()) {
-        Collection<CommittedBundle<?>> bundles = new ArrayList<>();
+        Collection<CommittedBundle<?, PCollection<?>>> bundles = new ArrayList<>();
         // Pull all available work off of the queue, then schedule it all, so this loop
         // terminates
         while (!pendingRootEntry.getValue().isEmpty()) {
-          CommittedBundle<?> bundle = pendingRootEntry.getValue().poll();
+          CommittedBundle<?, PCollection<?>> bundle = pendingRootEntry.getValue().poll();
           bundles.add(bundle);
         }
-        for (CommittedBundle<?> bundle : bundles) {
+        for (CommittedBundle<?, PCollection<?>> bundle : bundles) {
           outstandingWork.incrementAndGet();
           bundleProcessor.process(bundle, pendingRootEntry.getKey(), defaultCompletionCallback);
           state.set(ExecutorState.ACTIVE);
@@ -255,15 +255,15 @@ class QuiescenceDriver implements ExecutionDriver {
 
     @Override
     public final CommittedResult handleResult(
-        CommittedBundle<?> inputBundle, TransformResult<?> result) {
-      CommittedResult<AppliedPTransform<?, ?, ?>> committedResult =
+        CommittedBundle<?, ? extends PCollection<?>> inputBundle, TransformResult<?> result) {
+      CommittedResult<AppliedPTransform<?, ?, ?>, CollectionT> committedResult =
           evaluationContext.handleResult(inputBundle, timers, result);
-      for (CommittedBundle<?> outputBundle : committedResult.getOutputs()) {
+      for (CommittedBundle<?, PCollection<?>> outputBundle : committedResult.getOutputs()) {
         pendingWork.offer(
             WorkUpdate.fromBundle(
                 outputBundle, graph.getPerElementConsumers(outputBundle.getPCollection())));
       }
-      Optional<? extends CommittedBundle<?>> unprocessedInputs =
+      Optional<? extends CommittedBundle<?, PCollection<?>>> unprocessedInputs =
           committedResult.getUnprocessedInputs();
       if (unprocessedInputs.isPresent()) {
         if (inputBundle.getPCollection() == null) {
@@ -288,7 +288,8 @@ class QuiescenceDriver implements ExecutionDriver {
     }
 
     @Override
-    public final void handleException(CommittedBundle<?> inputBundle, Exception e) {
+    public final void handleException(
+        CommittedBundle<?, ? extends PCollection<?>> inputBundle, Exception e) {
       pendingWork.offer(WorkUpdate.fromException(e));
       outstandingWork.decrementAndGet();
     }
@@ -307,7 +308,7 @@ class QuiescenceDriver implements ExecutionDriver {
   @AutoValue
   abstract static class WorkUpdate {
     private static WorkUpdate fromBundle(
-        CommittedBundle<?> bundle, Collection<AppliedPTransform<?, ?, ?>> consumers) {
+        CommittedBundle<?, PCollection<?>> bundle, Collection<AppliedPTransform<?, ?, ?>> consumers) {
       return new AutoValue_QuiescenceDriver_WorkUpdate(
           Optional.of(bundle), consumers, Optional.absent());
     }
@@ -318,7 +319,7 @@ class QuiescenceDriver implements ExecutionDriver {
     }
 
     /** Returns the bundle that produced this update. */
-    public abstract Optional<? extends CommittedBundle<?>> getBundle();
+    public abstract Optional<? extends CommittedBundle<?, PCollection<?>>> getBundle();
 
     /**
      * Returns the transforms to process the bundle. If nonempty, {@link #getBundle()} will return a

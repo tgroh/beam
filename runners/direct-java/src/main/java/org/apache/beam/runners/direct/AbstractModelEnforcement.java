@@ -18,6 +18,7 @@
 package org.apache.beam.runners.direct;
 
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.PCollection;
 
 /**
  * An abstract {@link ModelEnforcement} that provides default empty implementations for each method.
@@ -31,7 +32,7 @@ abstract class AbstractModelEnforcement<T> implements ModelEnforcement<T> {
 
   @Override
   public void afterFinish(
-      CommittedBundle<T> input,
+      CommittedBundle<T, PCollection<T>> input,
       TransformResult<T> result,
-      Iterable<? extends CommittedBundle<?>> outputs) {}
+      Iterable<? extends CommittedBundle<?, PCollection<?>>> outputs) {}
 }

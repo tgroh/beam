@@ -68,18 +68,18 @@ public class GroupByKeyOnlyEvaluatorFactoryTest {
     PCollection<KeyedWorkItem<String, Integer>> groupedKvs =
         values.apply(new DirectGroupByKeyOnly<>());
 
-    CommittedBundle<KV<String, Integer>> inputBundle =
+    CommittedBundle<KV<String, Integer>, PCollection<KV<String, Integer>>> inputBundle =
         bundleFactory.createBundle(values).commit(Instant.now());
     EvaluationContext evaluationContext = mock(EvaluationContext.class);
 
     StructuralKey<String> fooKey = StructuralKey.of("foo", StringUtf8Coder.of());
-    UncommittedBundle<KeyedWorkItem<String, Integer>> fooBundle =
+    UncommittedBundle<KeyedWorkItem<String, Integer>, PCollection<KeyedWorkItem<String, Integer>>> fooBundle =
         bundleFactory.createKeyedBundle(fooKey, groupedKvs);
     StructuralKey<String> barKey = StructuralKey.of("bar", StringUtf8Coder.of());
-    UncommittedBundle<KeyedWorkItem<String, Integer>> barBundle =
+    UncommittedBundle<KeyedWorkItem<String, Integer>, PCollection<KeyedWorkItem<String, Integer>>> barBundle =
         bundleFactory.createKeyedBundle(barKey, groupedKvs);
     StructuralKey<String> bazKey = StructuralKey.of("baz", StringUtf8Coder.of());
-    UncommittedBundle<KeyedWorkItem<String, Integer>> bazBundle =
+    UncommittedBundle<KeyedWorkItem<String, Integer>, PCollection<KeyedWorkItem<String, Integer>>> bazBundle =
         bundleFactory.createKeyedBundle(bazKey, groupedKvs);
 
     when(evaluationContext.createKeyedBundle(fooKey, groupedKvs)).thenReturn(fooBundle);

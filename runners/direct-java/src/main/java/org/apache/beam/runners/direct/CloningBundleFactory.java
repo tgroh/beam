@@ -44,28 +44,28 @@ class CloningBundleFactory implements BundleFactory {
   }
 
   @Override
-  public <T> UncommittedBundle<T> createRootBundle() {
+  public <T> UncommittedBundle<T, PCollection<T>> createRootBundle() {
     // The DirectRunner is responsible for these elements, but they need not be encodable.
     return underlying.createRootBundle();
   }
 
   @Override
-  public <T> UncommittedBundle<T> createBundle(
+  public <T> UncommittedBundle<T, PCollection<T>> createBundle(
       PCollection<T> output) {
     return new CloningBundle<>(underlying.createBundle(output));
   }
 
   @Override
-  public <K, T> UncommittedBundle<T> createKeyedBundle(
+  public <K, T> UncommittedBundle<T, PCollection<T>> createKeyedBundle(
       StructuralKey<K> key, PCollection<T> output) {
     return new CloningBundle<>(underlying.createKeyedBundle(key, output));
   }
 
-  private static class CloningBundle<T> implements UncommittedBundle<T> {
-    private final UncommittedBundle<T> underlying;
+  private static class CloningBundle<T> implements UncommittedBundle<T, PCollection<T>> {
+    private final UncommittedBundle<T, PCollection<T>> underlying;
     private final Coder<T> coder;
 
-    private CloningBundle(UncommittedBundle<T> underlying) {
+    private CloningBundle(UncommittedBundle<T, PCollection<T>> underlying) {
       this.underlying = underlying;
       this.coder = underlying.getPCollection().getCoder();
     }
@@ -76,7 +76,7 @@ class CloningBundleFactory implements BundleFactory {
     }
 
     @Override
-    public UncommittedBundle<T> add(WindowedValue<T> element) {
+    public UncommittedBundle<T, PCollection<T>> add(WindowedValue<T> element) {
       try {
         // Use the cloned value to ensure that if the coder behaves poorly (e.g. a NoOpCoder that
         // does not expect to be used) that is reflected in the values given to downstream
@@ -90,7 +90,7 @@ class CloningBundleFactory implements BundleFactory {
     }
 
     @Override
-    public CommittedBundle<T> commit(Instant synchronizedProcessingTime) {
+    public CommittedBundle<T, PCollection<T>> commit(Instant synchronizedProcessingTime) {
       return underlying.commit(synchronizedProcessingTime);
     }
   }

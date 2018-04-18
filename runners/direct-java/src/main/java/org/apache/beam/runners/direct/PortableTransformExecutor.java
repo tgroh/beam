@@ -19,12 +19,10 @@
 package org.apache.beam.runners.direct;
 
 /**
- * A Factory for creating {@link TransformExecutor Transform Executors} on an input.
+ * TODO: Document
  */
-interface TransformExecutorFactory<ExecutableT, CollectionT> {
-  TransformExecutor create(
-      CommittedBundle<?, ? extends CollectionT> bundle,
-      ExecutableT transform,
-      CompletionCallback onComplete,
-      TransformExecutorService executorService);
+public class PortableTransformExecutor implements TransformExecutor {
+  @Override
+  public void run() {
+  }
 }
