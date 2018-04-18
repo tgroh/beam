@@ -68,7 +68,7 @@ import org.joda.time.Instant;
  * callbacks that can be executed.
  */
 class JavaNativeEvaluationContext
-    implements BundleFactory, EvaluationContext<AppliedPTransform<?, ?, ?>, PValue> {
+    implements BundleFactory<PCollection<?>>, EvaluationContext<AppliedPTransform<?, ?, ?>, PValue> {
   /**
    * The graph representing this {@link Pipeline}.
    */

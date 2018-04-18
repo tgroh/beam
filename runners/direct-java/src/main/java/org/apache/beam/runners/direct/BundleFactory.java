@@ -25,7 +25,7 @@ import org.apache.beam.sdk.values.PCollection;
 /**
  * A factory that creates {@link UncommittedBundle UncommittedBundles}.
  */
-interface BundleFactory {
+interface BundleFactory<ValueT> {
   /**
    * Create an {@link UncommittedBundle} from an empty input. Elements added to the bundle do not
    * belong to a {@link PCollection}.
@@ -38,7 +38,7 @@ interface BundleFactory {
    * Create an {@link UncommittedBundle} from the specified input. Elements added to the bundle
    * belong to the {@code output} {@link PCollection}.
    */
-  <T> UncommittedBundle<T> createBundle(PCollection<T> output);
+  <T> UncommittedBundle<T> createBundle(ValueT output);
 
   /**
    * Create an {@link UncommittedBundle} with the specified keys at the specified step. For use by
@@ -46,5 +46,5 @@ interface BundleFactory {
    * belong to the {@code output} {@link PCollection}.
    */
   <K, T> UncommittedBundle<T> createKeyedBundle(
-      StructuralKey<K> key, PCollection<T> output);
+      StructuralKey<K> key, ValueT output);
 }

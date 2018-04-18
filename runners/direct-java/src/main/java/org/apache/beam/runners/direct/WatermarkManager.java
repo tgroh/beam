@@ -1551,7 +1551,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
         TimerUpdate timerUpdate,
         CommittedResult<ExecutableT> result,
         Instant earliestHold) {
-      return new AutoValue_WatermarkManager_PendingWatermarkUpdate(
+      return new AutoValue_WatermarkManager_PendingWatermarkUpdate<>(
           executable, inputBundle, timerUpdate, result, earliestHold);
     }
   }

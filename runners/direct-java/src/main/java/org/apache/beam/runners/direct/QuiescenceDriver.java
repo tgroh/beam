@@ -149,8 +149,7 @@ class QuiescenceDriver<ExecutableT> implements ExecutionDriver {
   /** Fires any available timers. */
   private void fireTimers() {
     try {
-      for (FiredTimers<ExecutableT> transformTimers :
-          evaluationContext.extractFiredTimers()) {
+      for (FiredTimers<ExecutableT> transformTimers : evaluationContext.extractFiredTimers()) {
         Collection<TimerData> delivery = transformTimers.getTimers();
         KeyedWorkItem<?, Object> work =
             KeyedWorkItems.timersWorkItem(transformTimers.getKey().getKey(), delivery);
@@ -161,7 +160,7 @@ class QuiescenceDriver<ExecutableT> implements ExecutionDriver {
                     transformTimers.getKey(),
                     (PCollection)
                         Iterables.getOnlyElement(
-                            transformTimers.getTransform().getInputs().values()))
+                            graph.getPerElementInputs(transformTimers.getTransform())))
                 .add(WindowedValue.valueInGlobalWindow(work))
                 .commit(evaluationContext.now());
         outstandingWork.incrementAndGet();
