@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import javax.annotation.Nullable;
 import org.apache.beam.runners.core.ReadyCheckingSideInputReader;
 import org.apache.beam.runners.core.SideInputReader;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
@@ -141,7 +140,7 @@ class EvaluationContext {
    * @return the committed bundles contained within the handled {@code result}
    */
   public CommittedResult<AppliedPTransform<?, ?, ?>> handleResult(
-      @Nullable CommittedBundle<?> completedBundle,
+      CommittedBundle<?> completedBundle,
       Iterable<TimerData> completedTimers,
       TransformResult<?> result) {
     Iterable<? extends CommittedBundle<?>> committedBundles =
@@ -162,9 +161,7 @@ class EvaluationContext {
     CopyOnAccessInMemoryStateInternals theirState = result.getState();
     if (theirState != null) {
       CopyOnAccessInMemoryStateInternals committedState = theirState.commit();
-      StepAndKey stepAndKey =
-          StepAndKey.of(
-              result.getTransform(), completedBundle == null ? null : completedBundle.getKey());
+      StepAndKey stepAndKey = StepAndKey.of(result.getTransform(), completedBundle.getKey());
       if (!committedState.isEmpty()) {
         applicationStateInternals.put(stepAndKey, committedState);
       } else {
@@ -190,7 +187,7 @@ class EvaluationContext {
    * {@link Optional}.
    */
   private Optional<? extends CommittedBundle<?>> getUnprocessedInput(
-      @Nullable CommittedBundle<?> completedBundle, TransformResult<?> result) {
+      CommittedBundle<?> completedBundle, TransformResult<?> result) {
     if (completedBundle == null || Iterables.isEmpty(result.getUnprocessedElements())) {
       return Optional.absent();
     }
