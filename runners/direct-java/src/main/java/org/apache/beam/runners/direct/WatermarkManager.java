@@ -917,8 +917,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
    * @param unprocessedInputs inputs that could not be processed
    * @param outputs outputs that were produced by the application of the {@code executable} to the
    *     input
-   * @param earliestHold the earliest watermark hold in the executable's state. {@code null} if there
-   *                     is no hold
+   * @param earliestHold the earliest watermark hold in the executable's state.
    */
   public void updateWatermarks(
       @Nullable CommittedBundle<?> completed,
@@ -968,6 +967,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
     }
   }
 
+  /** Apply a {@link PendingWatermarkUpdate} to the {@link WatermarkManager}. */
   private void applyPendingUpdate(PendingWatermarkUpdate<ExecutableT> pending) {
     ExecutableT executable = pending.getExecutable();
     CommittedBundle<?> inputBundle = pending.getInputBundle();
@@ -995,6 +995,9 @@ class WatermarkManager<ExecutableT, CollectionT> {
    * a Watermark to appear in a state in which the upstream (completed) element does not hold the
    * watermark but the element it produced is not yet pending. This can cause the watermark to
    * erroneously advance.
+   *
+   * <p>See {@link #updateWatermarks(CommittedBundle, TimerUpdate, Object, CommittedBundle,
+   * Iterable, Instant)} for information about the parameters of this method.
    */
   private void updatePending(
       CommittedBundle<?> input,
