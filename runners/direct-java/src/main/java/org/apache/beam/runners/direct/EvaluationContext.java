@@ -176,7 +176,9 @@ class EvaluationContext {
     watermarkManager.updateWatermarks(
         completedBundle,
         result.getTimerUpdate().withCompletedTimers(completedTimers),
-        committedResult,
+        committedResult.getExecutable(),
+        committedResult.getUnprocessedInputs().orNull(),
+        committedResult.getOutputs(),
         result.getWatermarkHold());
     return committedResult;
   }

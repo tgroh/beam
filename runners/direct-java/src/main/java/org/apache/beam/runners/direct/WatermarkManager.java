@@ -909,23 +909,25 @@ class WatermarkManager<ExecutableT, CollectionT> {
    * </pre>.
    *
    * @param completed the input that has completed
-   * @param timerUpdate the timers that were added, removed, and completed as part of producing
-   *                    this update
-   * @param result the result that was produced by processing the input
+   * @param timerUpdate the timers that were added, removed, and completed as part of producing this
+   *     update
+   * @param executable the executable applied to {@code completed} to produce the outputs
+   * @param unprocessedInputs inputs that could not be processed
+   * @param outputs outputs that were produced by the application of the {@code executable} to the
+   *     input
    * @param earliestHold the earliest watermark hold in the transform's state. {@code null} if there
    *                     is no hold
    */
   public void updateWatermarks(
       @Nullable CommittedBundle<?> completed,
       TimerUpdate timerUpdate,
-      CommittedResult<ExecutableT> result,
+      ExecutableT executable,
+      @Nullable CommittedBundle<?> unprocessedInputs,
+      Iterable<? extends CommittedBundle<?>> outputs,
       Instant earliestHold) {
-    pendingUpdates.offer(PendingWatermarkUpdate.create(
-        result.getExecutable(),
-        completed,
-        timerUpdate,
-        result,
-        earliestHold));
+    pendingUpdates.offer(
+        PendingWatermarkUpdate.create(
+            executable, completed, timerUpdate, unprocessedInputs, outputs, earliestHold));
     tryApplyPendingUpdates();
   }
 
@@ -965,15 +967,19 @@ class WatermarkManager<ExecutableT, CollectionT> {
   }
 
   private void applyPendingUpdate(PendingWatermarkUpdate<ExecutableT> pending) {
-    CommittedResult<ExecutableT> result = pending.getResult();
-    ExecutableT transform = result.getExecutable();
+    ExecutableT transform = pending.getExecutable();
     CommittedBundle<?> inputBundle = pending.getInputBundle();
 
-    updatePending(inputBundle, pending.getTimerUpdate(), result);
+    updatePending(
+        inputBundle,
+        pending.getTimerUpdate(),
+        transform,
+        pending.getUnprocessedInputs(),
+        pending.getOutputs());
 
     TransformWatermarks transformWms = transformToWatermarks.get(transform);
-    transformWms.setEventTimeHold(inputBundle == null ? null : inputBundle.getKey(),
-        pending.getEarliestHold());
+    transformWms.setEventTimeHold(
+        inputBundle == null ? null : inputBundle.getKey(), pending.getEarliestHold());
   }
 
   /**
@@ -991,11 +997,13 @@ class WatermarkManager<ExecutableT, CollectionT> {
   private void updatePending(
       CommittedBundle<?> input,
       TimerUpdate timerUpdate,
-      CommittedResult<ExecutableT> result) {
+      ExecutableT executable,
+      @Nullable CommittedBundle<?> unprocessedInputs,
+      Iterable<? extends CommittedBundle<?>> outputs) {
     // Newly pending elements must be added before completed elements are removed, as the two
     // do not share a Mutex within this call and thus can be interleaved with external calls to
     // refresh.
-    for (CommittedBundle<?> bundle : result.getOutputs()) {
+    for (CommittedBundle<?> bundle : outputs) {
       for (ExecutableT consumer :
           // TODO: Remove this cast once CommittedBundle returns a CollectionT
           graph.getPerElementConsumers((CollectionT) bundle.getPCollection())) {
@@ -1004,10 +1012,10 @@ class WatermarkManager<ExecutableT, CollectionT> {
       }
     }
 
-    TransformWatermarks completedTransform = transformToWatermarks.get(result.getExecutable());
-    if (result.getUnprocessedInputs().isPresent()) {
+    TransformWatermarks completedTransform = transformToWatermarks.get(executable);
+    if (unprocessedInputs != null) {
       // Add the unprocessed inputs
-      completedTransform.addPending(result.getUnprocessedInputs().get());
+      completedTransform.addPending(unprocessedInputs);
     }
     completedTransform.updateTimers(timerUpdate);
     if (input != null) {
@@ -1531,18 +1539,22 @@ class WatermarkManager<ExecutableT, CollectionT> {
 
     abstract TimerUpdate getTimerUpdate();
 
-    abstract CommittedResult<ExecutableT> getResult();
+    @Nullable
+    abstract CommittedBundle<?> getUnprocessedInputs();
+
+    abstract Iterable<? extends CommittedBundle<?>> getOutputs();
 
     abstract Instant getEarliestHold();
 
     public static <ExecutableT> PendingWatermarkUpdate<ExecutableT> create(
         ExecutableT executable,
-        CommittedBundle<?> inputBundle,
+        @Nullable CommittedBundle<?> inputBundle,
         TimerUpdate timerUpdate,
-        CommittedResult<ExecutableT> result,
+        @Nullable CommittedBundle<?> unprocessedInputs,
+        Iterable<? extends CommittedBundle<?>> outputs,
         Instant earliestHold) {
-      return new AutoValue_WatermarkManager_PendingWatermarkUpdate(
-          executable, inputBundle, timerUpdate, result, earliestHold);
+      return new AutoValue_WatermarkManager_PendingWatermarkUpdate<>(
+          executable, inputBundle, timerUpdate, unprocessedInputs, outputs, earliestHold);
     }
   }
 }
