@@ -122,29 +122,30 @@ class EvaluationContext {
   }
 
   public void initialize(
-      Map<AppliedPTransform<?, ?, ?>, ? extends Iterable<CommittedBundle<?>>> initialInputs) {
+      Map<AppliedPTransform<?, ?, ?>, ? extends Iterable<? extends CommittedBundle<?>>>
+          initialInputs) {
     watermarkManager.initialize((Map) initialInputs);
   }
 
   /**
-   * Handle the provided {@link TransformResult}, produced after evaluating the provided
-   * {@link CommittedBundle} (potentially null, if the result of a root {@link PTransform}).
+   * Handle the provided {@link TransformResult}, produced after evaluating the provided {@link
+   * CommittedBundle} (potentially null, if the result of a root {@link PTransform}).
    *
-   * <p>The result is the output of running the transform contained in the
-   * {@link TransformResult} on the contents of the provided bundle.
+   * <p>The result is the output of running the transform contained in the {@link TransformResult}
+   * on the contents of the provided bundle.
    *
-   * @param completedBundle the bundle that was processed to produce the result. Potentially
-   *                        {@code null} if the transform that produced the result is a root
-   *                        transform
+   * @param completedBundle the bundle that was processed to produce the result. Potentially {@code
+   *     null} if the transform that produced the result is a root transform
    * @param completedTimers the timers that were delivered to produce the {@code completedBundle},
-   *                        or an empty iterable if no timers were delivered
+   *     or an empty iterable if no timers were delivered
    * @param result the result of evaluating the input bundle
    * @return the committed bundles contained within the handled {@code result}
    */
-  public CommittedResult<AppliedPTransform<?, ?, ?>> handleResult(
-      @Nullable CommittedBundle<?> completedBundle,
-      Iterable<TimerData> completedTimers,
-      TransformResult<?> result) {
+  public CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>, CommittedBundle<?>>
+      handleResult(
+          @Nullable CommittedBundle<?> completedBundle,
+          Iterable<TimerData> completedTimers,
+          TransformResult<?> result) {
     Iterable<? extends CommittedBundle<?>> committedBundles =
         commitBundles(result.getOutputBundles());
     metrics.commitLogical(completedBundle, result.getLogicalMetricUpdates());
@@ -156,9 +157,13 @@ class EvaluationContext {
     } else {
       outputTypes.add(OutputType.BUNDLE);
     }
-    CommittedResult<AppliedPTransform<?, ?, ?>> committedResult =
-        CommittedResult.create(
-            result, getUnprocessedInput(completedBundle, result), committedBundles, outputTypes);
+    CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>, CommittedBundle<?>>
+        committedResult =
+            CommittedResult.create(
+                result,
+                getUnprocessedInput(completedBundle, result),
+                committedBundles,
+                outputTypes);
     // Update state internals
     CopyOnAccessInMemoryStateInternals theirState = result.getState();
     if (theirState != null) {

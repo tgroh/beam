@@ -880,10 +880,10 @@ class WatermarkManager<ExecutableT, CollectionT> {
   }
 
   public void initialize(
-      Map<ExecutableT, ? extends Iterable<Bundle<?,  CollectionT>>> initialBundles) {
+      Map<ExecutableT, ? extends Iterable<? extends Bundle<?,  CollectionT>>> initialBundles) {
     refreshLock.lock();
     try {
-      for (Map.Entry<ExecutableT, ? extends Iterable<Bundle<?, CollectionT>>> rootEntry :
+      for (Map.Entry<ExecutableT, ? extends Iterable<? extends Bundle<?, CollectionT>>> rootEntry :
           initialBundles.entrySet()) {
         TransformWatermarks rootWms = transformToWatermarks.get(rootEntry.getKey());
         for (Bundle<?, ? extends CollectionT> initialBundle : rootEntry.getValue()) {
