@@ -249,7 +249,9 @@ class QuiescenceDriver implements ExecutionDriver {
    * #handleResult(CommittedBundle, TransformResult)} and {@link #handleException(CommittedBundle,
    * Exception)}.
    */
-  private class TimerIterableCompletionCallback implements CompletionCallback {
+  private class TimerIterableCompletionCallback
+      implements CompletionCallback<
+          AppliedPTransform<?, ?, ?>, PCollection<?>, CommittedBundle<?>, TransformResult<?>> {
     private final Iterable<TimerData> timers;
 
     TimerIterableCompletionCallback(Iterable<TimerData> timers) {
