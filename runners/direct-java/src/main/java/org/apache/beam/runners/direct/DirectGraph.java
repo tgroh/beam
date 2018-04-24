@@ -42,6 +42,12 @@ class DirectGraph implements ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue>
   private final Set<AppliedPTransform<?, ?, ?>> rootTransforms;
   private final Map<AppliedPTransform<?, ?, ?>, String> stepNames;
 
+  public static DirectGraph forPipeline(Pipeline p) {
+    DirectGraphVisitor visitor = new DirectGraphVisitor();
+    p.traverseTopologically(visitor);
+    return visitor.getGraph();
+  }
+
   public static DirectGraph create(
       Map<PCollection<?>, AppliedPTransform<?, ?, ?>> producers,
       Map<PCollectionView<?>, AppliedPTransform<?, ?, ?>> viewWriters,

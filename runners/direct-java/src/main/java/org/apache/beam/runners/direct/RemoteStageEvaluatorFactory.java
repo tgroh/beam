@@ -19,20 +19,51 @@
 package org.apache.beam.runners.direct;
 
 import javax.annotation.Nullable;
+import org.apache.beam.model.pipeline.v1.RunnerApi.ExecutableStagePayload;
+import org.apache.beam.runners.core.construction.ExecutableStageTranslation;
+import org.apache.beam.runners.core.construction.graph.ExecutableStage;
+import org.apache.beam.runners.direct.StepTransformResult.Builder;
+import org.apache.beam.runners.fnexecution.control.SdkHarnessClient.ActiveBundle;
+import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.sdk.util.WindowedValue;
 
-/** TODO: Document */
-public class RemoteStageEvaluatorFactory implements TransformEvaluatorFactory {
+/** Execute an {@link ExecutableStage} via the Fn API. */
+class RemoteStageEvaluatorFactory
+    implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
   public RemoteStageEvaluatorFactory(EvaluationContext ctxt) {}
 
   @Nullable
   @Override
-  public TransformEvaluator forApplication(
-      Object executable, CommittedBundle inputBundle) throws Exception {
-    return null;
+  public <InputT> TransformEvaluator<InputT> forApplication(
+      AppliedPTransform<?, ?, ?> executable, CommittedBundle<?> inputBundle) throws Exception {
+    ExecutableStagePayload payload =
+        ExecutableStageTranslation.getExecutableStagePayload(executable);
+    ExecutableStage stage = ExecutableStage.fromPayload(payload);
+    
+    throw new UnsupportedOperationException();
   }
 
   @Override
-  public void cleanup() throws Exception {
+  public void cleanup() throws Exception {}
 
+  private static class RemoteStageEvaluator<InputT> implements TransformEvaluator<InputT> {
+    private final ActiveBundle<InputT> remoteBundle;
+    private final StepTransformResult.Builder<InputT> resultBuilder;
+
+    private RemoteStageEvaluator(ActiveBundle<InputT> remoteBundle, Builder<InputT> resultBuilder) {
+      this.remoteBundle = remoteBundle;
+      this.resultBuilder = resultBuilder;
+    }
+
+    @Override
+    public void processElement(WindowedValue<InputT> element) throws Exception {
+      remoteBundle.getInputReceiver().accept(element);
+    }
+
+    @Override
+    public TransformResult<InputT> finishBundle() throws Exception {
+      remoteBundle.close();
+      return resultBuilder.build();
+    }
   }
 }

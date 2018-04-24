@@ -23,19 +23,26 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
 
+import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.io.Serializable;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.runners.core.construction.JavaReadViaImpulse;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.core.construction.graph.ProtoOverrides;
 import org.apache.beam.runners.direct.PortableDirectRunner.PortableGroupByKeyReplacer;
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.Flatten;
 import org.apache.beam.sdk.transforms.GroupByKey;
 import org.apache.beam.sdk.transforms.Impulse;
+import org.apache.beam.sdk.transforms.Keys;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.Values;
 import org.apache.beam.sdk.values.KV;
+import org.apache.beam.sdk.values.PCollection;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -46,20 +53,22 @@ public class PortableDirectRunnerTest implements Serializable {
   @Test
   public void executesPipeline() throws IOException {
     Pipeline javaPipeline = Pipeline.create();
-    javaPipeline
-        .apply("Impulse", Impulse.create())
-        .apply(
-            "ParDo",
-            ParDo.of(
-                new DoFn<byte[], KV<String, Integer>>() {
-                  @ProcessElement
-                  public void output(ProcessContext ctxt) {
-                    ctxt.output(KV.of("foo", 0));
-                    ctxt.output(KV.of("foo", 1));
-                  }
-                }))
-        .apply("GBK", GroupByKey.create());
+    PCollection<KV<String, Iterable<Integer>>> grouped =
+        javaPipeline.apply("Impulse", Impulse.create())
+            .apply("ParDo", ParDo.of(new DoFn<byte[], KV<String, Integer>>() {
+              @ProcessElement
+              public void output(ProcessContext ctxt) {
+                ctxt.output(KV.of("foo", 0));
+                ctxt.output(KV.of("foo", 1));
+              }
+            }))
+            .apply("GBK", GroupByKey.create());
 
+    PAssert.that(grouped.apply(Keys.create())).containsInAnyOrder("foo");
+    PAssert.that(grouped.apply(Values.create()).apply(Flatten.iterables()))
+        .containsInAnyOrder(0, 1);
+
+    javaPipeline.replaceAll(ImmutableList.of(JavaReadViaImpulse.boundedOverride()));
     RunnerApi.Pipeline pipeline = PipelineTranslation.toProto(javaPipeline);
     PortableDirectRunner runner = PortableDirectRunner.forPipeline(pipeline);
     runner.execute();

@@ -19,20 +19,20 @@
 package org.apache.beam.runners.direct;
 
 import javax.annotation.Nullable;
+import org.apache.beam.sdk.runners.AppliedPTransform;
 
-/** TODO: Document */
-public class PortableGroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
+/** Evaluate {@link DirectGroupByKey.DirectGroupAlsoByWindow}. */
+class PortableGroupAlsoByWindowEvaluatorFactory
+    implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
   public PortableGroupAlsoByWindowEvaluatorFactory(EvaluationContext ctxt) {}
 
   @Nullable
   @Override
-  public TransformEvaluator forApplication(
-      Object executable, CommittedBundle inputBundle) throws Exception {
+  public <InputT> TransformEvaluator<InputT> forApplication(
+      AppliedPTransform<?, ?, ?> executable, CommittedBundle<?> inputBundle) throws Exception {
     return null;
   }
 
   @Override
-  public void cleanup() throws Exception {
-
-  }
+  public void cleanup() throws Exception {}
 }

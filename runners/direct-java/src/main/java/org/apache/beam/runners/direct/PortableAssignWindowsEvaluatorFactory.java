@@ -19,20 +19,25 @@
 package org.apache.beam.runners.direct;
 
 import javax.annotation.Nullable;
+import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.sdk.transforms.windowing.Window;
+import org.apache.beam.sdk.transforms.windowing.WindowFn;
 
-/** TODO: Document */
-public class PortableAssignWindowsEvaluatorFactory implements TransformEvaluatorFactory {
+/**
+ * Execute {@link Window.Assign} for known {@link WindowFn WindowFns} with no associated
+ * environment.
+ */
+class PortableAssignWindowsEvaluatorFactory
+    implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
   public PortableAssignWindowsEvaluatorFactory(EvaluationContext ctxt) {}
 
   @Nullable
   @Override
-  public TransformEvaluator forApplication(
-      Object executable, CommittedBundle inputBundle) throws Exception {
+  public <InputT> TransformEvaluator<InputT> forApplication(
+      AppliedPTransform<?, ?, ?> executable, CommittedBundle<?> inputBundle) throws Exception {
     return null;
   }
 
   @Override
-  public void cleanup() throws Exception {
-
-  }
+  public void cleanup() throws Exception {}
 }

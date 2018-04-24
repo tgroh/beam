@@ -23,6 +23,7 @@ import static com.google.common.collect.Iterables.getOnlyElement;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
 import java.util.Collections;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
@@ -37,9 +38,8 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.runners.core.construction.ModelCoders;
 import org.apache.beam.runners.core.construction.ModelCoders.KvCoderComponents;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
+import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
-import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
-import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.apache.beam.runners.core.construction.graph.ProtoOverrides;
 import org.apache.beam.runners.core.construction.graph.ProtoOverrides.TransformReplacement;
 import org.apache.beam.runners.core.construction.graph.SyntheticNodes;
@@ -65,16 +65,31 @@ class PortableDirectRunner {
     return GreedyPipelineFuser.fuse(withGbks).toPipeline();
   }
 
-  public void execute() {
-    ExecutableGraph<PTransformNode, PCollectionNode> graph = PortableGraph.forPipeline(pipeline);
-    EvaluationContext ctxt = null;
+  public void execute() throws IOException {
+    org.apache.beam.sdk.Pipeline javaPipeline = PipelineTranslation.fromProto(pipeline);
+    DirectGraph javaGraph = DirectGraph.forPipeline(javaPipeline);
+    BundleFactory bundleFactory = ImmutableListBundleFactory.create();
+    KeyedPValueTrackingVisitor keyedValueVisitor = KeyedPValueTrackingVisitor.create();
+    javaPipeline.traverseTopologically(keyedValueVisitor);
+    EvaluationContext ctxt =
+        EvaluationContext.create(
+            NanosOffsetClock.create(),
+            bundleFactory,
+            javaGraph,
+            keyedValueVisitor.getKeyedPValues(),
+            ImmutableSet.of());
     TransformEvaluatorRegistry transformRegistry =
         TransformEvaluatorRegistry.portableRegistry(ctxt);
     RootProviderRegistry rootRegistry = RootProviderRegistry.impulseRegistry(ctxt);
     int targetParallelism = Math.max(Runtime.getRuntime().availableProcessors(), 3);
     ExecutorServiceParallelExecutor executor =
         ExecutorServiceParallelExecutor.create(
-            targetParallelism, transformRegistry, Collections.emptyMap(), ctxt);
+            targetParallelism,
+            rootRegistry,
+            transformRegistry,
+            javaGraph,
+            Collections.emptyMap(),
+            ctxt);
     executor.start();
   }
 

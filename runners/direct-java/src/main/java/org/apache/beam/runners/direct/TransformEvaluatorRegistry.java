@@ -44,7 +44,6 @@ import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation.TransformPayloadTranslator;
 import org.apache.beam.runners.core.construction.TransformPayloadTranslatorRegistrar;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
-import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.apache.beam.runners.direct.TestStreamEvaluatorFactory.DirectTestStreamFactory.DirectTestStream;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -101,9 +100,10 @@ class TransformEvaluatorRegistry<ExecutableT> {
     return new TransformEvaluatorRegistry<>(primitives);
   }
 
-  public static TransformEvaluatorRegistry<PTransformNode> portableRegistry(EvaluationContext ctxt) {
+  public static TransformEvaluatorRegistry<AppliedPTransform<?, ?, ?>> portableRegistry(
+      EvaluationContext ctxt) {
     return new TransformEvaluatorRegistry(
-        ImmutableMap.<String, TransformEvaluatorFactory>builder()
+        ImmutableMap.<String, TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>>>builder()
             .put(IMPULSE_TRANSFORM_URN, new ImpulseEvaluatorFactory(ctxt))
             .put(DIRECT_GBKO_URN, new GroupByKeyOnlyEvaluatorFactory(ctxt))
             .put(DIRECT_GABW_URN, new PortableGroupAlsoByWindowEvaluatorFactory(ctxt))
