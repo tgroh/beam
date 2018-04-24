@@ -400,7 +400,7 @@ public class EvaluationContextTest {
 
     UncommittedBundle<Integer> rootBundle = context.createBundle(created);
     rootBundle.add(WindowedValue.valueInGlobalWindow(1));
-    CommittedResult handleResult =
+    CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>> handleResult =
         context.handleResult(
             null,
             ImmutableList.of(),

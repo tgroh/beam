@@ -20,18 +20,16 @@ package org.apache.beam.runners.direct;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Optional;
+import java.util.Collections;
 import java.util.Set;
+import org.apache.beam.runners.local.Bundle;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.View.CreatePCollectionView;
 
-/**
- * A {@link TransformResult} that has been committed.
- */
+/** A {@link TransformResult} that has been committed. */
 @AutoValue
-abstract class CommittedResult<ExecutableT> {
-  /**
-   * Returns the {@link AppliedPTransform} that produced this result.
-   */
+abstract class CommittedResult<ExecutableT, CollectionT> {
+  /** Returns the {@link AppliedPTransform} that produced this result. */
   public abstract ExecutableT getExecutable();
 
   /**
@@ -39,29 +37,33 @@ abstract class CommittedResult<ExecutableT> {
    * processed by the evaluation. The returned optional is present if there were any unprocessed
    * input elements, and absent otherwise.
    */
-  public abstract Optional<? extends CommittedBundle<?>> getUnprocessedInputs();
+  public abstract Optional<? extends Bundle<?, ? extends CollectionT>> getUnprocessedInputs();
 
-  /**
-   * Returns the outputs produced by the transform.
-   */
-  public abstract Iterable<? extends CommittedBundle<?>> getOutputs();
+  /** Returns the outputs produced by the transform. */
+  public abstract Iterable<? extends Bundle<?, ? extends CollectionT>> getOutputs();
 
   /**
    * Returns if the transform that produced this result produced outputs.
    *
-   * <p>Transforms that produce output via modifying the state of the runner (e.g.
-   * {@link CreatePCollectionView}) should explicitly set this to true. If {@link #getOutputs()}
-   * returns a nonempty iterable, this will also return true.
+   * <p>Transforms that produce output via modifying the state of the runner (e.g. {@link
+   * CreatePCollectionView}) should explicitly set this to true. If {@link #getOutputs()} returns a
+   * nonempty iterable, this will also return true.
    */
   public abstract Set<OutputType> getProducedOutputTypes();
 
-  public static CommittedResult<AppliedPTransform<?, ?, ?>> create(
-      TransformResult<?> original,
-      Optional<? extends CommittedBundle<?>> unprocessedElements,
-      Iterable<? extends CommittedBundle<?>> outputs,
+  public static <ExecutableT, CollectionT> CommittedResult<ExecutableT, CollectionT> create(
+      ExecutableT executable,
+      Optional<? extends Bundle<?, ? extends CollectionT>> unprocessedElements,
+      Iterable<? extends Bundle<?, ? extends CollectionT>> outputs,
       Set<OutputType> producedOutputs) {
     return new AutoValue_CommittedResult<>(
-        original.getTransform(), unprocessedElements, outputs, producedOutputs);
+        executable, unprocessedElements, outputs, producedOutputs);
+  }
+
+  public static <ExecutableT, CollectionT> CommittedResult<ExecutableT, CollectionT> empty(
+      ExecutableT transform) {
+    return new AutoValue_CommittedResult<>(
+        transform, Optional.absent(), Collections.emptySet(), Collections.emptySet());
   }
 
   enum OutputType {

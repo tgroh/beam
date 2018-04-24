@@ -26,7 +26,7 @@ interface CompletionCallback {
   /**
    * Handle a successful result, returning the committed outputs of the result.
    */
-  CommittedResult handleResult(
+  CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>> handleResult(
       CommittedBundle<?> inputBundle, TransformResult<?> result);
 
   /**
