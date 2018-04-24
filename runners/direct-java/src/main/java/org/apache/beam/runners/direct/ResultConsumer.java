@@ -18,15 +18,8 @@
 
 package org.apache.beam.runners.direct;
 
-import org.apache.beam.runners.local.Bundle;
-
 /**
- * A Factory for creating {@link TransformExecutor Transform Executors} on an input.
+ * TODO: Document
  */
-interface TransformExecutorFactory<ExecutableT, CollectionT> {
-  TransformExecutor create(
-      Bundle<?, ? extends CollectionT> bundle,
-      ExecutableT transform,
-      CompletionCallback<ExecutableT, CollectionT, ?, ?> onComplete,
-      TransformExecutorService executorService);
+interface ResultConsumer<ExecutableT, CollectionT> {
 }

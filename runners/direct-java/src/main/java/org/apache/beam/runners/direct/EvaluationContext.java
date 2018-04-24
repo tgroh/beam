@@ -140,7 +140,7 @@ class EvaluationContext {
    * @param result the result of evaluating the input bundle
    * @return the committed bundles contained within the handled {@code result}
    */
-  public CommittedResult<AppliedPTransform<?, ?, ?>> handleResult(
+  public CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>> handleResult(
       CommittedBundle<?> completedBundle,
       Iterable<TimerData> completedTimers,
       TransformResult<?> result) {
@@ -155,7 +155,7 @@ class EvaluationContext {
     } else {
       outputTypes.add(OutputType.BUNDLE);
     }
-    CommittedResult<AppliedPTransform<?, ?, ?>> committedResult =
+    CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>> committedResult =
         CommittedResult.create(
             result, getUnprocessedInput(completedBundle, result), committedBundles, outputTypes);
     // Update state internals

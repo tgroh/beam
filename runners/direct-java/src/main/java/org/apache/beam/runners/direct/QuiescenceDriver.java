@@ -33,6 +33,7 @@ import org.apache.beam.runners.core.KeyedWorkItem;
 import org.apache.beam.runners.core.KeyedWorkItems;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
 import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
+import org.apache.beam.runners.local.Bundle;
 import org.apache.beam.runners.local.ExecutionDriver;
 import org.apache.beam.runners.local.PipelineMessageReceiver;
 import org.apache.beam.sdk.runners.AppliedPTransform;
@@ -136,7 +137,7 @@ class QuiescenceDriver implements ExecutionDriver {
     if (update.getBundle().isPresent()) {
       if (ExecutorState.ACTIVE == startingState
           || (ExecutorState.PROCESSING == startingState && noWorkOutstanding)) {
-        CommittedBundle<?> bundle = update.getBundle().get();
+        Bundle<?, ? extends PCollection<?>> bundle = update.getBundle().get();
         for (AppliedPTransform<?, ?, ?> consumer : update.getConsumers()) {
           outstandingWork.incrementAndGet();
           bundleProcessor.process(bundle, consumer, defaultCompletionCallback);
@@ -261,14 +262,14 @@ class QuiescenceDriver implements ExecutionDriver {
     @Override
     public final CommittedResult handleResult(
         CommittedBundle<?> inputBundle, TransformResult<?> result) {
-      CommittedResult<AppliedPTransform<?, ?, ?>> committedResult =
+      CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>> committedResult =
           evaluationContext.handleResult(inputBundle, timers, result);
-      for (CommittedBundle<?> outputBundle : committedResult.getOutputs()) {
+      for (Bundle<?, ? extends PCollection<?>> outputBundle : committedResult.getOutputs()) {
         pendingWork.offer(
             WorkUpdate.fromBundle(
                 outputBundle, graph.getPerElementConsumers(outputBundle.getPCollection())));
       }
-      Optional<? extends CommittedBundle<?>> unprocessedInputs =
+      Optional<? extends Bundle<?, ? extends PCollection<?>>> unprocessedInputs =
           committedResult.getUnprocessedInputs();
       if (unprocessedInputs.isPresent()) {
         if (inputBundle.getPCollection() == null) {
@@ -312,7 +313,7 @@ class QuiescenceDriver implements ExecutionDriver {
   @AutoValue
   abstract static class WorkUpdate {
     private static WorkUpdate fromBundle(
-        CommittedBundle<?> bundle, Collection<AppliedPTransform<?, ?, ?>> consumers) {
+        Bundle<?, ? extends PCollection<?>> bundle, Collection<AppliedPTransform<?, ?, ?>> consumers) {
       return new AutoValue_QuiescenceDriver_WorkUpdate(
           Optional.of(bundle), consumers, Optional.absent());
     }
@@ -323,7 +324,7 @@ class QuiescenceDriver implements ExecutionDriver {
     }
 
     /** Returns the bundle that produced this update. */
-    public abstract Optional<? extends CommittedBundle<?>> getBundle();
+    public abstract Optional<? extends Bundle<?, ? extends PCollection<?>>> getBundle();
 
     /**
      * Returns the transforms to process the bundle. If nonempty, {@link #getBundle()} will return a

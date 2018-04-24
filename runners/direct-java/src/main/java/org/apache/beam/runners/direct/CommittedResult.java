@@ -21,14 +21,16 @@ package org.apache.beam.runners.direct;
 import com.google.auto.value.AutoValue;
 import com.google.common.base.Optional;
 import java.util.Set;
+import org.apache.beam.runners.local.Bundle;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.transforms.View.CreatePCollectionView;
+import org.apache.beam.sdk.values.PCollection;
 
 /**
  * A {@link TransformResult} that has been committed.
  */
 @AutoValue
-abstract class CommittedResult<ExecutableT> {
+abstract class CommittedResult<ExecutableT, CollectionT> {
   /**
    * Returns the {@link AppliedPTransform} that produced this result.
    */
@@ -39,12 +41,10 @@ abstract class CommittedResult<ExecutableT> {
    * processed by the evaluation. The returned optional is present if there were any unprocessed
    * input elements, and absent otherwise.
    */
-  public abstract Optional<? extends CommittedBundle<?>> getUnprocessedInputs();
+  public abstract Optional<? extends Bundle<?, ? extends CollectionT>> getUnprocessedInputs();
 
-  /**
-   * Returns the outputs produced by the transform.
-   */
-  public abstract Iterable<? extends CommittedBundle<?>> getOutputs();
+  /** Returns the outputs produced by the transform. */
+  public abstract Iterable<? extends Bundle<?, ? extends CollectionT>> getOutputs();
 
   /**
    * Returns if the transform that produced this result produced outputs.
@@ -55,7 +55,7 @@ abstract class CommittedResult<ExecutableT> {
    */
   public abstract Set<OutputType> getProducedOutputTypes();
 
-  public static CommittedResult<AppliedPTransform<?, ?, ?>> create(
+  public static CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>> create(
       TransformResult<?> original,
       Optional<? extends CommittedBundle<?>> unprocessedElements,
       Iterable<? extends CommittedBundle<?>> outputs,

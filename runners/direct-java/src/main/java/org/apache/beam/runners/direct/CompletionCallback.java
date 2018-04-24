@@ -22,11 +22,8 @@ import org.apache.beam.runners.local.Bundle;
 /** A callback for completing a bundle of input. */
 interface CompletionCallback<
     ExecutableT, CollectionT, BundleT extends Bundle<?, ? extends CollectionT>, ResultT> {
-  /**
-   * Handle a successful result, returning the committed outputs of the result.
-   */
-  CommittedResult handleResult(
-      BundleT inputBundle, ResultT result);
+  /** Handle a successful result, returning the committed outputs of the result. */
+  CommittedResult handleResult(BundleT inputBundle, ResultT result);
 
   /**
    * Handle an input bundle that did not require processing.
@@ -35,14 +32,12 @@ interface CompletionCallback<
    */
   void handleEmpty(ExecutableT transform);
 
-  /**
-   * Handle a result that terminated abnormally due to the provided {@link Exception}.
-   */
+  /** Handle a result that terminated abnormally due to the provided {@link Exception}. */
   void handleException(BundleT inputBundle, Exception t);
 
   /**
    * Handle a result that terminated abnormally due to the provided {@link Error}. The pipeline
    * should be shut down, and the Error propagated.
-  */
+   */
   void handleError(Error err);
 }
