@@ -34,17 +34,14 @@ import java.util.EnumSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
+import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
+import org.apache.beam.runners.core.construction.graph.PipelineNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
-import org.apache.beam.runners.direct.DirectGraphs;
-import org.apache.beam.runners.direct.ExecutableGraph;
 import org.apache.beam.runners.direct.portable.CommittedResult.OutputType;
 import org.apache.beam.sdk.testing.TestPipeline;
-import org.apache.beam.sdk.transforms.Create;
-import org.apache.beam.sdk.transforms.WithKeys;
 import org.apache.beam.sdk.util.WindowedValue;
-import org.apache.beam.sdk.values.KV;
-import org.apache.beam.sdk.values.PCollection;
 import org.hamcrest.Matchers;
 import org.joda.time.Instant;
 import org.junit.Before;
@@ -60,10 +57,18 @@ import org.mockito.MockitoAnnotations;
 @RunWith(JUnit4.class)
 public class DirectTransformExecutorTest {
   @Rule public ExpectedException thrown = ExpectedException.none();
-  private PCollection<String> created;
 
-  private PTransformNode createdProducer;
-  private PTransformNode downstreamProducer;
+  private PCollectionNode created =
+      PipelineNode.pCollection(
+          "created", PCollection.newBuilder().setUniqueName("created").build());
+
+  private PTransformNode downstreamProducer =
+      PipelineNode.pTransform(
+          "downstream",
+          PTransform.newBuilder()
+              .putInputs("created", "created")
+              .setUniqueName("downstream")
+              .build());
 
   private CountDownLatch evaluatorCompleted;
 
@@ -88,21 +93,13 @@ public class DirectTransformExecutorTest {
     evaluatorCompleted = new CountDownLatch(1);
     completionCallback = new RegisteringCompletionCallback(evaluatorCompleted);
 
-    created = p.apply(Create.of("foo", "spam", "third"));
-    PCollection<KV<Integer, String>> downstream = created.apply(WithKeys.of(3));
-
-    DirectGraphs.performDirectOverrides(p);
-    ExecutableGraph<PTransformNode, ? super PCollectionNode> graph =
-        DirectGraphs.getGraph(p);
-    createdProducer = graph.getProducer(created);
-    downstreamProducer = graph.getProducer(downstream);
-
     when(evaluationContext.getMetrics()).thenReturn(metrics);
   }
 
   @Test
   public void callWithNullInputBundleFinishesBundleAndCompletes() throws Exception {
-    final TransformResult<Object> result = StepTransformResult.withoutHold(createdProducer).build();
+    final TransformResult<Object> result =
+        StepTransformResult.withoutHold(downstreamProducer).build();
     final AtomicBoolean finishCalled = new AtomicBoolean(false);
     TransformEvaluator<Object> evaluator =
         new TransformEvaluator<Object>() {
@@ -118,14 +115,14 @@ public class DirectTransformExecutorTest {
           }
         };
 
-    when(registry.forApplication(createdProducer, null)).thenReturn(evaluator);
+    when(registry.forApplication(downstreamProducer, null)).thenReturn(evaluator);
 
     DirectTransformExecutor<Object> executor =
         new DirectTransformExecutor<>(
             evaluationContext,
             registry,
             null,
-            createdProducer,
+            downstreamProducer,
             completionCallback,
             transformEvaluationState);
     executor.run();
@@ -137,14 +134,14 @@ public class DirectTransformExecutorTest {
 
   @Test
   public void nullTransformEvaluatorTerminates() throws Exception {
-    when(registry.forApplication(createdProducer, null)).thenReturn(null);
+    when(registry.forApplication(downstreamProducer, null)).thenReturn(null);
 
     DirectTransformExecutor<Object> executor =
         new DirectTransformExecutor<>(
             evaluationContext,
             registry,
             null,
-            createdProducer,
+            downstreamProducer,
             completionCallback,
             transformEvaluationState);
     executor.run();
@@ -176,7 +173,12 @@ public class DirectTransformExecutorTest {
     WindowedValue<String> spam = WindowedValue.valueInGlobalWindow("spam");
     WindowedValue<String> third = WindowedValue.valueInGlobalWindow("third");
     CommittedBundle<String> inputBundle =
-        bundleFactory.createBundle(created).add(foo).add(spam).add(third).commit(Instant.now());
+        bundleFactory
+            .<String>createBundle(created)
+            .add(foo)
+            .add(spam)
+            .add(third)
+            .commit(Instant.now());
     when(registry.<String>forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
 
     DirectTransformExecutor<String> executor =
@@ -217,7 +219,7 @@ public class DirectTransformExecutorTest {
 
     WindowedValue<String> foo = WindowedValue.valueInGlobalWindow("foo");
     CommittedBundle<String> inputBundle =
-        bundleFactory.createBundle(created).add(foo).commit(Instant.now());
+        bundleFactory.<String>createBundle(created).add(foo).commit(Instant.now());
     when(registry.<String>forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
 
     DirectTransformExecutor<String> executor =
@@ -250,7 +252,8 @@ public class DirectTransformExecutorTest {
           }
         };
 
-    CommittedBundle<String> inputBundle = bundleFactory.createBundle(created).commit(Instant.now());
+    CommittedBundle<String> inputBundle =
+        bundleFactory.<String>createBundle(created).commit(Instant.now());
     when(registry.<String>forApplication(downstreamProducer, inputBundle)).thenReturn(evaluator);
 
     DirectTransformExecutor<String> executor =
