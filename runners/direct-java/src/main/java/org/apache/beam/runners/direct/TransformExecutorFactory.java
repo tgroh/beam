@@ -19,6 +19,7 @@
 package org.apache.beam.runners.direct;
 
 import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.sdk.values.PCollection;
 
 /**
  * A Factory for creating {@link TransformExecutor Transform Executors} on an input.
@@ -27,6 +28,6 @@ interface TransformExecutorFactory {
   TransformExecutor create(
       CommittedBundle<?> bundle,
       AppliedPTransform<?, ?, ?> transform,
-      CompletionCallback onComplete,
+      CompletionCallback<AppliedPTransform<?, ?, ?>, PCollection<?>, TransformResult<?>> onComplete,
       TransformExecutorService executorService);
 }

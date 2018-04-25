@@ -17,33 +17,27 @@
  */
 package org.apache.beam.runners.direct;
 
-import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.runners.local.Bundle;
 
-/**
- * A callback for completing a bundle of input.
- */
-interface CompletionCallback {
-  /**
-   * Handle a successful result, returning the committed outputs of the result.
-   */
-  CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>> handleResult(
-      CommittedBundle<?> inputBundle, TransformResult<?> result);
+/** A callback for completing a bundle of input. */
+interface CompletionCallback<ExecutableT, CollectionT, EvaluationResultT> {
+  /** Handle a successful result, returning the committed outputs of the result. */
+  CommittedResult<ExecutableT, CollectionT> handleResult(
+      Bundle<?, ? extends CollectionT> inputBundle, EvaluationResultT result);
 
   /**
    * Handle an input bundle that did not require processing.
    *
    * <p>This occurs when a Source has no splits that can currently produce outputs.
    */
-  void handleEmpty(AppliedPTransform<?, ?, ?> transform);
+  void handleEmpty(ExecutableT transform);
 
-  /**
-   * Handle a result that terminated abnormally due to the provided {@link Exception}.
-   */
-  void handleException(CommittedBundle<?> inputBundle, Exception t);
+  /** Handle a result that terminated abnormally due to the provided {@link Exception}. */
+  void handleException(Bundle<?, ? extends CollectionT> inputBundle, Exception t);
 
   /**
    * Handle a result that terminated abnormally due to the provided {@link Error}. The pipeline
    * should be shut down, and the Error propagated.
-  */
+   */
   void handleError(Error err);
 }

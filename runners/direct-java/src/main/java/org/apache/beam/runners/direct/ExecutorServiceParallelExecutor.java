@@ -190,14 +190,14 @@ final class ExecutorServiceParallelExecutor
   public void process(
       CommittedBundle<?> bundle,
       AppliedPTransform<?, ?, ?> consumer,
-      CompletionCallback onComplete) {
+      CompletionCallback<AppliedPTransform<?, ?, ?>, PCollection<?>, TransformResult<?>> onComplete) {
     evaluateBundle(consumer, bundle, onComplete);
   }
 
   private <T> void evaluateBundle(
       final AppliedPTransform<?, ?, ?> transform,
       final CommittedBundle<T> bundle,
-      final CompletionCallback onComplete) {
+      final CompletionCallback<AppliedPTransform<?, ?, ?>, PCollection<?>, TransformResult<?>> onComplete) {
     TransformExecutorService transformExecutor;
 
     if (isKeyed(bundle.getPCollection())) {

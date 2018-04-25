@@ -31,6 +31,7 @@ import org.apache.beam.runners.core.metrics.MetricsContainerImpl;
 import org.apache.beam.sdk.metrics.MetricsEnvironment;
 import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.PCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,7 +61,7 @@ class DirectTransformExecutor<T> implements TransformExecutor {
     public TransformExecutor create(
         CommittedBundle<?> bundle,
         AppliedPTransform<?, ?, ?> transform,
-        CompletionCallback onComplete,
+        CompletionCallback<AppliedPTransform<?, ?, ?>, PCollection<?>, TransformResult<?>> onComplete,
         TransformExecutorService executorService) {
       Collection<ModelEnforcementFactory> enforcements =
           MoreObjects.firstNonNull(
@@ -80,7 +81,8 @@ class DirectTransformExecutor<T> implements TransformExecutor {
   /** The inputs this {@link DirectTransformExecutor} will deliver to the transform. */
   private final CommittedBundle<T> inputBundle;
 
-  private final CompletionCallback onComplete;
+  private final CompletionCallback<AppliedPTransform<?, ?, ?>, PCollection<?>, TransformResult<?>>
+      onComplete;
   private final TransformExecutorService transformEvaluationState;
   private final EvaluationContext context;
 
@@ -91,7 +93,7 @@ class DirectTransformExecutor<T> implements TransformExecutor {
       Iterable<? extends ModelEnforcementFactory> modelEnforcements,
       CommittedBundle<T> inputBundle,
       AppliedPTransform<?, ?, ?> transform,
-      CompletionCallback completionCallback,
+      CompletionCallback<AppliedPTransform<?, ?, ?>, PCollection<?>, TransformResult<?>> completionCallback,
       TransformExecutorService transformEvaluationState) {
     this.evaluatorRegistry = factory;
     this.modelEnforcements = modelEnforcements;

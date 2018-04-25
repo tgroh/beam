@@ -19,6 +19,8 @@
 package org.apache.beam.runners.direct;
 
 import org.apache.beam.runners.local.Bundle;
+import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.sdk.values.PCollection;
 
 /**
  * An executor that is capable of processing some bundle of input over some executable stage or
@@ -30,5 +32,5 @@ interface BundleProcessor<
    * Execute the provided bundle using the provided Executable, calling back to the {@link
    * CompletionCallback} when execution completes.
    */
-  void process(BundleT bundle, ExecutableT consumer, CompletionCallback onComplete);
+  void process(BundleT bundle, ExecutableT consumer, CompletionCallback<AppliedPTransform<?, ?, ?>, PCollection<?>, TransformResult<?>> onComplete);
 }

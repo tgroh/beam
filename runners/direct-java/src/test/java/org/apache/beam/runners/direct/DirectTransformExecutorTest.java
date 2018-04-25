@@ -392,7 +392,7 @@ public class DirectTransformExecutorTest {
     task.get();
   }
 
-  private static class RegisteringCompletionCallback implements CompletionCallback {
+  private static class RegisteringCompletionCallback implements CompletionCallback<AppliedPTransform<?, ?, ?>, PCollection<?>, TransformResult<?>> {
     private TransformResult<?> handledResult = null;
     private boolean handledEmpty = false;
     private Exception handledException = null;

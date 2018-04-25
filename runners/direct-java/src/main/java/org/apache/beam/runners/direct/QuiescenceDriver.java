@@ -33,6 +33,7 @@ import org.apache.beam.runners.core.KeyedWorkItem;
 import org.apache.beam.runners.core.KeyedWorkItems;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
 import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
+import org.apache.beam.runners.local.Bundle;
 import org.apache.beam.runners.local.ExecutionDriver;
 import org.apache.beam.runners.local.PipelineMessageReceiver;
 import org.apache.beam.sdk.runners.AppliedPTransform;
@@ -46,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * Pushes additional work onto a {@link BundleProcessor} based on the fact that a pipeline has
  * quiesced.
  */
-class QuiescenceDriver implements ExecutionDriver {
+class QuiescenceDriver<ExecutableT, CollectionT> implements ExecutionDriver {
   private static final Logger LOG = LoggerFactory.getLogger(QuiescenceDriver.class);
 
   public static ExecutionDriver create(
@@ -56,19 +57,20 @@ class QuiescenceDriver implements ExecutionDriver {
           bundleProcessor,
       PipelineMessageReceiver messageReceiver,
       Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>> initialBundles) {
-    return new QuiescenceDriver(context, graph, bundleProcessor, messageReceiver, initialBundles);
+    return new QuiescenceDriver<>(context, graph, bundleProcessor, messageReceiver, initialBundles);
   }
 
   private final EvaluationContext evaluationContext;
-  private final DirectGraph graph;
-  private final BundleProcessor<PCollection<?>, CommittedBundle<?>, AppliedPTransform<?, ?, ?>>
+  private final ExecutableGraph<ExecutableT, CollectionT> graph;
+  private final BundleProcessor<CollectionT, Bundle<?, ? extends CollectionT>, ExecutableT>
       bundleProcessor;
   private final PipelineMessageReceiver pipelineMessageReceiver;
 
-  private final CompletionCallback defaultCompletionCallback =
+  private final CompletionCallback<ExecutableT, CollectionT, ?>
+      defaultCompletionCallback =
       new TimerIterableCompletionCallback(Collections.emptyList());
 
-  private final Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
+  private final Map<ExecutableT, ConcurrentLinkedQueue<Bundle<?, ? extends CollectionT>>>
       pendingRootBundles;
   private final Queue<WorkUpdate> pendingWork = new ConcurrentLinkedQueue<>();
 
@@ -79,11 +81,11 @@ class QuiescenceDriver implements ExecutionDriver {
 
   private QuiescenceDriver(
       EvaluationContext evaluationContext,
-      DirectGraph graph,
-      BundleProcessor<PCollection<?>, CommittedBundle<?>, AppliedPTransform<?, ?, ?>>
+      ExecutableGraph<ExecutableT, CollectionT> graph,
+      BundleProcessor<CollectionT, Bundle<?, ? extends CollectionT>, ExecutableT>
           bundleProcessor,
       PipelineMessageReceiver pipelineMessageReceiver,
-      Map<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
+      Map<ExecutableT, ConcurrentLinkedQueue<Bundle<?, ? extends CollectionT>>>
           pendingRootBundles) {
     this.evaluationContext = evaluationContext;
     this.graph = graph;
@@ -249,7 +251,9 @@ class QuiescenceDriver implements ExecutionDriver {
    * #handleResult(CommittedBundle, TransformResult)} and {@link #handleException(CommittedBundle,
    * Exception)}.
    */
-  private class TimerIterableCompletionCallback implements CompletionCallback {
+  private class TimerIterableCompletionCallback
+      implements CompletionCallback<
+          AppliedPTransform<?, ?, ?>, PCollection<?>, TransformResult<?>> {
     private final Iterable<TimerData> timers;
 
     TimerIterableCompletionCallback(Iterable<TimerData> timers) {
@@ -259,9 +263,9 @@ class QuiescenceDriver implements ExecutionDriver {
     @Override
     public final CommittedResult handleResult(
         CommittedBundle<?> inputBundle, TransformResult<?> result) {
-      CommittedResult<AppliedPTransform<?, ?, ?>> committedResult =
+      CommittedResult<AppliedPTransform<?, ?, ?>, PCollection<?>> committedResult =
           evaluationContext.handleResult(inputBundle, timers, result);
-      for (CommittedBundle<?> outputBundle : committedResult.getOutputs()) {
+      for (Bundle<?, ? extends PCollection<?>> outputBundle : committedResult.getOutputs()) {
         pendingWork.offer(
             WorkUpdate.fromBundle(
                 outputBundle, graph.getPerElementConsumers(outputBundle.getPCollection())));
@@ -310,7 +314,8 @@ class QuiescenceDriver implements ExecutionDriver {
   @AutoValue
   abstract static class WorkUpdate {
     private static WorkUpdate fromBundle(
-        CommittedBundle<?> bundle, Collection<AppliedPTransform<?, ?, ?>> consumers) {
+        Bundle<?, ? extends PCollection<?>> bundle,
+        Collection<AppliedPTransform<?, ?, ?>> consumers) {
       return new AutoValue_QuiescenceDriver_WorkUpdate(
           Optional.of(bundle), consumers, Optional.absent());
     }
