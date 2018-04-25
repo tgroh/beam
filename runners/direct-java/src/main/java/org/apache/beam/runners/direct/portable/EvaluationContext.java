@@ -33,10 +33,12 @@ import java.util.concurrent.ConcurrentMap;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
+import org.apache.beam.runners.direct.Clock;
 import org.apache.beam.runners.direct.ExecutableGraph;
+import org.apache.beam.runners.direct.WatermarkManager;
+import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
+import org.apache.beam.runners.direct.WatermarkManager.TransformWatermarks;
 import org.apache.beam.runners.direct.portable.CommittedResult.OutputType;
-import org.apache.beam.runners.direct.portable.WatermarkManager.FiredTimers;
-import org.apache.beam.runners.direct.portable.WatermarkManager.TransformWatermarks;
 import org.apache.beam.runners.local.StructuralKey;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -65,9 +67,7 @@ import org.joda.time.Instant;
  * executed.
  */
 class EvaluationContext {
-  /**
-   * The graph representing this {@link Pipeline}.
-   */
+  /** The graph representing this {@link Pipeline}. */
   private final ExecutableGraph<PTransformNode, ? super PCollectionNode> graph;
 
   private final Clock clock;
@@ -75,8 +75,7 @@ class EvaluationContext {
   private final BundleFactory bundleFactory;
 
   /** The current processing time and event time watermarks and timers. */
-  private final WatermarkManager<PTransformNode, ? super PCollectionNode>
-      watermarkManager;
+  private final WatermarkManager<PTransformNode, ? super PCollectionNode> watermarkManager;
 
   /** Executes callbacks based on the progression of the watermark. */
   private final WatermarkCallbackExecutor callbackExecutor;
@@ -301,7 +300,7 @@ class EvaluationContext {
     return new DirectExecutionContext(
         clock,
         key,
-        (CopyOnAccessInMemoryStateInternals) applicationStateInternals.get(stepAndKey),
+        applicationStateInternals.get(stepAndKey),
         watermarkManager.getWatermarks(application));
   }
 

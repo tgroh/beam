@@ -36,7 +36,7 @@ import org.apache.beam.runners.core.TimerInternals.TimerData;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.apache.beam.runners.direct.ExecutableGraph;
-import org.apache.beam.runners.direct.portable.WatermarkManager.FiredTimers;
+import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
 import org.apache.beam.runners.local.ExecutionDriver;
 import org.apache.beam.runners.local.PipelineMessageReceiver;
 import org.apache.beam.sdk.util.WindowedValue;

@@ -36,33 +36,24 @@ import org.apache.beam.runners.core.StateTags;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
-import org.apache.beam.runners.direct.DirectGraphs;
 import org.apache.beam.runners.direct.ExecutableGraph;
+import org.apache.beam.runners.direct.WatermarkManager.FiredTimers;
+import org.apache.beam.runners.direct.WatermarkManager.TimerUpdate;
 import org.apache.beam.runners.direct.portable.DirectExecutionContext.DirectStepContext;
-import org.apache.beam.runners.direct.portable.WatermarkManager.FiredTimers;
-import org.apache.beam.runners.direct.portable.WatermarkManager.TimerUpdate;
 import org.apache.beam.runners.local.StructuralKey;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarIntCoder;
-import org.apache.beam.sdk.io.GenerateSequence;
 import org.apache.beam.sdk.state.BagState;
 import org.apache.beam.sdk.state.TimeDomain;
-import org.apache.beam.sdk.testing.TestPipeline;
-import org.apache.beam.sdk.transforms.Create;
-import org.apache.beam.sdk.transforms.View;
-import org.apache.beam.sdk.transforms.WithKeys;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.KV;
-import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.WindowingStrategy;
 import org.hamcrest.Matchers;
 import org.joda.time.Instant;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -72,10 +63,8 @@ import org.junit.runners.JUnit4;
 public class EvaluationContextTest {
   private EvaluationContext context;
 
-  private PCollection<Integer> created;
-  private PCollection<KV<String, Integer>> downstream;
-  private PCollectionView<Iterable<Integer>> view;
-  private PCollection<Long> unbounded;
+  private PCollectionNode created;
+  private PCollectionNode downstream;
 
   private ExecutableGraph<PTransformNode, ? super PCollectionNode> graph;
 
@@ -83,25 +72,23 @@ public class EvaluationContextTest {
   private PTransformNode downstreamProducer;
   private PTransformNode unboundedProducer;
 
-  @Rule public TestPipeline p = TestPipeline.create().enableAbandonedNodeEnforcement(false);
-
   @Before
   public void setup() {
-    created = p.apply(Create.of(1, 2, 3));
-    downstream = created.apply(WithKeys.of("foo"));
-    view = created.apply(View.asIterable());
-    unbounded = p.apply(GenerateSequence.from(0));
+    ExecutableGraphBuilder graphBuilder =
+        ExecutableGraphBuilder.create()
+            .addTransform("create", null, "created")
+            .addTransform("downstream", "created", "downstream.out")
+            .addTransform("unbounded", null, "unbounded.out");
+
+    graph = graphBuilder.toGraph();
+    created = graphBuilder.collectionNode("created");
+    downstream = graphBuilder.collectionNode("downstream.out");
+    createdProducer = graphBuilder.transformNode("create");
+    downstreamProducer = graphBuilder.transformNode("downstream");
+    unboundedProducer = graphBuilder.transformNode("unbounded");
 
     BundleFactory bundleFactory = ImmutableListBundleFactory.create();
-    DirectGraphs.performDirectOverrides(p);
-    graph = DirectGraphs.getGraph(p);
-    context =
-        EvaluationContext.create(
-            NanosOffsetClock.create(), bundleFactory, graph, ImmutableSet.of());
-
-    createdProducer = graph.getProducer(created);
-    downstreamProducer = graph.getProducer(downstream);
-    unboundedProducer = graph.getProducer(unbounded);
+    context = EvaluationContext.create(Instant::new, bundleFactory, graph, ImmutableSet.of());
   }
 
   @Test
@@ -284,7 +271,9 @@ public class EvaluationContextTest {
   public void createKeyedBundleKeyed() {
     StructuralKey<String> key = StructuralKey.of("foo", StringUtf8Coder.of());
     CommittedBundle<KV<String, Integer>> keyedBundle =
-        context.createKeyedBundle(key, downstream).commit(Instant.now());
+        context
+            .<String, KV<String, Integer>>createKeyedBundle(key, downstream)
+            .commit(Instant.now());
     assertThat(keyedBundle.getKey(), Matchers.equalTo(key));
   }
 

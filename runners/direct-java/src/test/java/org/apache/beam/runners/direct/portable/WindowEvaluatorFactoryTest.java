@@ -49,6 +49,7 @@ import org.hamcrest.Matchers;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -58,6 +59,7 @@ import org.mockito.MockitoAnnotations;
 
 /** Tests for {@link WindowEvaluatorFactory}. */
 @RunWith(JUnit4.class)
+@Ignore("Not yet migrated")
 public class WindowEvaluatorFactoryTest {
   private static final Instant EPOCH = new Instant(0);
 
