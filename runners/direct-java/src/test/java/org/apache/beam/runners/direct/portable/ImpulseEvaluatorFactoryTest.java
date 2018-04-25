@@ -31,7 +31,7 @@ import org.apache.beam.runners.direct.DirectGraphs;
 import org.apache.beam.runners.direct.portable.ImpulseEvaluatorFactory.ImpulseRootProvider;
 import org.apache.beam.runners.direct.portable.ImpulseEvaluatorFactory.ImpulseShard;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.sdk.runners.PTransformNode;
 import org.apache.beam.sdk.transforms.Impulse;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
@@ -62,7 +62,7 @@ public class ImpulseEvaluatorFactoryTest {
     Pipeline p = Pipeline.create();
     PCollection<byte[]> impulseOut = p.apply(Impulse.create());
 
-    AppliedPTransform<?, ?, ?> impulseApplication = DirectGraphs.getProducer(impulseOut);
+    PTransformNode impulseApplication = DirectGraphs.getProducer(impulseOut);
 
     ImpulseEvaluatorFactory factory = new ImpulseEvaluatorFactory(context);
 
@@ -104,13 +104,13 @@ public class ImpulseEvaluatorFactoryTest {
     // Add a second impulse to demonstrate no crosstalk between applications
     @SuppressWarnings("unused")
     PCollection<byte[]> impulseOutTwo = p.apply(Impulse.create());
-    AppliedPTransform<?, ?, ?> impulseApplication = DirectGraphs.getProducer(impulseOut);
+    PTransformNode impulseApplication = DirectGraphs.getProducer(impulseOut);
 
     ImpulseRootProvider rootProvider = new ImpulseRootProvider(context);
     when(context.createRootBundle()).thenReturn(bundleFactory.createRootBundle());
 
     Collection<CommittedBundle<?>> inputs =
-        rootProvider.getInitialInputs((AppliedPTransform) impulseApplication, 100);
+        rootProvider.getInitialInputs((PTransformNode) impulseApplication, 100);
 
     assertThat("Only one impulse bundle per application", inputs, hasSize(1));
     assertThat(

@@ -42,7 +42,7 @@ import org.apache.beam.runners.core.StateNamespaces;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
 import org.apache.beam.runners.direct.DirectGraphs;
 import org.apache.beam.runners.direct.ExecutableGraph;
-import org.apache.beam.runners.direct.portable.WatermarkManager.AppliedPTransformInputWatermark;
+import org.apache.beam.runners.direct.portable.WatermarkManager.PTransformNodeInputWatermark;
 import org.apache.beam.runners.direct.portable.WatermarkManager.FiredTimers;
 import org.apache.beam.runners.direct.portable.WatermarkManager.TimerUpdate;
 import org.apache.beam.runners.direct.portable.WatermarkManager.TimerUpdate.TimerUpdateBuilder;
@@ -52,7 +52,7 @@ import org.apache.beam.runners.local.StructuralKey;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarLongCoder;
-import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.sdk.runners.PTransformNode;
 import org.apache.beam.sdk.state.TimeDomain;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.Create;
@@ -100,9 +100,9 @@ public class WatermarkManagerTest implements Serializable {
   private transient PCollection<Integer> intsToFlatten;
   private transient PCollection<Integer> flattened;
 
-  private transient WatermarkManager<AppliedPTransform<?, ?, ?>, ? super PCollection<?>> manager;
+  private transient WatermarkManager<PTransformNode, ? super PCollectionNode> manager;
   private transient BundleFactory bundleFactory;
-  private ExecutableGraph<AppliedPTransform<?, ?, ?>, ? super PCollection<?>> graph;
+  private ExecutableGraph<PTransformNode, ? super PCollectionNode> graph;
 
   @Rule
   public transient TestPipeline p = TestPipeline.create().enableAbandonedNodeEnforcement(false);
@@ -135,7 +135,7 @@ public class WatermarkManagerTest implements Serializable {
   }
 
   /**
-   * Demonstrates that getWatermark, when called on an {@link AppliedPTransform} that has not
+   * Demonstrates that getWatermark, when called on an {@link PTransformNode} that has not
    * processed any elements, returns the {@link BoundedWindow#TIMESTAMP_MIN_VALUE}.
    */
   @Test
@@ -301,12 +301,12 @@ public class WatermarkManagerTest implements Serializable {
     PCollection<Integer> created = p.apply(Create.of(1, 2, 3));
     PCollection<Integer> multiConsumer =
         PCollectionList.of(created).and(created).apply(Flatten.pCollections());
-    ExecutableGraph<AppliedPTransform<?, ?, ?>, ? super PCollection<?>> graph =
+    ExecutableGraph<PTransformNode, ? super PCollectionNode> graph =
         DirectGraphs.getGraph(p);
 
-    AppliedPTransform<?, ?, ?> theFlatten = graph.getProducer(multiConsumer);
+    PTransformNode theFlatten = graph.getProducer(multiConsumer);
 
-    WatermarkManager<AppliedPTransform<?, ?, ?>, ? super PCollection<?>> tstMgr =
+    WatermarkManager<PTransformNode, ? super PCollectionNode> tstMgr =
         WatermarkManager.create(clock, graph);
     CommittedBundle<Void> root =
         bundleFactory
@@ -319,8 +319,8 @@ public class WatermarkManagerTest implements Serializable {
             .add(WindowedValue.timestampedValueInGlobalWindow(1, new Instant(33536)))
             .commit(clock.now());
 
-    Map<AppliedPTransform<?, ?, ?>, Collection<CommittedBundle<?>>> initialInputs =
-        ImmutableMap.<AppliedPTransform<?, ?, ?>, Collection<CommittedBundle<?>>>builder()
+    Map<PTransformNode, Collection<CommittedBundle<?>>> initialInputs =
+        ImmutableMap.<PTransformNode, Collection<CommittedBundle<?>>>builder()
             .put(graph.getProducer(created), Collections.singleton(root))
             .build();
     tstMgr.initialize((Map) initialInputs);
@@ -360,7 +360,7 @@ public class WatermarkManagerTest implements Serializable {
 
   /**
    * Demonstrates that pending elements are independent among
-   * {@link AppliedPTransform AppliedPTransforms} that consume the same input {@link PCollection}.
+   * {@link PTransformNode AppliedPTransforms} that consume the same input {@link PCollection}.
    */
   @Test
   public void getWatermarkForMultiConsumedCollection() {
@@ -429,7 +429,7 @@ public class WatermarkManagerTest implements Serializable {
   }
 
   /**
-   * Demonstrates that the watermark of an {@link AppliedPTransform} is held to the provided
+   * Demonstrates that the watermark of an {@link PTransformNode} is held to the provided
    * watermark hold.
    */
   @Test
@@ -466,7 +466,7 @@ public class WatermarkManagerTest implements Serializable {
   }
 
   /**
-   * Demonstrates that the watermark of an {@link AppliedPTransform} is held to the provided
+   * Demonstrates that the watermark of an {@link PTransformNode} is held to the provided
    * watermark hold.
    */
   @Test
@@ -555,7 +555,7 @@ public class WatermarkManagerTest implements Serializable {
 
   /**
    * Demonstrates that updated output watermarks are monotonic in the presence of late data, when
-   * called on an {@link AppliedPTransform} that consumes no input.
+   * called on an {@link PTransformNode} that consumes no input.
    */
   @Test
   public void updateOutputWatermarkShouldBeMonotonic() {
@@ -1017,7 +1017,7 @@ public class WatermarkManagerTest implements Serializable {
         filteredDoubledWms.getSynchronizedProcessingOutputTime(),
         not(lessThan(initialFilteredDoubledWm)));
 
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> firedTimers = manager.extractFiredTimers();
+    Collection<FiredTimers<PTransformNode>> firedTimers = manager.extractFiredTimers();
     assertThat(
         Iterables.getOnlyElement(firedTimers).getTimers(),
         contains(pastTimer));
@@ -1205,7 +1205,7 @@ public class WatermarkManagerTest implements Serializable {
 
   @Test
   public void extractFiredTimersReturnsFiredEventTimeTimers() {
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> initialTimers =
+    Collection<FiredTimers<PTransformNode>> initialTimers =
         manager.extractFiredTimers();
     // Watermarks haven't advanced
     assertThat(initialTimers, emptyIterable());
@@ -1244,10 +1244,10 @@ public class WatermarkManagerTest implements Serializable {
         new Instant(1000L));
     manager.refreshAll();
 
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> firstFiredTimers =
+    Collection<FiredTimers<PTransformNode>> firstFiredTimers =
         manager.extractFiredTimers();
     assertThat(firstFiredTimers, not(Matchers.emptyIterable()));
-    FiredTimers<AppliedPTransform<?, ?, ?>> firstFired = Iterables.getOnlyElement(firstFiredTimers);
+    FiredTimers<PTransformNode> firstFired = Iterables.getOnlyElement(firstFiredTimers);
     assertThat(firstFired.getTimers(), contains(earliestTimer));
 
     manager.updateWatermarks(
@@ -1258,10 +1258,10 @@ public class WatermarkManagerTest implements Serializable {
         Collections.emptyList(),
         new Instant(50_000L));
     manager.refreshAll();
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> secondFiredTimers =
+    Collection<FiredTimers<PTransformNode>> secondFiredTimers =
         manager.extractFiredTimers();
     assertThat(secondFiredTimers, not(Matchers.emptyIterable()));
-    FiredTimers<AppliedPTransform<?, ?, ?>> secondFired =
+    FiredTimers<PTransformNode> secondFired =
         Iterables.getOnlyElement(secondFiredTimers);
     // Contains, in order, middleTimer and then lastTimer
     assertThat(secondFired.getTimers(), contains(middleTimer, lastTimer));
@@ -1269,7 +1269,7 @@ public class WatermarkManagerTest implements Serializable {
 
   @Test
   public void extractFiredTimersReturnsFiredProcessingTimeTimers() {
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> initialTimers =
+    Collection<FiredTimers<PTransformNode>> initialTimers =
         manager.extractFiredTimers();
     // Watermarks haven't advanced
     assertThat(initialTimers, emptyIterable());
@@ -1307,10 +1307,10 @@ public class WatermarkManagerTest implements Serializable {
         new Instant(1000L));
     manager.refreshAll();
 
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> firstFiredTimers =
+    Collection<FiredTimers<PTransformNode>> firstFiredTimers =
         manager.extractFiredTimers();
     assertThat(firstFiredTimers, not(Matchers.emptyIterable()));
-    FiredTimers<AppliedPTransform<?, ?, ?>> firstFired = Iterables.getOnlyElement(firstFiredTimers);
+    FiredTimers<PTransformNode> firstFired = Iterables.getOnlyElement(firstFiredTimers);
     assertThat(firstFired.getTimers(), contains(earliestTimer));
 
     clock.set(new Instant(50_000L));
@@ -1322,10 +1322,10 @@ public class WatermarkManagerTest implements Serializable {
         Collections.emptyList(),
         new Instant(50_000L));
     manager.refreshAll();
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> secondFiredTimers =
+    Collection<FiredTimers<PTransformNode>> secondFiredTimers =
         manager.extractFiredTimers();
     assertThat(secondFiredTimers, not(Matchers.emptyIterable()));
-    FiredTimers<AppliedPTransform<?, ?, ?>> secondFired =
+    FiredTimers<PTransformNode> secondFired =
         Iterables.getOnlyElement(secondFiredTimers);
     // Contains, in order, middleTimer and then lastTimer
     assertThat(secondFired.getTimers(), contains(middleTimer, lastTimer));
@@ -1333,7 +1333,7 @@ public class WatermarkManagerTest implements Serializable {
 
   @Test
   public void extractFiredTimersReturnsFiredSynchronizedProcessingTimeTimers() {
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> initialTimers =
+    Collection<FiredTimers<PTransformNode>> initialTimers =
         manager.extractFiredTimers();
     // Watermarks haven't advanced
     assertThat(initialTimers, emptyIterable());
@@ -1371,10 +1371,10 @@ public class WatermarkManagerTest implements Serializable {
         new Instant(1000L));
     manager.refreshAll();
 
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> firstFiredTimers =
+    Collection<FiredTimers<PTransformNode>> firstFiredTimers =
         manager.extractFiredTimers();
     assertThat(firstFiredTimers, not(Matchers.emptyIterable()));
-    FiredTimers<AppliedPTransform<?, ?, ?>> firstFired = Iterables.getOnlyElement(firstFiredTimers);
+    FiredTimers<PTransformNode> firstFired = Iterables.getOnlyElement(firstFiredTimers);
     assertThat(firstFired.getTimers(), contains(earliestTimer));
 
     clock.set(new Instant(50_000L));
@@ -1386,10 +1386,10 @@ public class WatermarkManagerTest implements Serializable {
         Collections.emptyList(),
         new Instant(50_000L));
     manager.refreshAll();
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> secondFiredTimers =
+    Collection<FiredTimers<PTransformNode>> secondFiredTimers =
         manager.extractFiredTimers();
     assertThat(secondFiredTimers, not(Matchers.emptyIterable()));
-    FiredTimers<AppliedPTransform<?, ?, ?>> secondFired =
+    FiredTimers<PTransformNode> secondFired =
         Iterables.getOnlyElement(secondFiredTimers);
     // Contains, in order, middleTimer and then lastTimer
     assertThat(secondFired.getTimers(), contains(middleTimer, lastTimer));
@@ -1397,7 +1397,7 @@ public class WatermarkManagerTest implements Serializable {
 
   @Test
   public void processingTimeTimersCanBeReset() {
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> initialTimers =
+    Collection<FiredTimers<PTransformNode>> initialTimers =
         manager.extractFiredTimers();
     assertThat(initialTimers, emptyIterable());
 
@@ -1437,16 +1437,16 @@ public class WatermarkManagerTest implements Serializable {
     clock.set(new Instant(50000L));
     manager.refreshAll();
 
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> firedTimers =
+    Collection<FiredTimers<PTransformNode>> firedTimers =
         manager.extractFiredTimers();
     assertThat(firedTimers, not(Matchers.emptyIterable()));
-    FiredTimers<AppliedPTransform<?, ?, ?>> timers = Iterables.getOnlyElement(firedTimers);
+    FiredTimers<PTransformNode> timers = Iterables.getOnlyElement(firedTimers);
     assertThat(timers.getTimers(), contains(overridingTimer));
   }
 
   @Test
   public void eventTimeTimersCanBeReset() {
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> initialTimers =
+    Collection<FiredTimers<PTransformNode>> initialTimers =
         manager.extractFiredTimers();
     assertThat(initialTimers, emptyIterable());
 
@@ -1491,10 +1491,10 @@ public class WatermarkManagerTest implements Serializable {
         new Instant(3000L));
     manager.refreshAll();
 
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> firstFiredTimers =
+    Collection<FiredTimers<PTransformNode>> firstFiredTimers =
         manager.extractFiredTimers();
     assertThat(firstFiredTimers, not(Matchers.emptyIterable()));
-    FiredTimers<AppliedPTransform<?, ?, ?>> firstFired = Iterables.getOnlyElement(firstFiredTimers);
+    FiredTimers<PTransformNode> firstFired = Iterables.getOnlyElement(firstFiredTimers);
     assertThat(firstFired.getTimers(), contains(overridingTimer));
   }
 
@@ -1502,8 +1502,8 @@ public class WatermarkManagerTest implements Serializable {
   public void inputWatermarkDuplicates() {
     Watermark mockWatermark = Mockito.mock(Watermark.class);
 
-    AppliedPTransformInputWatermark underTest =
-        new AppliedPTransformInputWatermark(ImmutableList.of(mockWatermark));
+    PTransformNodeInputWatermark underTest =
+        new PTransformNodeInputWatermark(ImmutableList.of(mockWatermark));
 
     // Refresh
     when(mockWatermark.get()).thenReturn(new Instant(0));
@@ -1660,7 +1660,7 @@ public class WatermarkManagerTest implements Serializable {
 
   @SafeVarargs
   private final <T> CommittedBundle<T> timestampedBundle(
-      PCollection<T> pc, TimestampedValue<T>... values) {
+      PCollectionNode pc, TimestampedValue<T>... values) {
     UncommittedBundle<T> bundle = bundleFactory.createBundle(pc);
     for (TimestampedValue<T> value : values) {
       bundle.add(
@@ -1670,7 +1670,7 @@ public class WatermarkManagerTest implements Serializable {
   }
 
   @SafeVarargs
-  private final <T> CommittedBundle<T> multiWindowedBundle(PCollection<T> pc, T... values) {
+  private final <T> CommittedBundle<T> multiWindowedBundle(PCollectionNode pc, T... values) {
     UncommittedBundle<T> bundle = bundleFactory.createBundle(pc);
     Collection<BoundedWindow> windows =
         ImmutableList.of(

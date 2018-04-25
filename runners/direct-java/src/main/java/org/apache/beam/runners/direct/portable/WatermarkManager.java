@@ -54,11 +54,12 @@ import javax.annotation.concurrent.GuardedBy;
 import org.apache.beam.runners.core.StateNamespace;
 import org.apache.beam.runners.core.TimerInternals;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.apache.beam.runners.direct.ExecutableGraph;
 import org.apache.beam.runners.local.Bundle;
 import org.apache.beam.runners.local.StructuralKey;
 import org.apache.beam.sdk.Pipeline;
-import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.state.TimeDomain;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
@@ -67,30 +68,30 @@ import org.joda.time.Instant;
 
 /**
  * Manages watermarks of {@link PCollection PCollections} and input and output watermarks of
- * {@link AppliedPTransform AppliedPTransforms} to provide event-time and completion tracking for
+ * {@link PTransformNode AppliedPTransforms} to provide event-time and completion tracking for
  * in-memory execution. {@link WatermarkManager} is designed to update and return a
  * consistent view of watermarks in the presence of concurrent updates.
  *
  * <p>An {@link WatermarkManager} is provided with the collection of root
- * {@link AppliedPTransform AppliedPTransforms} and a map of {@link PCollection PCollections} to
- * all the {@link AppliedPTransform AppliedPTransforms} that consume them at construction time.
+ * {@link PTransformNode AppliedPTransforms} and a map of {@link PCollection PCollections} to
+ * all the {@link PTransformNode AppliedPTransforms} that consume them at construction time.
  *
- * <p>Whenever a root {@link AppliedPTransform executable} produces elements, the
+ * <p>Whenever a root {@link PTransformNode executable} produces elements, the
  * {@link WatermarkManager} is provided with the produced elements and the output watermark
- * of the producing {@link AppliedPTransform executable}. The
+ * of the producing {@link PTransformNode executable}. The
  * {@link WatermarkManager watermark manager} is responsible for computing the watermarks
- * of all {@link AppliedPTransform transforms} that consume one or more
+ * of all {@link PTransformNode transforms} that consume one or more
  * {@link PCollection PCollections}.
  *
- * <p>Whenever a non-root {@link AppliedPTransform} finishes processing one or more in-flight
+ * <p>Whenever a non-root {@link PTransformNode} finishes processing one or more in-flight
  * elements (referred to as the input {@link CommittedBundle bundle}), the following occurs
  * atomically:
  * <ul>
  *  <li>All of the in-flight elements are removed from the collection of pending elements for the
- *      {@link AppliedPTransform}.</li>
- *  <li>All of the elements produced by the {@link AppliedPTransform} are added to the collection
- *      of pending elements for each {@link AppliedPTransform} that consumes them.</li>
- *  <li>The input watermark for the {@link AppliedPTransform} becomes the maximum value of
+ *      {@link PTransformNode}.</li>
+ *  <li>All of the elements produced by the {@link PTransformNode} are added to the collection
+ *      of pending elements for each {@link PTransformNode} that consumes them.</li>
+ *  <li>The input watermark for the {@link PTransformNode} becomes the maximum value of
  *    <ul>
  *      <li>the previous input watermark</li>
  *      <li>the minimum of
@@ -101,7 +102,7 @@ import org.joda.time.Instant;
  *      </li>
  *    </ul>
  *  </li>
- *  <li>The output watermark for the {@link AppliedPTransform} becomes the maximum of
+ *  <li>The output watermark for the {@link PTransformNode} becomes the maximum of
  *    <ul>
  *      <li>the previous output watermark</li>
  *      <li>the minimum of
@@ -113,13 +114,13 @@ import org.joda.time.Instant;
  *    </ul>
  *  </li>
  *  <li>The watermark of the output {@link PCollection} can be advanced to the output watermark of
- *      the {@link AppliedPTransform}</li>
- *  <li>The watermark of all downstream {@link AppliedPTransform AppliedPTransforms} can be
+ *      the {@link PTransformNode}</li>
+ *  <li>The watermark of all downstream {@link PTransformNode AppliedPTransforms} can be
  *      advanced.</li>
  * </ul>
  *
  * <p>The watermark of a {@link PCollection} is equal to the output watermark of the
- * {@link AppliedPTransform} that produces it.
+ * {@link PTransformNode} that produces it.
  *
  * <p>The watermarks for a {@link PTransform} are updated as follows when output is committed:<pre>
  * Watermark_In'  = MAX(Watermark_In, MIN(U(TS_Pending), U(Watermark_InputPCollection)))
@@ -202,15 +203,15 @@ class WatermarkManager<ExecutableT, CollectionT> {
   }
 
   /**
-   * The input {@link Watermark} of an {@link AppliedPTransform}.
+   * The input {@link Watermark} of an {@link PTransformNode}.
    *
-   * <p>At any point, the value of an {@link AppliedPTransformInputWatermark} is equal to the
+   * <p>At any point, the value of an {@link PTransformNodeInputWatermark} is equal to the
    * minimum watermark across all of its input {@link Watermark Watermarks}, and the minimum
    * timestamp of all of the pending elements, restricted to be monotonically increasing.
    *
    * <p>See {@link #refresh()} for more information.
    */
-  @VisibleForTesting static class AppliedPTransformInputWatermark implements Watermark {
+  @VisibleForTesting static class PTransformNodeInputWatermark implements Watermark {
     private final Collection<? extends Watermark> inputWatermarks;
     private final SortedMultiset<Bundle<?, ?>> pendingElements;
 
@@ -227,7 +228,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
 
     private AtomicReference<Instant> currentWatermark;
 
-    public AppliedPTransformInputWatermark(Collection<? extends Watermark> inputWatermarks) {
+    public PTransformNodeInputWatermark(Collection<? extends Watermark> inputWatermarks) {
       this.inputWatermarks = inputWatermarks;
       // The ordering must order elements by timestamp, and must not compare two distinct elements
       // as equal. This is built on the assumption that any element added as a pending element will
@@ -252,7 +253,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
     /**
      * {@inheritDoc}.
      *
-     * <p>When refresh is called, the value of the {@link AppliedPTransformInputWatermark} becomes
+     * <p>When refresh is called, the value of the {@link PTransformNodeInputWatermark} becomes
      * equal to the maximum value of
      * <ul>
      *   <li>the previous input watermark</li>
@@ -352,7 +353,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
 
     @Override
     public synchronized String toString() {
-      return MoreObjects.toStringHelper(AppliedPTransformInputWatermark.class)
+      return MoreObjects.toStringHelper(PTransformNodeInputWatermark.class)
           .add("pendingElements", pendingElements)
           .add("currentWatermark", currentWatermark)
           .toString();
@@ -360,20 +361,20 @@ class WatermarkManager<ExecutableT, CollectionT> {
   }
 
   /**
-   * The output {@link Watermark} of an {@link AppliedPTransform}.
+   * The output {@link Watermark} of an {@link PTransformNode}.
    *
-   * <p>The value of an {@link AppliedPTransformOutputWatermark} is equal to the minimum of the
-   * current watermark hold and the {@link AppliedPTransformInputWatermark} for the same
-   * {@link AppliedPTransform}, restricted to be monotonically increasing. See
+   * <p>The value of an {@link PTransformNodeOutputWatermark} is equal to the minimum of the
+   * current watermark hold and the {@link PTransformNodeInputWatermark} for the same
+   * {@link PTransformNode}, restricted to be monotonically increasing. See
    * {@link #refresh()} for more information.
    */
-  private static class AppliedPTransformOutputWatermark implements Watermark {
-    private final AppliedPTransformInputWatermark inputWatermark;
+  private static class PTransformNodeOutputWatermark implements Watermark {
+    private final PTransformNodeInputWatermark inputWatermark;
     private final PerKeyHolds holds;
     private AtomicReference<Instant> currentWatermark;
 
-    public AppliedPTransformOutputWatermark(
-        AppliedPTransformInputWatermark inputWatermark) {
+    public PTransformNodeOutputWatermark(
+        PTransformNodeInputWatermark inputWatermark) {
       this.inputWatermark = inputWatermark;
       holds = new PerKeyHolds();
       currentWatermark = new AtomicReference<>(BoundedWindow.TIMESTAMP_MIN_VALUE);
@@ -395,7 +396,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
     /**
      * {@inheritDoc}.
      *
-     * <p>When refresh is called, the value of the {@link AppliedPTransformOutputWatermark} becomes
+     * <p>When refresh is called, the value of the {@link PTransformNodeOutputWatermark} becomes
      * equal to the maximum value of:
      * <ul>
      *   <li>the previous output watermark</li>
@@ -421,7 +422,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
 
     @Override
     public synchronized String toString() {
-      return MoreObjects.toStringHelper(AppliedPTransformOutputWatermark.class)
+      return MoreObjects.toStringHelper(PTransformNodeOutputWatermark.class)
           .add("holds", holds)
           .add("currentWatermark", currentWatermark)
           .toString();
@@ -430,10 +431,10 @@ class WatermarkManager<ExecutableT, CollectionT> {
 
   /**
    * The input {@link TimeDomain#SYNCHRONIZED_PROCESSING_TIME} hold for an
-   * {@link AppliedPTransform}.
+   * {@link PTransformNode}.
    *
    * <p>At any point, the hold value of an {@link SynchronizedProcessingTimeInputWatermark} is equal
-   * to the minimum across all pending bundles at the {@link AppliedPTransform} and all upstream
+   * to the minimum across all pending bundles at the {@link PTransformNode} and all upstream
    * {@link TimeDomain#SYNCHRONIZED_PROCESSING_TIME} watermarks. The value of the input
    * synchronized processing time at any step is equal to the maximum of:
    * <ul>
@@ -629,10 +630,10 @@ class WatermarkManager<ExecutableT, CollectionT> {
 
   /**
    * The output {@link TimeDomain#SYNCHRONIZED_PROCESSING_TIME} hold for an
-   * {@link AppliedPTransform}.
+   * {@link PTransformNode}.
    *
    * <p>At any point, the hold value of an {@link SynchronizedProcessingTimeOutputWatermark} is
-   * equal to the minimum across all incomplete timers at the {@link AppliedPTransform} and all
+   * equal to the minimum across all incomplete timers at the {@link PTransformNode} and all
    * upstream {@link TimeDomain#SYNCHRONIZED_PROCESSING_TIME} watermarks. The value of the output
    * synchronized processing time at any step is equal to the maximum of:
    * <ul>
@@ -757,7 +758,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
   private final ExecutableGraph<ExecutableT, CollectionT> graph;
 
   /**
-   * The input and output watermark of each {@link AppliedPTransform}.
+   * The input and output watermark of each {@link PTransformNode}.
    */
   private final Map<ExecutableT, TransformWatermarks> transformToWatermarks;
 
@@ -772,7 +773,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
   private final Lock refreshLock;
 
   /**
-   * A queue of pending {@link AppliedPTransform AppliedPTransforms} that have potentially
+   * A queue of pending {@link PTransformNode AppliedPTransforms} that have potentially
    * stale data.
    */
   @GuardedBy("refreshLock")
@@ -786,8 +787,8 @@ class WatermarkManager<ExecutableT, CollectionT> {
    * @param clock the clock to use to determine processing time
    * @param graph the graph representing this pipeline
    */
-  public static WatermarkManager<AppliedPTransform<?, ?, ?>, ? super PCollection<?>> create(
-      Clock clock, ExecutableGraph<AppliedPTransform<?, ?, ?>, ? super PCollection<?>> graph) {
+  public static WatermarkManager<PTransformNode, ? super PCollectionNode> create(
+      Clock clock, ExecutableGraph<PTransformNode, ? super PCollectionNode> graph) {
     return new WatermarkManager<>(clock, graph);
   }
 
@@ -818,10 +819,10 @@ class WatermarkManager<ExecutableT, CollectionT> {
     TransformWatermarks wms = transformToWatermarks.get(executable);
     if (wms == null) {
       List<Watermark> inputCollectionWatermarks = getInputWatermarks(executable);
-      AppliedPTransformInputWatermark inputWatermark =
-          new AppliedPTransformInputWatermark(inputCollectionWatermarks);
-      AppliedPTransformOutputWatermark outputWatermark =
-          new AppliedPTransformOutputWatermark(inputWatermark);
+      PTransformNodeInputWatermark inputWatermark =
+          new PTransformNodeInputWatermark(inputCollectionWatermarks);
+      PTransformNodeOutputWatermark outputWatermark =
+          new PTransformNodeOutputWatermark(inputWatermark);
 
       SynchronizedProcessingTimeInputWatermark inputProcessingWatermark =
           new SynchronizedProcessingTimeInputWatermark(getInputProcessingWatermarks(executable));
@@ -870,8 +871,8 @@ class WatermarkManager<ExecutableT, CollectionT> {
   ////////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
-   * Gets the input and output watermarks for an {@link AppliedPTransform}. If the {@link
-   * AppliedPTransform PTransform} has not processed any elements, return a watermark of {@link
+   * Gets the input and output watermarks for an {@link PTransformNode}. If the {@link
+   * PTransformNode PTransform} has not processed any elements, return a watermark of {@link
    * BoundedWindow#TIMESTAMP_MIN_VALUE}.
    *
    * @return a snapshot of the input watermark and output watermark for the provided executable
@@ -1191,13 +1192,13 @@ class WatermarkManager<ExecutableT, CollectionT> {
   }
 
   /**
-   * A reference to the input and output watermarks of an {@link AppliedPTransform}.
+   * A reference to the input and output watermarks of an {@link PTransformNode}.
    */
   public class TransformWatermarks {
     private final ExecutableT executable;
 
-    private final AppliedPTransformInputWatermark inputWatermark;
-    private final AppliedPTransformOutputWatermark outputWatermark;
+    private final PTransformNodeInputWatermark inputWatermark;
+    private final PTransformNodeOutputWatermark outputWatermark;
 
     private final SynchronizedProcessingTimeInputWatermark synchronizedProcessingInputWatermark;
     private final SynchronizedProcessingTimeOutputWatermark synchronizedProcessingOutputWatermark;
@@ -1207,8 +1208,8 @@ class WatermarkManager<ExecutableT, CollectionT> {
 
     private TransformWatermarks(
         ExecutableT executable,
-        AppliedPTransformInputWatermark inputWatermark,
-        AppliedPTransformOutputWatermark outputWatermark,
+        PTransformNodeInputWatermark inputWatermark,
+        PTransformNodeOutputWatermark outputWatermark,
         SynchronizedProcessingTimeInputWatermark inputSynchProcessingWatermark,
         SynchronizedProcessingTimeOutputWatermark outputSynchProcessingWatermark) {
       this.executable = executable;
@@ -1222,21 +1223,21 @@ class WatermarkManager<ExecutableT, CollectionT> {
     }
 
     /**
-     * Returns the input watermark of the {@link AppliedPTransform}.
+     * Returns the input watermark of the {@link PTransformNode}.
      */
     public Instant getInputWatermark() {
       return checkNotNull(inputWatermark.get());
     }
 
     /**
-     * Returns the output watermark of the {@link AppliedPTransform}.
+     * Returns the output watermark of the {@link PTransformNode}.
      */
     public Instant getOutputWatermark() {
       return outputWatermark.get();
     }
 
     /**
-     * Returns the synchronized processing input time of the {@link AppliedPTransform}.
+     * Returns the synchronized processing input time of the {@link PTransformNode}.
      *
      * <p>The returned value is guaranteed to be monotonically increasing, and outside of the
      * presence of holds, will increase as the system time progresses.
@@ -1249,7 +1250,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
     }
 
     /**
-     * Returns the synchronized processing output time of the {@link AppliedPTransform}.
+     * Returns the synchronized processing output time of the {@link PTransformNode}.
      *
      * <p>The returned value is guaranteed to be monotonically increasing, and outside of the
      * presence of holds, will increase as the system time progresses.
@@ -1485,7 +1486,7 @@ class WatermarkManager<ExecutableT, CollectionT> {
 
   /**
    * A pair of {@link TimerData} and key which can be delivered to the appropriate
-   * {@link AppliedPTransform}. A timer fires at the executable that set it with a specific key when
+   * {@link PTransformNode}. A timer fires at the executable that set it with a specific key when
    * the time domain in which it lives progresses past a specified time, as determined by the
    * {@link WatermarkManager}.
    */

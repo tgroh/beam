@@ -34,6 +34,8 @@ import org.apache.beam.runners.core.StateNamespaces;
 import org.apache.beam.runners.core.StateTag;
 import org.apache.beam.runners.core.StateTags;
 import org.apache.beam.runners.core.TimerInternals.TimerData;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.apache.beam.runners.direct.DirectGraphs;
 import org.apache.beam.runners.direct.ExecutableGraph;
 import org.apache.beam.runners.direct.portable.DirectExecutionContext.DirectStepContext;
@@ -44,7 +46,6 @@ import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.io.GenerateSequence;
-import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.state.BagState;
 import org.apache.beam.sdk.state.TimeDomain;
 import org.apache.beam.sdk.testing.TestPipeline;
@@ -76,11 +77,11 @@ public class EvaluationContextTest {
   private PCollectionView<Iterable<Integer>> view;
   private PCollection<Long> unbounded;
 
-  private ExecutableGraph<AppliedPTransform<?, ?, ?>, ? super PCollection<?>> graph;
+  private ExecutableGraph<PTransformNode, ? super PCollectionNode> graph;
 
-  private AppliedPTransform<?, ?, ?> createdProducer;
-  private AppliedPTransform<?, ?, ?> downstreamProducer;
-  private AppliedPTransform<?, ?, ?> unboundedProducer;
+  private PTransformNode createdProducer;
+  private PTransformNode downstreamProducer;
+  private PTransformNode unboundedProducer;
 
   @Rule public TestPipeline p = TestPipeline.create().enableAbandonedNodeEnforcement(false);
 
@@ -268,10 +269,10 @@ public class EvaluationContextTest {
     // Should cause the downstream timer to fire
     context.handleResult(null, ImmutableList.of(), advanceResult);
 
-    Collection<FiredTimers<AppliedPTransform<?, ?, ?>>> fired = context.extractFiredTimers();
+    Collection<FiredTimers<PTransformNode>> fired = context.extractFiredTimers();
     assertThat(Iterables.getOnlyElement(fired).getKey(), Matchers.equalTo(key));
 
-    FiredTimers<AppliedPTransform<?, ?, ?>> firedForKey = Iterables.getOnlyElement(fired);
+    FiredTimers<PTransformNode> firedForKey = Iterables.getOnlyElement(fired);
     // Contains exclusively the fired timer
     assertThat(firedForKey.getTimers(), contains(toFire));
 
@@ -317,7 +318,7 @@ public class EvaluationContextTest {
         null, ImmutableList.of(), StepTransformResult.withoutHold(unboundedProducer).build());
     assertThat(context.isDone(), is(false));
 
-    for (AppliedPTransform<?, ?, ?> consumers : graph.getPerElementConsumers(created)) {
+    for (PTransformNode consumers : graph.getPerElementConsumers(created)) {
       context.handleResult(
           committedBundle, ImmutableList.of(), StepTransformResult.withoutHold(consumers).build());
     }

@@ -34,10 +34,11 @@ import java.util.EnumSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.apache.beam.runners.direct.DirectGraphs;
 import org.apache.beam.runners.direct.ExecutableGraph;
 import org.apache.beam.runners.direct.portable.CommittedResult.OutputType;
-import org.apache.beam.sdk.runners.AppliedPTransform;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.WithKeys;
@@ -61,8 +62,8 @@ public class DirectTransformExecutorTest {
   @Rule public ExpectedException thrown = ExpectedException.none();
   private PCollection<String> created;
 
-  private AppliedPTransform<?, ?, ?> createdProducer;
-  private AppliedPTransform<?, ?, ?> downstreamProducer;
+  private PTransformNode createdProducer;
+  private PTransformNode downstreamProducer;
 
   private CountDownLatch evaluatorCompleted;
 
@@ -91,7 +92,7 @@ public class DirectTransformExecutorTest {
     PCollection<KV<Integer, String>> downstream = created.apply(WithKeys.of(3));
 
     DirectGraphs.performDirectOverrides(p);
-    ExecutableGraph<AppliedPTransform<?, ?, ?>, ? super PCollection<?>> graph =
+    ExecutableGraph<PTransformNode, ? super PCollectionNode> graph =
         DirectGraphs.getGraph(p);
     createdProducer = graph.getProducer(created);
     downstreamProducer = graph.getProducer(downstream);
@@ -300,7 +301,7 @@ public class DirectTransformExecutorTest {
     }
 
     @Override
-    public void handleEmpty(AppliedPTransform<?, ?, ?> transform) {
+    public void handleEmpty(PTransformNode transform) {
       handledEmpty = true;
       onMethod.countDown();
     }
