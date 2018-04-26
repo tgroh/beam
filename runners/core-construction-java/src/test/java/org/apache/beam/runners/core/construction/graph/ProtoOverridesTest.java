@@ -39,9 +39,7 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.WindowingStrategy;
 import org.apache.beam.runners.core.construction.graph.ProtoOverrides.TransformReplacement;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
@@ -50,18 +48,18 @@ import org.junit.runners.JUnit4;
  */
 @RunWith(JUnit4.class)
 public class ProtoOverridesTest {
-  @Rule public ExpectedException thrown = ExpectedException.none();
-
   @Test
   public void replacesOnlyMatching() {
-    PTransform firstTransform =
-        PTransform.newBuilder().setSpec(FunctionSpec.newBuilder().setUrn("beam:first")).build();
     RunnerApi.Pipeline p =
         Pipeline.newBuilder()
             .addAllRootTransformIds(ImmutableList.of("first", "second"))
             .setComponents(
                 Components.newBuilder()
-                    .putTransforms("first", firstTransform)
+                    .putTransforms(
+                        "first",
+                        PTransform.newBuilder()
+                            .setSpec(FunctionSpec.newBuilder().setUrn("beam:first"))
+                            .build())
                     .putTransforms(
                         "second",
                         PTransform.newBuilder()
@@ -113,7 +111,9 @@ public class ProtoOverridesTest {
         equalTo("intermediate_replacement"));
 
     // Assert that the untouched components are unchanged.
-    assertThat(updated.getComponents().getTransformsOrThrow("first"), equalTo(firstTransform));
+    assertThat(
+        updated.getComponents().getTransformsOrThrow("first"),
+        equalTo(p.getComponents().getTransformsOrThrow("first")));
     assertThat(
         updated.getComponents().getCodersOrThrow("coder"),
         equalTo(p.getComponents().getCodersOrThrow("coder")));
@@ -122,14 +122,16 @@ public class ProtoOverridesTest {
 
   @Test
   public void replacesMultiple() {
-    PTransform firstTransform =
-        PTransform.newBuilder().setSpec(FunctionSpec.newBuilder().setUrn("beam:first")).build();
     RunnerApi.Pipeline p =
         Pipeline.newBuilder()
             .addAllRootTransformIds(ImmutableList.of("first", "second"))
             .setComponents(
                 Components.newBuilder()
-                    .putTransforms("first", firstTransform)
+                    .putTransforms(
+                        "first",
+                        PTransform.newBuilder()
+                            .setSpec(FunctionSpec.newBuilder().setUrn("beam:first"))
+                            .build())
                     .putTransforms(
                         "second",
                         PTransform.newBuilder()
@@ -191,7 +193,7 @@ public class ProtoOverridesTest {
   }
 
   @Test
-  public void replaceExistingCompositeFails() {
+  public void replaceExistingCompositeSucceeds() {
     Pipeline p =
         Pipeline.newBuilder()
             .addRootTransformIds("root")

@@ -41,8 +41,8 @@ import org.apache.beam.sdk.runners.PTransformOverride;
 @Experimental
 public class ProtoOverrides {
   /**
-   * Update all composites present in the {@code originalPipeline} have an URN equal to the provided
-   * {@code urn} using the provide {@link TransformReplacement}.
+   * Update all composites present in the {@code originalPipeline} with an URN equal to the provided
+   * {@code urn} using the provided {@link TransformReplacement}.
    */
   public static Pipeline updateTransform(
       String urn, Pipeline originalPipeline, TransformReplacement compositeBuilder) {
@@ -67,9 +67,8 @@ public class ProtoOverrides {
   }
 
   /**
-   * Remove any subtransforms that are produced by them but not by the enclosing transform.
-   *
-   * <p>A {@link PTransform} can be the subtransform of only one enclosing transform.
+   * Remove all subtransforms of the provided transform recursively.A {@link PTransform} can be the
+   * subtransform of only one enclosing transform.
    */
   private static void removeSubtransforms(PTransform pt, Components.Builder target) {
     for (String subtransformId : pt.getSubtransformsList()) {
