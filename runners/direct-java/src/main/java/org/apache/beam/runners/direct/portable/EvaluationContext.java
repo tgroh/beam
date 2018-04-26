@@ -291,9 +291,7 @@ class EvaluationContext {
     fireAvailableCallbacks(producing);
   }
 
-  /**
-   * Get a {@link DirectExecutionContext} for the provided {@link PTransformNode} and key.
-   */
+  /** Get a {@link DirectExecutionContext} for the provided {@link PTransformNode} and key. */
   public DirectExecutionContext getExecutionContext(
       PTransformNode application, StructuralKey<?> key) {
     StepAndKey stepAndKey = StepAndKey.of(application, key);
@@ -303,7 +301,6 @@ class EvaluationContext {
         applicationStateInternals.get(stepAndKey),
         watermarkManager.getWatermarks(application));
   }
-
 
   /**
    * Get the Step Name for the provided application.
