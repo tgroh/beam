@@ -27,12 +27,13 @@ import org.joda.time.Duration;
  * An executor that schedules and executes {@link AppliedPTransform AppliedPTransforms} for both
  * source and intermediate {@link PTransform PTransforms}.
  */
-interface PipelineExecutor<ExecutableT, CollectionT> {
+interface PipelineExecutor {
   /**
    * Starts this executor on the provided graph. The {@link RootProviderRegistry} will be used to
    * create initial inputs for the provide {@link DirectGraph graph}.
    */
-  void start();
+  void start(
+      DirectGraph graph, RootProviderRegistry rootProviderRegistry);
 
   /**
    * Blocks until the job being executed enters a terminal state. A job is completed after all

@@ -40,8 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** A {@link TransformEvaluatorFactory} for {@link ParDo.MultiOutput}. */
-final class ParDoEvaluatorFactory<InputT, OutputT>
-    implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
+final class ParDoEvaluatorFactory<InputT, OutputT> implements TransformEvaluatorFactory {
 
   private static final Logger LOG = LoggerFactory.getLogger(ParDoEvaluatorFactory.class);
   private final LoadingCache<AppliedPTransform<?, ?, ?>, DoFnLifecycleManager> fnClones;

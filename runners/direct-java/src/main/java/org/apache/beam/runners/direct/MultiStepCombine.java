@@ -369,7 +369,7 @@ class MultiStepCombine<K, InputT, AccumT, OutputT>
   }
 
   static class MergeAndExtractAccumulatorOutputEvaluatorFactory
-      implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
+      implements TransformEvaluatorFactory {
     private final EvaluationContext ctxt;
 
     public MergeAndExtractAccumulatorOutputEvaluatorFactory(EvaluationContext ctxt) {

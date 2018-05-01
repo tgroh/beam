@@ -58,8 +58,7 @@ import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.WindowingStrategy;
 
 /** A {@link TransformEvaluatorFactory} for stateful {@link ParDo}. */
-final class StatefulParDoEvaluatorFactory<K, InputT, OutputT>
-    implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
+final class StatefulParDoEvaluatorFactory<K, InputT, OutputT> implements TransformEvaluatorFactory {
 
   private final LoadingCache<AppliedPTransformOutputKeyAndWindow<K, InputT, OutputT>, Runnable>
       cleanupRegistry;

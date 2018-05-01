@@ -31,10 +31,10 @@ import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 
 /** The evaluator for the {@link Impulse} transform. Produces only empty byte arrays. */
-class ImpulseEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
-  private final BundleFactory ctxt;
+class ImpulseEvaluatorFactory implements TransformEvaluatorFactory {
+  private final EvaluationContext ctxt;
 
-  ImpulseEvaluatorFactory(BundleFactory ctxt) {
+  ImpulseEvaluatorFactory(EvaluationContext ctxt) {
     this.ctxt = ctxt;
   }
 
@@ -51,13 +51,13 @@ class ImpulseEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTrans
   }
 
   private static class ImpulseEvaluator implements TransformEvaluator<ImpulseShard> {
-    private final BundleFactory bundleFactory;
+    private final EvaluationContext ctxt;
     private final AppliedPTransform<?, PCollection<byte[]>, Impulse> transform;
     private final StepTransformResult.Builder<ImpulseShard> result;
 
     private ImpulseEvaluator(
-        BundleFactory bundleFactory, AppliedPTransform<?, PCollection<byte[]>, Impulse> transform) {
-      this.bundleFactory = bundleFactory;
+        EvaluationContext ctxt, AppliedPTransform<?, PCollection<byte[]>, Impulse> transform) {
+      this.ctxt = ctxt;
       this.transform = transform;
       this.result = StepTransformResult.withoutHold(transform);
     }
@@ -67,9 +67,7 @@ class ImpulseEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTrans
       PCollection<byte[]> outputPCollection =
           (PCollection<byte[]>) Iterables.getOnlyElement(transform.getOutputs().values());
       result.addOutput(
-          bundleFactory
-              .createBundle(outputPCollection)
-              .add(WindowedValue.valueInGlobalWindow(new byte[0])));
+          ctxt.createBundle(outputPCollection).add(WindowedValue.valueInGlobalWindow(new byte[0])));
     }
 
     @Override
@@ -83,10 +81,10 @@ class ImpulseEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTrans
    * {@link ImpulseShard}.
    */
   static class ImpulseRootProvider implements RootInputProvider<byte[], ImpulseShard, PBegin> {
-    private final BundleFactory bundleFactory;
+    private final EvaluationContext ctxt;
 
-    ImpulseRootProvider(BundleFactory bundleFactory) {
-      this.bundleFactory = bundleFactory;
+    ImpulseRootProvider(EvaluationContext ctxt) {
+      this.ctxt = ctxt;
     }
 
     @Override
@@ -95,8 +93,7 @@ class ImpulseEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTrans
             transform,
         int targetParallelism) {
       return Collections.singleton(
-          bundleFactory
-              .<ImpulseShard>createRootBundle()
+          ctxt.<ImpulseShard>createRootBundle()
               .add(WindowedValue.valueInGlobalWindow(new ImpulseShard()))
               .commit(BoundedWindow.TIMESTAMP_MIN_VALUE));
     }

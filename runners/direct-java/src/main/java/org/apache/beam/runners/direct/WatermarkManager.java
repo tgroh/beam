@@ -787,8 +787,9 @@ public class WatermarkManager<ExecutableT, CollectionT> {
    * @param clock the clock to use to determine processing time
    * @param graph the graph representing this pipeline
    */
-  public static <ExecutableT, CollectionT> WatermarkManager<ExecutableT, CollectionT> create(
-      Clock clock, ExecutableGraph<ExecutableT, CollectionT> graph) {
+  public static <ExecutableT, CollectionT>
+      WatermarkManager<ExecutableT, ? super CollectionT> create(
+          Clock clock, ExecutableGraph<ExecutableT, ? super CollectionT> graph) {
     return new WatermarkManager<>(clock, graph);
   }
 

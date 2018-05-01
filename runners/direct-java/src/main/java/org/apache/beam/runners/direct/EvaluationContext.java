@@ -66,11 +66,11 @@ import org.joda.time.Instant;
  * per-{@link StepAndKey} state, updating global watermarks, and executing any callbacks that can be
  * executed.
  */
-class EvaluationContext implements BundleFactory {
+class EvaluationContext {
   /**
    * The graph representing this {@link Pipeline}.
    */
-  private final ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph;
+  private final DirectGraph graph;
 
   private final Clock clock;
 
@@ -96,25 +96,23 @@ class EvaluationContext implements BundleFactory {
   public static EvaluationContext create(
       Clock clock,
       BundleFactory bundleFactory,
-      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
-      Set<PValue> keyedPValues,
-      Collection<PCollectionView<?>> views) {
-    return new EvaluationContext(clock, bundleFactory, graph, keyedPValues, views);
+      DirectGraph graph,
+      Set<PValue> keyedPValues) {
+    return new EvaluationContext(clock, bundleFactory, graph, keyedPValues);
   }
 
   private EvaluationContext(
       Clock clock,
       BundleFactory bundleFactory,
-      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
-      Set<PValue> keyedPValues,
-      Collection<PCollectionView<?>> views) {
+      DirectGraph graph,
+      Set<PValue> keyedPValues) {
     this.clock = clock;
     this.bundleFactory = checkNotNull(bundleFactory);
     this.graph = checkNotNull(graph);
     this.keyedPValues = keyedPValues;
 
     this.watermarkManager = WatermarkManager.create(clock, graph);
-    this.sideInputContainer = SideInputContainer.create(this, views);
+    this.sideInputContainer = SideInputContainer.create(this, graph.getViews());
 
     this.applicationStateInternals = new ConcurrentHashMap<>();
     this.metrics = new DirectMetrics();
@@ -232,7 +230,6 @@ class EvaluationContext implements BundleFactory {
   /**
    * Create a {@link UncommittedBundle} for use by a source.
    */
-  @Override
   public <T> UncommittedBundle<T> createRootBundle() {
     return bundleFactory.createRootBundle();
   }
@@ -241,7 +238,6 @@ class EvaluationContext implements BundleFactory {
    * Create a {@link UncommittedBundle} whose elements belong to the specified {@link
    * PCollection}.
    */
-  @Override
   public <T> UncommittedBundle<T> createBundle(PCollection<T> output) {
     return bundleFactory.createBundle(output);
   }
@@ -250,7 +246,6 @@ class EvaluationContext implements BundleFactory {
    * Create a {@link UncommittedBundle} with the specified keys at the specified step. For use by
    * {@link DirectGroupByKeyOnly} {@link PTransform PTransforms}.
    */
-  @Override
   public <K, T> UncommittedBundle<T> createKeyedBundle(
       StructuralKey<K> key, PCollection<T> output) {
     return bundleFactory.createKeyedBundle(key, output);
@@ -344,7 +339,7 @@ class EvaluationContext implements BundleFactory {
    * Get the Step Name for the provided application.
    */
   String getStepName(AppliedPTransform<?, ?, ?> application) {
-    return application.getFullName();
+    return graph.getStepName(application);
   }
 
   /** Returns all of the steps in this {@link Pipeline}. */

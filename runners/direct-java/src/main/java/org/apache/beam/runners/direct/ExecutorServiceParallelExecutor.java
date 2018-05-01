@@ -57,16 +57,14 @@ import org.slf4j.LoggerFactory;
  */
 final class ExecutorServiceParallelExecutor
     implements PipelineExecutor,
-        BundleProcessor<CommittedBundle<?>, AppliedPTransform<?, ?, ?>> {
+        BundleProcessor<PCollection<?>, CommittedBundle<?>, AppliedPTransform<?, ?, ?>> {
   private static final Logger LOG = LoggerFactory.getLogger(ExecutorServiceParallelExecutor.class);
 
   private final int targetParallelism;
   private final ExecutorService executorService;
 
-  private final RootProviderRegistry rootProviderRegistry;
   private final TransformEvaluatorRegistry registry;
 
-  private final ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph;
   private final EvaluationContext evaluationContext;
 
   private final TransformExecutorFactory executorFactory;
@@ -79,20 +77,16 @@ final class ExecutorServiceParallelExecutor
 
   public static ExecutorServiceParallelExecutor create(
       int targetParallelism,
-      RootProviderRegistry rootProviderRegistry,
       TransformEvaluatorRegistry registry,
-      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
       Map<String, Collection<ModelEnforcementFactory>> transformEnforcements,
       EvaluationContext context) {
     return new ExecutorServiceParallelExecutor(
-        targetParallelism, rootProviderRegistry, registry, graph, transformEnforcements, context);
+        targetParallelism, registry, transformEnforcements, context);
   }
 
   private ExecutorServiceParallelExecutor(
       int targetParallelism,
-      RootProviderRegistry rootProviderRegistry,
       TransformEvaluatorRegistry registry,
-      ExecutableGraph<AppliedPTransform<?, ?, ?>, PValue> graph,
       Map<String, Collection<ModelEnforcementFactory>> transformEnforcements,
       EvaluationContext context) {
     this.targetParallelism = targetParallelism;
@@ -105,9 +99,7 @@ final class ExecutorServiceParallelExecutor
                 .setThreadFactory(MoreExecutors.platformThreadFactory())
                 .setNameFormat("direct-runner-worker")
                 .build());
-    this.rootProviderRegistry = rootProviderRegistry;
     this.registry = registry;
-    this.graph = graph;
     this.evaluationContext = context;
 
     // Weak Values allows TransformExecutorServices that are no longer in use to be reclaimed.
@@ -145,7 +137,7 @@ final class ExecutorServiceParallelExecutor
   }
 
   @Override
-  public void start() {
+  public void start(DirectGraph graph, RootProviderRegistry rootProviderRegistry) {
     int numTargetSplits = Math.max(3, targetParallelism);
     ImmutableMap.Builder<AppliedPTransform<?, ?, ?>, ConcurrentLinkedQueue<CommittedBundle<?>>>
         pendingRootBundles = ImmutableMap.builder();
@@ -209,7 +201,7 @@ final class ExecutorServiceParallelExecutor
     TransformExecutorService transformExecutor;
 
     if (isKeyed(bundle.getPCollection())) {
-      final StepAndKey stepAndKey = StepAndKey.of(transform.getFullName(), bundle.getKey());
+      final StepAndKey stepAndKey = StepAndKey.of(transform, bundle.getKey());
       // This executor will remain reachable until it has executed all scheduled transforms.
       // The TransformExecutors keep a strong reference to the Executor, the ExecutorService keeps
       // a reference to the scheduled DirectTransformExecutor callable. Follow-up TransformExecutors

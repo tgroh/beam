@@ -55,11 +55,10 @@ import org.apache.beam.sdk.values.WindowingStrategy;
 import org.joda.time.Instant;
 
 /**
- * The {@link DirectRunner} {@link TransformEvaluatorFactory} for the {@link
- * DirectGroupAlsoByWindow} {@link PTransform}.
+ * The {@link DirectRunner} {@link TransformEvaluatorFactory} for the
+ * {@link DirectGroupAlsoByWindow} {@link PTransform}.
  */
-class GroupAlsoByWindowEvaluatorFactory
-    implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
+class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
   private final EvaluationContext evaluationContext;
   private final PipelineOptions options;
 

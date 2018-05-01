@@ -27,36 +27,32 @@ import org.apache.beam.sdk.runners.AppliedPTransform;
  * per-step in a keyed manner (e.g. State).
  */
 final class StepAndKey {
-  private final String stepId;
+  private final AppliedPTransform<?, ?, ?> step;
   private final StructuralKey<?> key;
 
   /**
    * Create a new {@link StepAndKey} with the provided step and key.
    */
   public static StepAndKey of(AppliedPTransform<?, ?, ?> step, StructuralKey<?> key) {
-    return of(step.getFullName(), key);
+    return new StepAndKey(step, key);
   }
 
-  public static StepAndKey of(String stepId, StructuralKey<?> key) {
-    return new StepAndKey(stepId, key);
-  }
-
-  private StepAndKey(String stepId, StructuralKey<?> key) {
-    this.stepId = stepId;
+  private StepAndKey(AppliedPTransform<?, ?, ?> step, StructuralKey<?> key) {
+    this.step = step;
     this.key = key;
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(StepAndKey.class)
-        .add("step", stepId)
+        .add("step", step.getFullName())
         .add("key", key.getKey())
         .toString();
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(stepId, key);
+    return Objects.hash(step, key);
   }
 
   @Override
@@ -67,7 +63,7 @@ final class StepAndKey {
       return false;
     } else {
       StepAndKey that = (StepAndKey) other;
-      return Objects.equals(this.stepId, that.stepId)
+      return Objects.equals(this.step, that.step)
           && Objects.equals(this.key, that.key);
     }
   }

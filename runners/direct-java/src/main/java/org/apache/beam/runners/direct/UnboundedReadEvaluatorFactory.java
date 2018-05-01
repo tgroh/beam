@@ -51,8 +51,7 @@ import org.joda.time.Instant;
  * A {@link TransformEvaluatorFactory} that produces {@link TransformEvaluator TransformEvaluators}
  * for the {@link Unbounded Read.Unbounded} primitive {@link PTransform}.
  */
-class UnboundedReadEvaluatorFactory
-    implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
+class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
   // Occasionally close an existing reader and resume from checkpoint, to exercise close-and-resume
   private static final double DEFAULT_READER_REUSE_CHANCE = 0.95;
 
@@ -292,12 +291,12 @@ class UnboundedReadEvaluatorFactory
 
   static class InputProvider<T>
       implements RootInputProvider<T, UnboundedSourceShard<T, ?>, PBegin> {
-    private final BundleFactory bundleFactory;
+    private final EvaluationContext evaluationContext;
     private final PipelineOptions options;
 
     InputProvider(
-        BundleFactory bundleFactory, PipelineOptions options) {
-      this.bundleFactory = bundleFactory;
+        EvaluationContext evaluationContext, PipelineOptions options) {
+      this.evaluationContext = evaluationContext;
       this.options = options;
     }
 
@@ -321,7 +320,7 @@ class UnboundedReadEvaluatorFactory
         UnboundedSourceShard<T, ?> shard =
             UnboundedSourceShard.unstarted(split, deduplicator);
         initialShards.add(
-            bundleFactory
+            evaluationContext
                 .<UnboundedSourceShard<T, ?>>createRootBundle()
                 .add(WindowedValue.valueInGlobalWindow(shard))
                 .commit(BoundedWindow.TIMESTAMP_MAX_VALUE));

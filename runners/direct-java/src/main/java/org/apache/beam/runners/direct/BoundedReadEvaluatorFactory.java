@@ -51,8 +51,7 @@ import org.apache.beam.sdk.values.PCollection;
  * A {@link TransformEvaluatorFactory} that produces {@link TransformEvaluator TransformEvaluators}
  * for the {@link Bounded Read.Bounded} primitive {@link PTransform}.
  */
-final class BoundedReadEvaluatorFactory
-    implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
+final class BoundedReadEvaluatorFactory implements TransformEvaluatorFactory {
   /**
    * The required minimum size of a source to dynamically split. Produced {@link TransformEvaluator
    * TransformEvaluators} will attempt to dynamically split all sources larger than the minimum
@@ -196,11 +195,11 @@ final class BoundedReadEvaluatorFactory
   }
 
   static class InputProvider<T> implements RootInputProvider<T, BoundedSourceShard<T>, PBegin> {
-    private final BundleFactory bundleFactory;
+    private final EvaluationContext evaluationContext;
     private final PipelineOptions options;
 
-    InputProvider(BundleFactory bundleFactory, PipelineOptions options) {
-      this.bundleFactory = bundleFactory;
+    InputProvider(EvaluationContext evaluationContext, PipelineOptions options) {
+      this.evaluationContext = evaluationContext;
       this.options = options;
     }
 
@@ -217,7 +216,7 @@ final class BoundedReadEvaluatorFactory
           ImmutableList.builder();
       for (BoundedSource<T> bundle : bundles) {
         CommittedBundle<BoundedSourceShard<T>> inputShard =
-            bundleFactory
+            evaluationContext
                 .<BoundedSourceShard<T>>createRootBundle()
                 .add(WindowedValue.valueInGlobalWindow(BoundedSourceShard.of(bundle)))
                 .commit(BoundedWindow.TIMESTAMP_MAX_VALUE);

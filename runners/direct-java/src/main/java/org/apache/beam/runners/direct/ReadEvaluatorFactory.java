@@ -31,7 +31,7 @@ import org.apache.beam.sdk.values.PCollection;
  * A {@link TransformEvaluatorFactory} that produces {@link TransformEvaluator TransformEvaluators}
  * for the {@link Read Read} primitives, whether bounded or unbounded.
  */
-final class ReadEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
+final class ReadEvaluatorFactory implements TransformEvaluatorFactory {
 
   final BoundedReadEvaluatorFactory boundedFactory;
   final UnboundedReadEvaluatorFactory unboundedFactory;
@@ -62,7 +62,8 @@ final class ReadEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTr
     unboundedFactory.cleanup();
   }
 
-  static <T> InputProvider<T> inputProvider(BundleFactory context, PipelineOptions options) {
+  static <T> InputProvider<T> inputProvider(
+      EvaluationContext context, PipelineOptions options) {
     return new InputProvider<>(context, options);
   }
 
@@ -71,7 +72,7 @@ final class ReadEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTr
     private final UnboundedReadEvaluatorFactory.InputProvider<T> unboundedInputProvider;
     private final BoundedReadEvaluatorFactory.InputProvider<T> boundedInputProvider;
 
-    InputProvider(BundleFactory context, PipelineOptions options) {
+    InputProvider(EvaluationContext context, PipelineOptions options) {
       this.unboundedInputProvider =
           new UnboundedReadEvaluatorFactory.InputProvider<>(context, options);
       this.boundedInputProvider = new BoundedReadEvaluatorFactory.InputProvider<>(context, options);

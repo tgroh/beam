@@ -40,11 +40,10 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems;
+import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems.ProcessElements;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation.TransformPayloadTranslator;
 import org.apache.beam.runners.core.construction.TransformPayloadTranslatorRegistrar;
-import org.apache.beam.runners.core.construction.graph.ExecutableStage;
-import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.apache.beam.runners.direct.TestStreamEvaluatorFactory.DirectTestStreamFactory.DirectTestStream;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -57,7 +56,7 @@ import org.slf4j.LoggerFactory;
  * A {@link TransformEvaluatorFactory} that delegates to primitive {@link TransformEvaluatorFactory}
  * implementations based on the type of {@link PTransform} of the application.
  */
-class TransformEvaluatorRegistry<ExecutableT> {
+class TransformEvaluatorRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(TransformEvaluatorRegistry.class);
 
   /**
@@ -66,10 +65,10 @@ class TransformEvaluatorRegistry<ExecutableT> {
    *
    * <p>This is the legacy implementation of the {@link DirectRunner} engine.
    */
-  public static TransformEvaluatorRegistry<AppliedPTransform<?, ?, ?>> javaSdkNativeRegistry(
+  public static TransformEvaluatorRegistry javaSdkNativeRegistry(
       EvaluationContext ctxt, PipelineOptions options) {
-    ImmutableMap<String, TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>>> primitives =
-        ImmutableMap.<String, TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>>>builder()
+    ImmutableMap<String, TransformEvaluatorFactory> primitives =
+        ImmutableMap.<String, TransformEvaluatorFactory>builder()
             // Beam primitives
             .put(READ_TRANSFORM_URN, new ReadEvaluatorFactory(ctxt, options))
             .put(
@@ -98,20 +97,7 @@ class TransformEvaluatorRegistry<ExecutableT> {
                 SPLITTABLE_PROCESS_URN,
                 new SplittableProcessElementsEvaluatorFactory<>(ctxt, options))
             .build();
-    return new TransformEvaluatorRegistry<>(primitives);
-  }
-
-  public static TransformEvaluatorRegistry<PTransformNode> portableRegistry(EvaluationContext ctxt) {
-    return new TransformEvaluatorRegistry(
-        ImmutableMap.<String, TransformEvaluatorFactory>builder()
-            .put(IMPULSE_TRANSFORM_URN, new ImpulseEvaluatorFactory(ctxt))
-            .put(DIRECT_GBKO_URN, new GroupByKeyOnlyEvaluatorFactory(ctxt))
-            .put(DIRECT_GABW_URN, new PortableGroupAlsoByWindowEvaluatorFactory(ctxt))
-
-            .put(ASSIGN_WINDOWS_TRANSFORM_URN, new PortableAssignWindowsEvaluatorFactory(ctxt))
-
-            .put(ExecutableStage.URN, new RemoteStageEvaluatorFactory(ctxt))
-            .build());
+    return new TransformEvaluatorRegistry(primitives);
   }
 
   /** Registers classes specialized to the direct runner. */
@@ -151,28 +137,45 @@ class TransformEvaluatorRegistry<ExecutableT> {
     }
   }
 
+  /**
+   * A translator just to vend the URN. This will need to be moved to runners-core-construction-java
+   * once SDF is reorganized appropriately.
+   */
+  private static class SplittableParDoProcessElementsTranslator
+      extends TransformPayloadTranslator.NotSerializable<ProcessElements<?, ?, ?, ?>> {
+
+    private SplittableParDoProcessElementsTranslator() {}
+
+    @Override
+    public String getUrn(ProcessElements<?, ?, ?, ?> transform) {
+      return SPLITTABLE_PROCESS_URN;
+    }
+  }
+
   // the TransformEvaluatorFactories can construct instances of all generic types of transform,
   // so all instances of a primitive can be handled with the same evaluator factory.
-  private final Map<String, TransformEvaluatorFactory<ExecutableT>> factories;
+  private final Map<String, TransformEvaluatorFactory> factories;
 
   private final AtomicBoolean finished = new AtomicBoolean(false);
 
   private TransformEvaluatorRegistry(
       @SuppressWarnings("rawtypes")
-      Map<String, TransformEvaluatorFactory<ExecutableT>> factories) {
+      Map<String, TransformEvaluatorFactory> factories) {
     this.factories = factories;
   }
 
   public <InputT> TransformEvaluator<InputT> forApplication(
-      String urn, ExecutableT executable, CommittedBundle<?> inputBundle)
+      AppliedPTransform<?, ?, ?> application, CommittedBundle<?> inputBundle)
       throws Exception {
     checkState(
         !finished.get(), "Tried to get an evaluator for a finished TransformEvaluatorRegistry");
 
-    TransformEvaluatorFactory<ExecutableT> factory =
+    String urn = PTransformTranslation.urnForTransform(application.getTransform());
+
+    TransformEvaluatorFactory factory =
         checkNotNull(
             factories.get(urn), "No evaluator for PTransform \"%s\"", urn);
-    return factory.forApplication(executable, inputBundle);
+    return factory.forApplication(application, inputBundle);
   }
 
   public void cleanup() throws Exception {

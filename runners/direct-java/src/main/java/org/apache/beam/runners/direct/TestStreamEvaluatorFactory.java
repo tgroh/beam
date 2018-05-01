@@ -53,7 +53,7 @@ import org.joda.time.Duration;
 import org.joda.time.Instant;
 
 /** The {@link TransformEvaluatorFactory} for the {@link TestStream} primitive. */
-class TestStreamEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTransform<?, ?, ?>> {
+class TestStreamEvaluatorFactory implements TransformEvaluatorFactory {
   private final EvaluationContext evaluationContext;
 
   TestStreamEvaluatorFactory(EvaluationContext evaluationContext) {
@@ -215,10 +215,10 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTr
   }
 
   static class InputProvider<T> implements RootInputProvider<T, TestStreamIndex<T>, PBegin> {
-    private final BundleFactory bundleFactory;
+    private final EvaluationContext evaluationContext;
 
-    InputProvider(BundleFactory bundleFactory) {
-      this.bundleFactory = bundleFactory;
+    InputProvider(EvaluationContext evaluationContext) {
+      this.evaluationContext = evaluationContext;
     }
 
     @Override
@@ -231,7 +231,7 @@ class TestStreamEvaluatorFactory implements TransformEvaluatorFactory<AppliedPTr
           (DirectTestStreamFactory.DirectTestStream<T>) transform.getTransform();
 
       CommittedBundle<TestStreamIndex<T>> initialBundle =
-          bundleFactory
+          evaluationContext
               .<TestStreamIndex<T>>createRootBundle()
               .add(WindowedValue.valueInGlobalWindow(TestStreamIndex.of(testStream.original)))
               .commit(BoundedWindow.TIMESTAMP_MAX_VALUE);
