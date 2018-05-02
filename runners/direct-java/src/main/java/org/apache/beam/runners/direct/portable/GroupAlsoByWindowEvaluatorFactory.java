@@ -55,27 +55,24 @@ import org.apache.beam.sdk.values.WindowingStrategy;
 import org.joda.time.Instant;
 
 /**
- * The {@link DirectRunner} {@link TransformEvaluatorFactory} for the
- * {@code DirectGroupAlsoByWindow} {@link PTransform}.
+ * The {@link DirectRunner} {@link TransformEvaluatorFactory} for the {@code
+ * DirectGroupAlsoByWindow} {@link PTransform}.
  */
 class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
   private final EvaluationContext evaluationContext;
   private final PipelineOptions options;
 
-  GroupAlsoByWindowEvaluatorFactory(
-      EvaluationContext evaluationContext, PipelineOptions options) {
+  GroupAlsoByWindowEvaluatorFactory(EvaluationContext evaluationContext, PipelineOptions options) {
     this.evaluationContext = evaluationContext;
     this.options = options;
   }
 
   @Override
   public <InputT> TransformEvaluator<InputT> forApplication(
-      PTransformNode application,
-      CommittedBundle<?> inputBundle) {
+      PTransformNode application, CommittedBundle<?> inputBundle) {
     @SuppressWarnings({"cast", "unchecked", "rawtypes"})
     TransformEvaluator<InputT> evaluator =
-        createEvaluator(
-            (PTransformNode) application, (CommittedBundle) inputBundle);
+        createEvaluator(application, (CommittedBundle) inputBundle);
     return evaluator;
   }
 
@@ -84,8 +81,7 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
 
   private <K, V> TransformEvaluator<KeyedWorkItem<K, V>> createEvaluator(
       PTransformNode application, CommittedBundle<KeyedWorkItem<K, V>> inputBundle) {
-    return new GroupAlsoByWindowEvaluator<>(
-        evaluationContext, options, inputBundle, application);
+    return new GroupAlsoByWindowEvaluator<>(evaluationContext, options, inputBundle, application);
   }
 
   /**
@@ -112,7 +108,7 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
     private final SystemReduceFn<K, V, Iterable<V>, Iterable<V>, BoundedWindow> reduceFn;
     private final Counter droppedDueToLateness;
 
-    public GroupAlsoByWindowEvaluator(
+    private GroupAlsoByWindowEvaluator(
         final EvaluationContext evaluationContext,
         PipelineOptions options,
         CommittedBundle<KeyedWorkItem<K, V>> inputBundle,
@@ -122,23 +118,23 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
       this.application = application;
 
       structuralKey = inputBundle.getKey();
-      stepContext = evaluationContext
-          .getExecutionContext(application, inputBundle.getKey())
-          .getStepContext(
-              evaluationContext.getStepName(application));
+      stepContext =
+          evaluationContext
+              .getExecutionContext(application, inputBundle.getKey())
+              .getStepContext(evaluationContext.getStepName(application));
       // TODO: extract from input PCollection via the graph, including length-prefixing
-      windowingStrategy =
-          null;
+      windowingStrategy = null;
 
       outputBundles = new ArrayList<>();
       unprocessedElements = ImmutableList.builder();
 
       // TODO: extract from input PCollection via the graph, including length-prefixing
-      Coder<V> valueCoder =
-          null;
+      Coder<V> valueCoder = null;
       reduceFn = SystemReduceFn.buffering(valueCoder);
-      droppedDueToLateness = Metrics.counter(GroupAlsoByWindowEvaluator.class,
-          GroupAlsoByWindowsAggregators.DROPPED_DUE_TO_LATENESS_COUNTER);
+      droppedDueToLateness =
+          Metrics.counter(
+              GroupAlsoByWindowEvaluator.class,
+              GroupAlsoByWindowsAggregators.DROPPED_DUE_TO_LATENESS_COUNTER);
       throw new UnsupportedOperationException("Not yet migrated");
     }
 
@@ -249,8 +245,7 @@ class GroupAlsoByWindowEvaluatorFactory implements TransformEvaluatorFactory {
         Collection<? extends BoundedWindow> windows,
         PaneInfo pane) {
       throw new UnsupportedOperationException(
-          String.format(
-              "%s should not use tagged outputs", "DirectGroupAlsoByWindow"));
+          String.format("%s should not use tagged outputs", "DirectGroupAlsoByWindow"));
     }
   }
 }
