@@ -230,7 +230,7 @@ public class QueryablePipeline {
    * Gets each {@link PCollectionNode} that the provided {@link PTransformNode} consumes on a
    * per-element basis.
    */
-  public Set<PCollectionNode> getPerElementInputs(PTransformNode ptransform) {
+  public Set<PCollectionNode> getPerElementInputPCollections(PTransformNode ptransform) {
     return pipelineNetwork
         .inEdges(ptransform)
         .stream()
