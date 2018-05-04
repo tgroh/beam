@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.direct.portable;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Iterables.getOnlyElement;
 
 import java.io.IOException;
@@ -24,29 +25,25 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
-import org.apache.beam.model.pipeline.v1.RunnerApi.MessageWithComponents;
 import org.apache.beam.runners.core.GroupByKeyViaGroupByKeyOnly;
 import org.apache.beam.runners.core.GroupByKeyViaGroupByKeyOnly.GroupByKeyOnly;
 import org.apache.beam.runners.core.KeyedWorkItem;
 import org.apache.beam.runners.core.KeyedWorkItems;
-import org.apache.beam.runners.core.construction.CoderTranslation;
-import org.apache.beam.runners.core.construction.ModelCoders;
-import org.apache.beam.runners.core.construction.ModelCoders.KvCoderComponents;
-import org.apache.beam.runners.core.construction.RehydratedComponents;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.apache.beam.runners.direct.ExecutableGraph;
-import org.apache.beam.runners.fnexecution.graph.LengthPrefixUnknownCoders;
+import org.apache.beam.runners.fnexecution.wire.WireCoders;
 import org.apache.beam.runners.local.StructuralKey;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.util.WindowedValue.WindowedValueCoder;
 import org.apache.beam.sdk.values.KV;
 
 /**
- * The {@link DirectRunner} {@link TransformEvaluatorFactory} for the {@link GroupByKeyOnly} {@link
+ * The {@code DirectRunner} {@link TransformEvaluatorFactory} for the {@link GroupByKeyOnly} {@link
  * PTransform}.
  */
 class GroupByKeyOnlyEvaluatorFactory implements TransformEvaluatorFactory {
@@ -93,27 +90,37 @@ class GroupByKeyOnlyEvaluatorFactory implements TransformEvaluatorFactory {
     private final StepTransformResult.Builder<KV<K, V>> resultBuilder;
 
     private GroupByKeyOnlyEvaluator(PTransformNode application) {
-      PCollectionNode inputPCollection = getOnlyElement(graph.getPerElementInputs(application));
-      // Coder<KV<K, V>>
-      RunnerApi.Coder inputCoder =
-          components.getCodersOrThrow(inputPCollection.getPCollection().getCoderId());
-      keyCoder = getKeyCoder(inputCoder);
+      keyCoder = getKeyCoder(application);
       groupingMap = new HashMap<>();
       outputPCollection = getOnlyElement(graph.getProduced(application));
       resultBuilder = StepTransformResult.withoutHold(application);
     }
 
-    private Coder<K> getKeyCoder(RunnerApi.Coder inputCoder) {
-      KvCoderComponents inputCoderComponents = ModelCoders.getKvCoderComponents(inputCoder);
-      MessageWithComponents instantiableCoder =
-          LengthPrefixUnknownCoders.forCoder(inputCoderComponents.keyCoderId(), components, true);
+    private Coder<K> getKeyCoder(PTransformNode application) {
+      PCollectionNode inputPCollection = getOnlyElement(graph.getPerElementInputs(application));
       try {
-        return (Coder<K>)
-            CoderTranslation.fromProto(
-                instantiableCoder.getCoder(),
-                RehydratedComponents.forComponents(instantiableCoder.getComponents()));
+        // We know the type restrictions on the input PCollection, and the restrictions on the
+        // Wire coder
+        Coder<WindowedValue<KV<K, V>>> wireCoder =
+            WireCoders.instantiateRunnerWireCoder(inputPCollection, components);
+
+        checkArgument(
+            wireCoder instanceof WindowedValue.WindowedValueCoder,
+            "Wire %s must be a %s",
+            Coder.class.getSimpleName(),
+            WindowedValueCoder.class.getSimpleName());
+        WindowedValueCoder<KV<K, V>> windowedValueCoder = (WindowedValueCoder<KV<K, V>>) wireCoder;
+
+        checkArgument(
+            windowedValueCoder.getValueCoder() instanceof KvCoder,
+            "Input elements to %s must be encoded with a %s",
+            DirectGroupByKey.DirectGroupByKeyOnly.class.getSimpleName(),
+            KvCoder.class.getSimpleName());
+        KvCoder<K, V> kvCoder = (KvCoder<K, V>) windowedValueCoder.getValueCoder();
+
+        return kvCoder.getKeyCoder();
       } catch (IOException e) {
-        throw new IllegalArgumentException(e);
+        throw new RuntimeException(e);
       }
     }
 
