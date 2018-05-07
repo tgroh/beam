@@ -196,7 +196,6 @@ public class ProcessBundleDescriptors {
      * Get all of the targets materialized by this {@link ExecutableProcessBundleDescriptor} and the
      * java {@link Coder} for the wire format of that {@link BeamFnApi.Target}.
      */
-    public abstract Map<BeamFnApi.Target, Coder<? extends WindowedValue<?>>>
-        getOutputTargetCoders();
+    public abstract Map<BeamFnApi.Target, Coder<WindowedValue<?>>> getOutputTargetCoders();
   }
 }
