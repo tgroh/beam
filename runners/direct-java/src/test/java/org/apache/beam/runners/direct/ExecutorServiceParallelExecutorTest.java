@@ -55,7 +55,7 @@ public class ExecutorServiceParallelExecutorTest {
   @Rule public final TestName testName = new TestName();
 
   @Test
-  @Ignore("BEAM-4088 Test reliably fails.")
+  @Ignore("https://issues.apache.org/jira/browse/BEAM-4088 Test reliably fails.")
   public void ensureMetricsThreadDoesntLeak() {
     final DirectGraph graph =
         DirectGraph.create(
