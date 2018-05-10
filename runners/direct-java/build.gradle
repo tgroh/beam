@@ -20,18 +20,18 @@ import groovy.json.JsonOutput
 
 apply from: project(":").file("build_rules.gradle")
 applyJavaNature(shadowClosure: DEFAULT_SHADOW_CLOSURE << {
-  dependencies {
-    include(dependency(library.java.protobuf_java))
-    include(dependency(library.java.protobuf_java_util))
-    include(project(path: ":beam-model-pipeline", configuration: "shadow"))
-    include(project(path: ":beam-runners-core-construction-java", configuration: "shadow"))
-    include(project(path: ":beam-runners-core-java", configuration: "shadow"))
-    include(project(path: ":beam-runners-local-java-core", configuration: "shadow"))
-  }
-  relocate "org.apache.beam.runners.core", getJavaRelocatedPath("runners.core")
-  relocate "org.apache.beam.model", getJavaRelocatedPath("model")
-  relocate "com.google.protobuf", getJavaRelocatedPath("com.google.protobuf")
-  relocate "javax.annotation", getJavaRelocatedPath("javax.annotation")
+    dependencies {
+        include(dependency(library.java.protobuf_java))
+        include(dependency(library.java.protobuf_java_util))
+        include(project(path: ":beam-model-pipeline", configuration: "shadow"))
+        include(project(path: ":beam-runners-core-construction-java", configuration: "shadow"))
+        include(project(path: ":beam-runners-core-java", configuration: "shadow"))
+        include(project(path: ":beam-runners-local-java-core", configuration: "shadow"))
+    }
+    relocate "org.apache.beam.runners.core", getJavaRelocatedPath("runners.core")
+    relocate "org.apache.beam.model", getJavaRelocatedPath("model")
+    relocate "com.google.protobuf", getJavaRelocatedPath("com.google.protobuf")
+    relocate "javax.annotation", getJavaRelocatedPath("javax.annotation")
 })
 
 description = "Apache Beam :: Runners :: Direct Java"
@@ -46,8 +46,8 @@ evaluationDependsOn(":beam-runners-core-java")
 evaluationDependsOn(":beam-sdks-java-core")
 
 configurations {
-  needsRunner
-  validatesRunner
+    needsRunner
+    validatesRunner
 }
 
 dependencies {
@@ -80,38 +80,35 @@ dependencies {
   needsRunner project(path: ":beam-sdks-java-core", configuration: "shadowTest")
   needsRunner project(path: project.path, configuration: "shadow")
   needsRunner project(path: project.path, configuration: "shadowTest")
-  validatesRunner project(path: ":beam-runners-core-construction-java", configuration: "shadowTest")
-  validatesRunner project(path: ":beam-runners-core-java", configuration: "shadowTest")
   validatesRunner project(path: ":beam-sdks-java-core", configuration: "shadowTest")
   validatesRunner project(path: project.path, configuration: "shadow")
-  validatesRunner project(path: project.path, configuration: "shadowTest")
 }
 
 task needsRunnerTests(type: Test) {
-  group = "Verification"
-  description = "Runs tests that require a runner to validate that piplines/transforms work correctly"
+    group = "Verification"
+    description = "Runs tests that require a runner to validate that piplines/transforms work correctly"
 
-  def pipelineOptions = JsonOutput.toJson(["--runner=DirectRunner", "--runnerDeterminedSharding=false", "--protoTranslation"])
-  systemProperty "beamTestPipelineOptions", pipelineOptions
+    def pipelineOptions = JsonOutput.toJson(["--runner=DirectRunner", "--runnerDeterminedSharding=false", "--protoTranslation"])
+    systemProperty "beamTestPipelineOptions", pipelineOptions
 
-  classpath = configurations.needsRunner
-  // NOTE: We only add to the test class dirs to ensure that the direct runner
-  // tests (i.e., those from this subproject) get scanned.
-  testClassesDirs += files(project(":beam-runners-core-construction-java").sourceSets.test.output.classesDirs)
-  testClassesDirs += files(project(":beam-runners-core-java").sourceSets.test.output.classesDirs)
-  testClassesDirs += files(project(":beam-sdks-java-core").sourceSets.test.output.classesDirs)
-  useJUnit {
-    includeCategories "org.apache.beam.sdk.testing.NeedsRunner"
-    excludeCategories "org.apache.beam.sdk.testing.LargeKeys\$Above100MB"
-  }
+    classpath = configurations.needsRunner
+    // NOTE: We only add to the test class dirs to ensure that the direct runner
+    // tests (i.e., those from this subproject) get scanned.
+    testClassesDirs += files(project(":beam-runners-core-construction-java").sourceSets.test.output.classesDirs)
+    testClassesDirs += files(project(":beam-runners-core-java").sourceSets.test.output.classesDirs)
+    testClassesDirs += files(project(":beam-sdks-java-core").sourceSets.test.output.classesDirs)
+    useJUnit {
+        includeCategories "org.apache.beam.sdk.testing.NeedsRunner"
+        excludeCategories "org.apache.beam.sdk.testing.LargeKeys\$Above100MB"
+    }
 }
 
 // NOTE: This will also run 'NeedsRunner' tests, which are run in the :needsRunnerTests task as well.
 // The intention of this task is to mirror the :validatesRunner configuration for other runners,
 // such that the test suite can be validated on the in-process DirectRunner.
 task validatesRunner(type: Test) {
-  group = "Verification"
-  description "Validates Direct runner"
+    group = "Verification"
+    description "Validates Direct runner"
 
   def pipelineOptions = JsonOutput.toJson(["--runner=DirectRunner", "--runnerDeterminedSharding=false", "--protoTranslation"])
   systemProperty "beamTestPipelineOptions", pipelineOptions
@@ -138,8 +135,8 @@ createJavaExamplesArchetypeValidationTask(type: 'Quickstart', runner: 'Direct')
 
 // Generates :beam-runners-direct-java:runMobileGamingJavaDirect
 createJavaExamplesArchetypeValidationTask(type: 'MobileGaming',
-  runner: 'Direct',
-  gcpProject: gcpProject,
-  gcsBucket: gcsBucket,
-  bqDataset: bqDataset,
-  pubsubTopic: pubsubTopic)
+        runner: 'Direct',
+        gcpProject: gcpProject,
+        gcsBucket: gcsBucket,
+        bqDataset: bqDataset,
+        pubsubTopic: pubsubTopic)

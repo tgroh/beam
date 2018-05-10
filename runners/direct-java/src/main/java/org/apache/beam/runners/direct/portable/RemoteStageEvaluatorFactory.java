@@ -29,6 +29,7 @@ import org.apache.beam.runners.fnexecution.control.RemoteBundle;
 import org.apache.beam.runners.fnexecution.control.StageBundleFactory;
 import org.apache.beam.runners.fnexecution.state.StateRequestHandler;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.slf4j.LoggerFactory;
 
 /**
  * The {@link TransformEvaluatorFactory} which produces {@link TransformEvaluator evaluators} for
@@ -77,12 +78,15 @@ class RemoteStageEvaluatorFactory implements TransformEvaluatorFactory {
 
     @Override
     public void processElement(WindowedValue<T> element) throws Exception {
+      LoggerFactory.getLogger(getClass()).warn("Element for remote");
+      System.out.println("Element for remote");
       bundle.getInputReceiver().accept(element);
     }
 
     @Override
     public TransformResult<T> finishBundle() throws Exception {
       bundle.close();
+      System.out.println("Closed bundle for remote");
       return StepTransformResult.<T>withoutHold(transform).addOutput(outputs).build();
     }
   }

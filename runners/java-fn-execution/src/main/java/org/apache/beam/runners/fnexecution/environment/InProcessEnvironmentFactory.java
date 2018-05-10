@@ -46,13 +46,6 @@ import org.slf4j.LoggerFactory;
 public class InProcessEnvironmentFactory implements EnvironmentFactory {
   private static final Logger LOG = LoggerFactory.getLogger(InProcessEnvironmentFactory.class);
 
-  private final PipelineOptions options;
-
-  private final GrpcFnServer<GrpcLoggingService> loggingServer;
-  private final GrpcFnServer<FnApiControlClientPoolService> controlServer;
-
-  private final ControlClientPool.Source clientSource;
-
   public static EnvironmentFactory create(
       PipelineOptions options,
       GrpcFnServer<GrpcLoggingService> loggingServer,
@@ -60,6 +53,12 @@ public class InProcessEnvironmentFactory implements EnvironmentFactory {
       ControlClientPool.Source clientSource) {
     return new InProcessEnvironmentFactory(options, loggingServer, controlServer, clientSource);
   }
+
+  private final PipelineOptions options;
+  private final GrpcFnServer<GrpcLoggingService> loggingServer;
+  private final GrpcFnServer<FnApiControlClientPoolService> controlServer;
+
+  private final ControlClientPool.Source clientSource;
 
   private InProcessEnvironmentFactory(
       PipelineOptions options,
