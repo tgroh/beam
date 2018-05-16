@@ -40,6 +40,7 @@ import org.apache.beam.runners.core.construction.graph.QueryablePipeline;
 import org.apache.beam.runners.fnexecution.GrpcContextHeaderAccessorProvider;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.InProcessServerFactory;
+import org.apache.beam.runners.fnexecution.control.DirectJobBundleFactory;
 import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
 import org.apache.beam.runners.fnexecution.control.InstructionRequestHandler;
 import org.apache.beam.runners.fnexecution.control.JobBundleFactory;

@@ -6,7 +6,6 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -14,9 +13,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
-package org.apache.beam.runners.direct.portable;
+package org.apache.beam.runners.fnexecution.control;
 
 import com.google.common.collect.Iterables;
 import java.io.IOException;
@@ -29,14 +29,7 @@ import org.apache.beam.model.fnexecution.v1.BeamFnApi.Target;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
-import org.apache.beam.runners.fnexecution.control.JobBundleFactory;
-import org.apache.beam.runners.fnexecution.control.OutputReceiverFactory;
-import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors;
 import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors.ExecutableProcessBundleDescriptor;
-import org.apache.beam.runners.fnexecution.control.RemoteBundle;
-import org.apache.beam.runners.fnexecution.control.RemoteOutputReceiver;
-import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
-import org.apache.beam.runners.fnexecution.control.StageBundleFactory;
 import org.apache.beam.runners.fnexecution.data.GrpcDataService;
 import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
 import org.apache.beam.runners.fnexecution.environment.EnvironmentFactory;
@@ -49,13 +42,13 @@ import org.apache.beam.sdk.fn.IdGenerators;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.util.WindowedValue;
 
-/** A {@link JobBundleFactory} for the ReferenceRunner. */
-class DirectJobBundleFactory implements JobBundleFactory {
+/** A {@link JobBundleFactory} which blah. */
+public class SingleEnvironmentInstanceJobBundleFactory implements JobBundleFactory {
   public static JobBundleFactory create(
       EnvironmentFactory environmentFactory,
       GrpcFnServer<GrpcDataService> data,
       GrpcFnServer<GrpcStateService> state) {
-    return new DirectJobBundleFactory(environmentFactory, data, state);
+    return new SingleEnvironmentInstanceJobBundleFactory(environmentFactory, data, state);
   }
 
   private final EnvironmentFactory environmentFactory;
@@ -70,7 +63,7 @@ class DirectJobBundleFactory implements JobBundleFactory {
 
   private final IdGenerator idGenerator = IdGenerators.incrementingLongs();
 
-  private DirectJobBundleFactory(
+  private SingleEnvironmentInstanceJobBundleFactory(
       EnvironmentFactory environmentFactory,
       GrpcFnServer<GrpcDataService> dataService,
       GrpcFnServer<GrpcStateService> stateService) {
@@ -116,7 +109,7 @@ class DirectJobBundleFactory implements JobBundleFactory {
             descriptor.getProcessBundleDescriptor(),
             (RemoteInputDestination<WindowedValue<T>>) (RemoteInputDestination) destination,
             stateService.getService());
-    return new DirectStageBundleFactory<>(descriptor, bundleProcessor);
+    return new BundleProcessorStageBundleFactory<>(descriptor, bundleProcessor);
   }
 
   @Override
@@ -138,11 +131,11 @@ class DirectJobBundleFactory implements JobBundleFactory {
     }
   }
 
-  private static class DirectStageBundleFactory<T> implements StageBundleFactory<T> {
+  private static class BundleProcessorStageBundleFactory<T> implements StageBundleFactory<T> {
     private final ExecutableProcessBundleDescriptor descriptor;
     private final SdkHarnessClient.BundleProcessor<T> processor;
 
-    private DirectStageBundleFactory(
+    private BundleProcessorStageBundleFactory(
         ExecutableProcessBundleDescriptor descriptor,
         SdkHarnessClient.BundleProcessor<T> processor) {
       this.descriptor = descriptor;
