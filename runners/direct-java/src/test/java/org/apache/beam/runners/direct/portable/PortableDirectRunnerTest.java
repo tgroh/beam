@@ -19,6 +19,7 @@
 package org.apache.beam.runners.direct.portable;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.protobuf.Struct;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Set;
@@ -38,13 +39,17 @@ import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 /** Tests for the {@link PortableDirectRunner}. */
 @RunWith(JUnit4.class)
 public class PortableDirectRunnerTest implements Serializable {
+  @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
+
   @Test
   public void pipelineExecution() throws Exception {
     Pipeline p = Pipeline.create();
@@ -110,7 +115,9 @@ public class PortableDirectRunnerTest implements Serializable {
 
     p.replaceAll(Collections.singletonList(JavaReadViaImpulse.boundedOverride()));
 
-    PortableDirectRunner runner = PortableDirectRunner.forPipeline(PipelineTranslation.toProto(p));
+    PortableDirectRunner runner =
+        PortableDirectRunner.forInProcessPipeline(
+            PipelineTranslation.toProto(p), Struct.getDefaultInstance(), tempFolder.getRoot());
     runner.execute();
   }
 }

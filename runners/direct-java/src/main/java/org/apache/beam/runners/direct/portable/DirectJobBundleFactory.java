@@ -153,7 +153,7 @@ class DirectJobBundleFactory implements JobBundleFactory {
     public RemoteBundle<T> getBundle(
         OutputReceiverFactory outputReceiverFactory, StateRequestHandler stateRequestHandler) {
       Map<Target, RemoteOutputReceiver<?>> outputReceivers = new HashMap<>();
-      for (Map.Entry<Target, Coder<? extends WindowedValue<?>>> targetCoders :
+      for (Map.Entry<Target, Coder<WindowedValue<?>>> targetCoders :
           descriptor.getOutputTargetCoders().entrySet()) {
         String bundleOutputPCollection =
             Iterables.getOnlyElement(

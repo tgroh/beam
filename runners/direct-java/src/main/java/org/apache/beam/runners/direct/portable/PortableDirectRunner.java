@@ -23,10 +23,13 @@ import static com.google.common.collect.Iterables.getOnlyElement;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import java.io.IOException;
+import com.google.protobuf.Struct;
+import java.io.File;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.apache.beam.model.fnexecution.v1.ProvisionApi.ProvisionInfo;
+import org.apache.beam.model.fnexecution.v1.ProvisionApi.Resources;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Coder;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
@@ -35,6 +38,7 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.MessageWithComponents;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
+import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.runners.core.construction.ModelCoders;
 import org.apache.beam.runners.core.construction.ModelCoders.KvCoderComponents;
@@ -46,20 +50,25 @@ import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNo
 import org.apache.beam.runners.core.construction.graph.ProtoOverrides;
 import org.apache.beam.runners.core.construction.graph.ProtoOverrides.TransformReplacement;
 import org.apache.beam.runners.direct.ExecutableGraph;
+import org.apache.beam.runners.direct.portable.artifact.LocalFileSystemArtifactRetrievalService;
 import org.apache.beam.runners.fnexecution.GrpcContextHeaderAccessorProvider;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.InProcessServerFactory;
 import org.apache.beam.runners.fnexecution.ServerFactory;
+import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
 import org.apache.beam.runners.fnexecution.control.ControlClientPool;
 import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
 import org.apache.beam.runners.fnexecution.control.JobBundleFactory;
 import org.apache.beam.runners.fnexecution.control.MapControlClientPool;
 import org.apache.beam.runners.fnexecution.data.GrpcDataService;
+import org.apache.beam.runners.fnexecution.environment.DockerEnvironmentFactory;
 import org.apache.beam.runners.fnexecution.environment.EnvironmentFactory;
 import org.apache.beam.runners.fnexecution.environment.InProcessEnvironmentFactory;
 import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.runners.fnexecution.logging.Slf4jLogWriter;
+import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionService;
 import org.apache.beam.runners.fnexecution.state.GrpcStateService;
+import org.apache.beam.sdk.fn.IdGenerators;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
@@ -67,13 +76,26 @@ import org.joda.time.Instant;
 /** The "ReferenceRunner" engine implementation. */
 class PortableDirectRunner {
   private final RunnerApi.Pipeline pipeline;
+  private final Struct options;
+  private final File artifactsDir;
 
-  private PortableDirectRunner(RunnerApi.Pipeline p) throws IOException {
+  private final EnvironmentType environmentType;
+
+  private PortableDirectRunner(
+      Pipeline p, Struct options, File artifactsDir, EnvironmentType environmentType) {
     this.pipeline = executable(p);
+    this.options = options;
+    this.artifactsDir = artifactsDir;
+    this.environmentType = environmentType;
   }
 
-  static PortableDirectRunner forPipeline(RunnerApi.Pipeline p) throws IOException {
-    return new PortableDirectRunner(p);
+  static PortableDirectRunner forPipeline(RunnerApi.Pipeline p, Struct options, File artifactsDir) {
+    return new PortableDirectRunner(p, options, artifactsDir, EnvironmentType.DOCKER);
+  }
+
+  static PortableDirectRunner forInProcessPipeline(
+      RunnerApi.Pipeline p, Struct options, File artifactsDir) {
+    return new PortableDirectRunner(p, options, artifactsDir, EnvironmentType.IN_PROCESS);
   }
 
   private RunnerApi.Pipeline executable(RunnerApi.Pipeline original) {
@@ -95,9 +117,24 @@ class PortableDirectRunner {
     ServerFactory serverFactory = createServerFactory();
     ControlClientPool controlClientPool = MapControlClientPool.create();
     ExecutorService dataExecutor = Executors.newCachedThreadPool();
+    ProvisionInfo provisionInfo =
+        ProvisionInfo.newBuilder()
+            .setJobId("id")
+            .setJobName("reference")
+            .setPipelineOptions(options)
+            .setWorkerId("")
+            .setResourceLimits(Resources.getDefaultInstance())
+            .build();
     try (GrpcFnServer<GrpcLoggingService> logging =
             GrpcFnServer.allocatePortAndCreateFor(
                 GrpcLoggingService.forWriter(Slf4jLogWriter.getDefault()), serverFactory);
+        GrpcFnServer<ArtifactRetrievalService> artifact =
+            GrpcFnServer.allocatePortAndCreateFor(
+                LocalFileSystemArtifactRetrievalService.forRootDirectory(artifactsDir),
+                serverFactory);
+        GrpcFnServer<StaticGrpcProvisionService> provisioning =
+            GrpcFnServer.allocatePortAndCreateFor(
+                StaticGrpcProvisionService.create(provisionInfo), serverFactory);
         GrpcFnServer<FnApiControlClientPoolService> control =
             GrpcFnServer.allocatePortAndCreateFor(
                 FnApiControlClientPoolService.offeringClientsToPool(
@@ -111,8 +148,13 @@ class PortableDirectRunner {
             GrpcFnServer.allocatePortAndCreateFor(GrpcStateService.create(), serverFactory)) {
 
       EnvironmentFactory environmentFactory =
-          InProcessEnvironmentFactory.create(
-              PipelineOptionsFactory.create(), logging, control, controlClientPool.getSource());
+          createEnvironmentFactory(
+              EnvironmentType.DOCKER,
+              control,
+              logging,
+              artifact,
+              provisioning,
+              controlClientPool.getSource());
       JobBundleFactory jobBundleFactory =
           DirectJobBundleFactory.create(environmentFactory, data, state);
 
@@ -135,6 +177,31 @@ class PortableDirectRunner {
 
   private ServerFactory createServerFactory() {
     return InProcessServerFactory.create();
+  }
+
+  private EnvironmentFactory createEnvironmentFactory(
+      EnvironmentType type,
+      GrpcFnServer<FnApiControlClientPoolService> control,
+      GrpcFnServer<GrpcLoggingService> logging,
+      GrpcFnServer<ArtifactRetrievalService> artifact,
+      GrpcFnServer<StaticGrpcProvisionService> provisioning,
+      ControlClientPool.Source controlClientSource) {
+    switch (type) {
+      case DOCKER:
+        return DockerEnvironmentFactory.forServices(
+            control,
+            logging,
+            artifact,
+            provisioning,
+            controlClientSource,
+            IdGenerators.incrementingLongs());
+      case IN_PROCESS:
+        return InProcessEnvironmentFactory.create(
+            PipelineOptionsFactory.create(), logging, control, controlClientSource);
+      default:
+        throw new IllegalArgumentException(
+            String.format("Unknown %s %s", EnvironmentType.class.getSimpleName(), type));
+    }
   }
 
   @VisibleForTesting
@@ -211,5 +278,10 @@ class PortableDirectRunner {
           .setComponents(newComponents)
           .build();
     }
+  }
+
+  private enum EnvironmentType {
+    DOCKER,
+    IN_PROCESS
   }
 }
