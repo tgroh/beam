@@ -21,6 +21,7 @@ package org.apache.beam.runners.direct.portable.job;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -29,6 +30,8 @@ import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.beam.model.jobmanagement.v1.JobApi;
 import org.apache.beam.model.jobmanagement.v1.JobApi.CancelJobRequest;
@@ -55,15 +58,22 @@ public class ReferenceRunnerJobService extends JobServiceImplBase implements FnS
   }
 
   private final ServerFactory serverFactory;
-  private final Callable<Path> stagingPathSupplier;
+  private final Callable<Path> stagingPathCallable;
 
   private final ConcurrentMap<String, PreparingJob> unpreparedJobs;
+  private final ExecutorService executor;
 
   private ReferenceRunnerJobService(
-      ServerFactory serverFactory, Callable<Path> stagingPathSupplier) {
+      ServerFactory serverFactory, Callable<Path> stagingPathCallable) {
     this.serverFactory = serverFactory;
-    this.stagingPathSupplier = stagingPathSupplier;
+    this.stagingPathCallable = stagingPathCallable;
     unpreparedJobs = new ConcurrentHashMap<>();
+    executor =
+        Executors.newCachedThreadPool(
+            new ThreadFactoryBuilder()
+                .setDaemon(false)
+                .setNameFormat("reference-runner-pipeline-%s")
+                .build());
   }
 
   public ReferenceRunnerJobService withStagingPathSupplier(Callable<Path> supplier) {
@@ -108,7 +118,7 @@ public class ReferenceRunnerJobService extends JobServiceImplBase implements FnS
   private GrpcFnServer<LocalFileSystemArtifactStagerService> createArtifactStagingService()
       throws Exception {
     LocalFileSystemArtifactStagerService service =
-        LocalFileSystemArtifactStagerService.forRootDirectory(stagingPathSupplier.call().toFile());
+        LocalFileSystemArtifactStagerService.forRootDirectory(stagingPathCallable.get().toFile());
     return GrpcFnServer.allocatePortAndCreateFor(service, serverFactory);
   }
 
@@ -132,9 +142,20 @@ public class ReferenceRunnerJobService extends JobServiceImplBase implements FnS
       } catch (Exception e) {
         responseObserver.onError(e);
       }
+      // TODO: Return a real java 'job handle'; this gets used in getState, cancel, etc
+      PortableDirectRunner runner =
+          PortableDirectRunner.forPipeline(
+              preparingJob.getPipeline(),
+              preparingJob.getOptions(),
+              preparingJob.getStagingLocation());
       String jobId = preparingJob + Integer.toString(ThreadLocalRandom.current().nextInt());
       responseObserver.onNext(RunJobResponse.newBuilder().setJobId(jobId).build());
       responseObserver.onCompleted();
+      executor.submit(
+          () -> {
+            runner.execute();
+            return null;
+          });
     } catch (StatusRuntimeException e) {
       responseObserver.onError(e);
     } catch (Exception e) {
