@@ -22,6 +22,7 @@ import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 import com.google.common.collect.Iterables;
 import java.io.IOException;
@@ -243,14 +244,13 @@ public class BundleFactoryOutputRecieverFactoryTest {
       WindowedValue<?> output = getOnlyElement(uncommitted.commit(Instant.now()).getElements());
       if (fooPC.equals(uncommitted.getPCollection())) {
         assertThat(output, equalTo(fooElem));
+      } else if (barPC.equals(uncommitted.getPCollection())) {
+        assertThat(output, equalTo(barElem));
       } else {
-        assertThat(
+        fail(
             String.format(
                 "Output %s should be either 'foo' or 'bar', got '%s",
-                PCollection.class.getSimpleName(), uncommitted.getPCollection().getId()),
-            uncommitted.getPCollection(),
-            equalTo(barPC));
-        assertThat(output, equalTo(barElem));
+                PCollection.class.getSimpleName(), uncommitted.getPCollection().getId()));
       }
       outputs.add(output);
     }
