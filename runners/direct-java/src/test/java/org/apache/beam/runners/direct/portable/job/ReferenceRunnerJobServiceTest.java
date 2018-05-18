@@ -61,13 +61,12 @@ public class ReferenceRunnerJobServiceTest {
   @Rule public TemporaryFolder clientTemp = new TemporaryFolder();
 
   private InProcessServerFactory serverFactory = InProcessServerFactory.create();
-  private ReferenceRunnerJobService service;
   private GrpcFnServer<ReferenceRunnerJobService> server;
   private JobServiceBlockingStub stub;
 
   @Before
   public void setup() throws Exception {
-    service =
+    ReferenceRunnerJobService service =
         ReferenceRunnerJobService.create(serverFactory)
             .withStagingPathSupplier(() -> runnerTemp.getRoot().toPath());
     server = GrpcFnServer.allocatePortAndCreateFor(service, serverFactory);

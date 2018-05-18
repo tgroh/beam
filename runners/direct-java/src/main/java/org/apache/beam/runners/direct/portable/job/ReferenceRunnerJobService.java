@@ -54,7 +54,8 @@ public class ReferenceRunnerJobService extends JobServiceImplBase implements FnS
   private static final Logger LOG = LoggerFactory.getLogger(ReferenceRunnerJobService.class);
 
   public static ReferenceRunnerJobService create(final ServerFactory serverFactory) {
-    return new ReferenceRunnerJobService(serverFactory, filesTempDirectory());
+    return new ReferenceRunnerJobService(
+        serverFactory, () -> Files.createTempDirectory("reference-runner-staging"));
   }
 
   private final ServerFactory serverFactory;
@@ -88,9 +89,12 @@ public class ReferenceRunnerJobService extends JobServiceImplBase implements FnS
       LOG.trace("{} {}", PrepareJobResponse.class.getSimpleName(), request);
 
       String preparationId = request.getJobName() + ThreadLocalRandom.current().nextInt();
-      Path tempDir = Files.createTempDirectory("reference-runner-staging");
+      Path tempDir = stagingPathCallable.call();
       GrpcFnServer<LocalFileSystemArtifactStagerService> artifactStagingService =
-          createArtifactStagingService();
+          createArtifactStagingService(tempDir);
+      System.err.printf(
+          "%s at %s%n",
+          LocalFileSystemArtifactStagerService.class.getSimpleName(), artifactStagingService);
       PreparingJob previous =
           unpreparedJobs.putIfAbsent(
               preparationId,
@@ -115,10 +119,10 @@ public class ReferenceRunnerJobService extends JobServiceImplBase implements FnS
     }
   }
 
-  private GrpcFnServer<LocalFileSystemArtifactStagerService> createArtifactStagingService()
-      throws Exception {
+  private GrpcFnServer<LocalFileSystemArtifactStagerService> createArtifactStagingService(
+      Path stagingPath) throws Exception {
     LocalFileSystemArtifactStagerService service =
-        LocalFileSystemArtifactStagerService.forRootDirectory(stagingPathCallable.get().toFile());
+        LocalFileSystemArtifactStagerService.forRootDirectory(stagingPath.toFile());
     return GrpcFnServer.allocatePortAndCreateFor(service, serverFactory);
   }
 
@@ -191,9 +195,5 @@ public class ReferenceRunnerJobService extends JobServiceImplBase implements FnS
         LOG.warn("Exception while closing preparing job {}", preparingJob);
       }
     }
-  }
-
-  private static Callable<Path> filesTempDirectory() {
-    return () -> Files.createTempDirectory("reference-runner-staging");
   }
 }

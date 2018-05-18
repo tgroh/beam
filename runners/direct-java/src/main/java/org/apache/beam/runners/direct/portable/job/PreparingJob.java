@@ -42,6 +42,7 @@ abstract class PreparingJob implements AutoCloseable {
 
   @Override
   public void close() throws Exception {
+    System.err.printf("Closing Artifact Service staging at %s%n", getStagingLocation());
     getArtifactStagingServer().close();
   }
 

@@ -30,16 +30,21 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
+import org.apache.beam.model.jobmanagement.v1.ArtifactApi.GetArtifactRequest;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.GetManifestResponse;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
 import org.apache.beam.model.jobmanagement.v1.ArtifactRetrievalServiceGrpc;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** An {@code ArtifactRetrievalService} which stages files to a local temp directory. */
 public class LocalFileSystemArtifactRetrievalService
     extends ArtifactRetrievalServiceGrpc.ArtifactRetrievalServiceImplBase
     implements ArtifactRetrievalService {
   private static final int DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024;
+  private static final Logger LOG =
+      LoggerFactory.getLogger(LocalFileSystemArtifactRetrievalService.class);
 
   public static LocalFileSystemArtifactRetrievalService forRootDirectory(File base) {
     return new LocalFileSystemArtifactRetrievalService(base);
@@ -88,6 +93,8 @@ public class LocalFileSystemArtifactRetrievalService
   public void getArtifact(
       ArtifactApi.GetArtifactRequest request,
       StreamObserver<ArtifactApi.ArtifactChunk> responseObserver) {
+    System.out.println("Getting artifact " + request.getName());
+    LOG.trace("{} {}", GetArtifactRequest.class.getSimpleName(), request);
     try {
       ByteBuffer artifact = getArtifact(request.getName());
       do {

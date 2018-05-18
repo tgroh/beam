@@ -62,7 +62,7 @@ class DockerCommand {
    * Runs the given container image with the given command line arguments. Returns the running
    * container id.
    */
-  public String runImage(String imageTag, List<String> args)
+  public String runImage(String imageTag, List<String> dockerOpts, List<String> args)
       throws IOException, TimeoutException, InterruptedException {
     checkArgument(!imageTag.isEmpty(), "Docker image tag required");
     // TODO: Validate args?
@@ -71,6 +71,7 @@ class DockerCommand {
             .add(dockerExecutable)
             .add("run")
             .add("-d")
+            .addAll(dockerOpts)
             .add(imageTag)
             .addAll(args)
             .build());
@@ -93,6 +94,7 @@ class DockerCommand {
   /** Run the given command invocation and return stdout as a String. */
   private String runShortCommand(List<String> invocation)
       throws IOException, TimeoutException, InterruptedException {
+    System.out.println("Docker Invocation:\n" + invocation);
     ProcessBuilder pb = new ProcessBuilder(invocation);
     Process process = pb.start();
     // TODO: Consider supplying executor service here.

@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.fnexecution.environment;
 
+import com.google.common.collect.ImmutableList;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -111,7 +112,7 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
   /** Creates a new, active {@link RemoteEnvironment} backed by a local Docker container. */
   @Override
   public RemoteEnvironment createEnvironment(Environment environment) throws Exception {
-    String workerId = idGenerator.getId();
+    String workerId = "foo";
 
     // Prepare docker invocation.
     Path workerPersistentDirectory = Files.createTempDirectory("worker_persistent_directory");
@@ -123,14 +124,16 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
     String artifactEndpoint = retrievalServiceServer.getApiServiceDescriptor().getUrl();
     String provisionEndpoint = provisioningServiceServer.getApiServiceDescriptor().getUrl();
     String controlEndpoint = controlServiceServer.getApiServiceDescriptor().getUrl();
-    List<String> args =
-        Arrays.asList(
+    List<String> volArg =
+        ImmutableList.of(
             "-v",
             // TODO: Mac only allows temporary mounts under /tmp by default (as of 17.12).
             String.format("%s:%s", workerPersistentDirectory, semiPersistentDirectory),
+            "--network=host");
+
+    List<String> args =
+        Arrays.asList(
             // NOTE: Host networking does not work on Mac, but the command line flag is accepted.
-            "--network=host",
-            containerImage,
             String.format("--id=%s", workerId),
             String.format("--logging_endpoint=%s", loggingEndpoint),
             String.format("--artifact_endpoint=%s", artifactEndpoint),
@@ -138,15 +141,17 @@ public class DockerEnvironmentFactory implements EnvironmentFactory {
             String.format("--control_endpoint=%s", controlEndpoint),
             String.format("--semi_persist_dir=%s", semiPersistentDirectory));
 
+    System.out.println("WorkerId: " + workerId);
     // Wrap the blocking call to clientSource.get in case an exception is thrown.
     String containerId = null;
     InstructionRequestHandler instructionHandler = null;
     try {
-      containerId = docker.runImage(containerImage, args);
+      containerId = docker.runImage(containerImage, volArg, args);
+      System.out.println("ContainerID: " + containerId);
       // Wait on a client from the gRPC server.
       while (instructionHandler == null) {
         try {
-          instructionHandler = clientSource.take(workerId, Duration.ofMinutes(2));
+          instructionHandler = clientSource.take("", Duration.ofMinutes(2));
         } catch (TimeoutException timeoutEx) {
           LOG.info(
               "Still waiting for startup of environment {} for worker id {}",

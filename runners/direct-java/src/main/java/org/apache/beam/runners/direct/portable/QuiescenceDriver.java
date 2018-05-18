@@ -293,6 +293,7 @@ class QuiescenceDriver implements ExecutionDriver {
 
     @Override
     public void handleError(Error err) {
+      outstandingWork.decrementAndGet();
       pipelineMessageReceiver.failed(err);
     }
   }

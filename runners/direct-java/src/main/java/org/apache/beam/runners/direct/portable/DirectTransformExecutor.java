@@ -88,44 +88,43 @@ class DirectTransformExecutor<T> implements TransformExecutor {
 
   @Override
   public void run() {
-    MetricsContainerImpl metricsContainer = new MetricsContainerImpl(transform.getId());
-    try (Closeable metricsScope = MetricsEnvironment.scopedMetricsContainer(metricsContainer)) {
-      TransformEvaluator<T> evaluator =
-          evaluatorRegistry.forApplication(transform, inputBundle);
-      if (evaluator == null) {
-        onComplete.handleEmpty(transform);
-        // Nothing to do
-        return;
+    try {
+      MetricsContainerImpl metricsContainer = new MetricsContainerImpl(transform.getId());
+      try (Closeable metricsScope = MetricsEnvironment.scopedMetricsContainer(metricsContainer)) {
+        TransformEvaluator<T> evaluator = evaluatorRegistry.forApplication(transform, inputBundle);
+        if (evaluator == null) {
+          onComplete.handleEmpty(transform);
+          // Nothing to do
+          return;
+        }
+
+        processElements(evaluator, metricsContainer);
+
+        finishBundle(evaluator, metricsContainer);
+      } catch (Exception e) {
+        onComplete.handleException(inputBundle, e);
+        if (e instanceof RuntimeException) {
+          throw (RuntimeException) e;
+        }
+        throw new RuntimeException(e);
+      } catch (Error err) {
+        LOG.error("Error occurred within {}", this, err);
+        onComplete.handleError(err);
+        throw err;
+      } finally {
+        // Report the physical metrics from the end of this step.
+        context.getMetrics().commitPhysical(inputBundle, metricsContainer.getCumulative());
+
+        transformEvaluationState.complete(this);
       }
-
-      processElements(evaluator, metricsContainer);
-
-      finishBundle(evaluator, metricsContainer);
-    } catch (Exception e) {
-      onComplete.handleException(inputBundle, e);
-      if (e instanceof RuntimeException) {
-        throw (RuntimeException) e;
-      }
-      throw new RuntimeException(e);
-    } catch (Error err) {
-      LOG.error("Error occurred within {}", this, err);
-      onComplete.handleError(err);
-      throw err;
-    } finally {
-      // Report the physical metrics from the end of this step.
-      context.getMetrics().commitPhysical(inputBundle, metricsContainer.getCumulative());
-
-      transformEvaluationState.complete(this);
+    } catch (Throwable t) {
+      System.err.println("Threw " + t);
     }
   }
 
-  /**
-   * Processes all the elements in the input bundle using the transform evaluator.
-   */
+  /** Processes all the elements in the input bundle using the transform evaluator. */
   private void processElements(
-      TransformEvaluator<T> evaluator,
-      MetricsContainerImpl metricsContainer)
-      throws Exception {
+      TransformEvaluator<T> evaluator, MetricsContainerImpl metricsContainer) throws Exception {
     if (inputBundle != null) {
       for (WindowedValue<T> value : inputBundle.getElements()) {
         evaluator.processElement(value);
@@ -141,15 +140,13 @@ class DirectTransformExecutor<T> implements TransformExecutor {
   }
 
   /**
-   * Finishes processing the input bundle and commit the result using the
-   * {@link CompletionCallback}.
+   * Finishes processing the input bundle and commit the result using the {@link
+   * CompletionCallback}.
    *
-   * @return the {@link TransformResult} produced by
-   *         {@link TransformEvaluator#finishBundle()}
+   * @return the {@link TransformResult} produced by {@link TransformEvaluator#finishBundle()}
    */
   private TransformResult<T> finishBundle(
-      TransformEvaluator<T> evaluator, MetricsContainerImpl metricsContainer)
-      throws Exception {
+      TransformEvaluator<T> evaluator, MetricsContainerImpl metricsContainer) throws Exception {
     TransformResult<T> result =
         evaluator.finishBundle().withLogicalMetricUpdates(metricsContainer.getCumulative());
     onComplete.handleResult(inputBundle, result);

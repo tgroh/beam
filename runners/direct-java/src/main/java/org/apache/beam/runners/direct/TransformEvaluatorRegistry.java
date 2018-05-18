@@ -32,19 +32,14 @@ import static org.apache.beam.runners.direct.ParDoMultiOverrideFactory.DIRECT_ST
 import static org.apache.beam.runners.direct.TestStreamEvaluatorFactory.DirectTestStreamFactory.DIRECT_TEST_STREAM_URN;
 import static org.apache.beam.runners.direct.ViewOverrideFactory.DIRECT_WRITE_VIEW_URN;
 
-import com.google.auto.service.AutoService;
 import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems;
 import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems.ProcessElements;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation.TransformPayloadTranslator;
-import org.apache.beam.runners.core.construction.TransformPayloadTranslatorRegistrar;
-import org.apache.beam.runners.direct.TestStreamEvaluatorFactory.DirectTestStreamFactory.DirectTestStream;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.runners.AppliedPTransform;
@@ -100,42 +95,43 @@ class TransformEvaluatorRegistry {
     return new TransformEvaluatorRegistry(primitives);
   }
 
-  /** Registers classes specialized to the direct runner. */
-  @AutoService(TransformPayloadTranslatorRegistrar.class)
-  public static class DirectTransformsRegistrar implements TransformPayloadTranslatorRegistrar {
-    @Override
-    public Map<
-            ? extends Class<? extends PTransform>,
-            ? extends PTransformTranslation.TransformPayloadTranslator>
-        getTransformPayloadTranslators() {
-      return ImmutableMap
-          .<Class<? extends PTransform>, PTransformTranslation.TransformPayloadTranslator>builder()
-          .put(
-              DirectGroupByKey.DirectGroupByKeyOnly.class,
-              TransformPayloadTranslator.NotSerializable.forUrn(DIRECT_GBKO_URN))
-          .put(
-              DirectGroupByKey.DirectGroupAlsoByWindow.class,
-              TransformPayloadTranslator.NotSerializable.forUrn(DIRECT_GABW_URN))
-          .put(
-              ParDoMultiOverrideFactory.StatefulParDo.class,
-              TransformPayloadTranslator.NotSerializable.forUrn(DIRECT_STATEFUL_PAR_DO_URN))
-          .put(
-              ViewOverrideFactory.WriteView.class,
-              TransformPayloadTranslator.NotSerializable.forUrn(DIRECT_WRITE_VIEW_URN))
-          .put(
-              DirectTestStream.class,
-              TransformPayloadTranslator.NotSerializable.forUrn(DIRECT_TEST_STREAM_URN))
-          .put(
-              SplittableParDoViaKeyedWorkItems.ProcessElements.class,
-              TransformPayloadTranslator.NotSerializable.forUrn(SPLITTABLE_PROCESS_URN))
-          .build();
-    }
-
-    @Override
-    public Map<String, TransformPayloadTranslator> getTransformRehydrators() {
-      return Collections.emptyMap();
-    }
-  }
+  // /** Registers classes specialized to the direct runner. */
+  // @AutoService(TransformPayloadTranslatorRegistrar.class)
+  // public static class DirectTransformsRegistrar implements TransformPayloadTranslatorRegistrar {
+  //   @Override
+  //   public Map<
+  //           ? extends Class<? extends PTransform>,
+  //           ? extends PTransformTranslation.TransformPayloadTranslator>
+  //       getTransformPayloadTranslators() {
+  //     return ImmutableMap
+  //         .<Class<? extends PTransform>,
+  // PTransformTranslation.TransformPayloadTranslator>builder()
+  //         .put(
+  //             DirectGroupByKey.DirectGroupByKeyOnly.class,
+  //             TransformPayloadTranslator.NotSerializable.forUrn(DIRECT_GBKO_URN))
+  //         .put(
+  //             DirectGroupByKey.DirectGroupAlsoByWindow.class,
+  //             TransformPayloadTranslator.NotSerializable.forUrn(DIRECT_GABW_URN))
+  //         .put(
+  //             ParDoMultiOverrideFactory.StatefulParDo.class,
+  //             TransformPayloadTranslator.NotSerializable.forUrn(DIRECT_STATEFUL_PAR_DO_URN))
+  //         .put(
+  //             ViewOverrideFactory.WriteView.class,
+  //             TransformPayloadTranslator.NotSerializable.forUrn(DIRECT_WRITE_VIEW_URN))
+  //         .put(
+  //             DirectTestStream.class,
+  //             TransformPayloadTranslator.NotSerializable.forUrn(DIRECT_TEST_STREAM_URN))
+  //         .put(
+  //             SplittableParDoViaKeyedWorkItems.ProcessElements.class,
+  //             TransformPayloadTranslator.NotSerializable.forUrn(SPLITTABLE_PROCESS_URN))
+  //         .build();
+  //   }
+  //
+  //   @Override
+  //   public Map<String, TransformPayloadTranslator> getTransformRehydrators() {
+  //     return Collections.emptyMap();
+  //   }
+  // }
 
   /**
    * A translator just to vend the URN. This will need to be moved to runners-core-construction-java

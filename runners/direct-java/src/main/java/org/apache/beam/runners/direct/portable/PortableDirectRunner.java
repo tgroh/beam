@@ -57,16 +57,16 @@ import org.apache.beam.runners.fnexecution.InProcessServerFactory;
 import org.apache.beam.runners.fnexecution.ServerFactory;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
 import org.apache.beam.runners.fnexecution.control.ControlClientPool;
-import org.apache.beam.runners.fnexecution.control.DirectJobBundleFactory;
 import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
 import org.apache.beam.runners.fnexecution.control.JobBundleFactory;
 import org.apache.beam.runners.fnexecution.control.MapControlClientPool;
+import org.apache.beam.runners.fnexecution.control.SingleEnvironmentInstanceJobBundleFactory;
 import org.apache.beam.runners.fnexecution.data.GrpcDataService;
 import org.apache.beam.runners.fnexecution.environment.DockerEnvironmentFactory;
 import org.apache.beam.runners.fnexecution.environment.EnvironmentFactory;
 import org.apache.beam.runners.fnexecution.environment.InProcessEnvironmentFactory;
 import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
-import org.apache.beam.runners.fnexecution.logging.Slf4jLogWriter;
+import org.apache.beam.runners.fnexecution.logging.PrintingLogWriter;
 import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionService;
 import org.apache.beam.runners.fnexecution.state.GrpcStateService;
 import org.apache.beam.sdk.fn.IdGenerators;
@@ -123,12 +123,12 @@ class PortableDirectRunner {
             .setJobId("id")
             .setJobName("reference")
             .setPipelineOptions(options)
-            .setWorkerId("")
+            .setWorkerId("foo")
             .setResourceLimits(Resources.getDefaultInstance())
             .build();
     try (GrpcFnServer<GrpcLoggingService> logging =
             GrpcFnServer.allocatePortAndCreateFor(
-                GrpcLoggingService.forWriter(Slf4jLogWriter.getDefault()), serverFactory);
+                GrpcLoggingService.forWriter(PrintingLogWriter.getDefault()), serverFactory);
         GrpcFnServer<ArtifactRetrievalService> artifact =
             GrpcFnServer.allocatePortAndCreateFor(
                 LocalFileSystemArtifactRetrievalService.forRootDirectory(artifactsDir),
@@ -150,14 +150,13 @@ class PortableDirectRunner {
 
       EnvironmentFactory environmentFactory =
           createEnvironmentFactory(
-              EnvironmentType.DOCKER,
               control,
               logging,
               artifact,
               provisioning,
               controlClientPool.getSource());
       JobBundleFactory jobBundleFactory =
-          DirectJobBundleFactory.create(environmentFactory, data, state);
+          SingleEnvironmentInstanceJobBundleFactory.create(environmentFactory, data, state);
 
       TransformEvaluatorRegistry transformRegistry =
           TransformEvaluatorRegistry.portableRegistry(
@@ -177,17 +176,24 @@ class PortableDirectRunner {
   }
 
   private ServerFactory createServerFactory() {
-    return InProcessServerFactory.create();
+    switch (environmentType) {
+      case DOCKER:
+        return ServerFactory.createDefault();
+      case IN_PROCESS:
+        return InProcessServerFactory.create();
+      default:
+        throw new IllegalArgumentException(
+            String.format("Unknown %s %s", EnvironmentType.class.getSimpleName(), environmentType));
+    }
   }
 
   private EnvironmentFactory createEnvironmentFactory(
-      EnvironmentType type,
       GrpcFnServer<FnApiControlClientPoolService> control,
       GrpcFnServer<GrpcLoggingService> logging,
       GrpcFnServer<ArtifactRetrievalService> artifact,
       GrpcFnServer<StaticGrpcProvisionService> provisioning,
       ControlClientPool.Source controlClientSource) {
-    switch (type) {
+    switch (environmentType) {
       case DOCKER:
         return DockerEnvironmentFactory.forServices(
             control,
@@ -201,7 +207,7 @@ class PortableDirectRunner {
             PipelineOptionsFactory.create(), logging, control, controlClientSource);
       default:
         throw new IllegalArgumentException(
-            String.format("Unknown %s %s", EnvironmentType.class.getSimpleName(), type));
+            String.format("Unknown %s %s", EnvironmentType.class.getSimpleName(), environmentType));
     }
   }
 
