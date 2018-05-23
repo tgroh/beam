@@ -6,7 +6,6 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -14,9 +13,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
-package org.apache.beam.runners.fnexecution.control;
+package org.apache.beam.runners.direct.portable;
 
 import static org.hamcrest.Matchers.contains;
 import static org.junit.Assert.assertThat;
@@ -30,8 +30,6 @@ import static org.mockito.Mockito.when;
 import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.InstructionRequest;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.InstructionResponse;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
@@ -41,11 +39,12 @@ import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
-import org.apache.beam.runners.fnexecution.InProcessServerFactory;
-import org.apache.beam.runners.fnexecution.data.GrpcDataService;
+import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
+import org.apache.beam.runners.fnexecution.control.InstructionRequestHandler;
+import org.apache.beam.runners.fnexecution.control.JobBundleFactory;
 import org.apache.beam.runners.fnexecution.environment.EnvironmentFactory;
 import org.apache.beam.runners.fnexecution.environment.RemoteEnvironment;
-import org.apache.beam.runners.fnexecution.state.GrpcStateService;
+import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.transforms.Create;
 import org.junit.After;
@@ -56,17 +55,15 @@ import org.junit.runners.JUnit4;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-/** Tests for {@link SingleEnvironmentInstanceJobBundleFactory}. */
+/** Tests for {@link InProcessJobBundleFactory}. */
 @RunWith(JUnit4.class)
-public class SingleEnvironmentInstanceJobBundleFactoryTest {
+public class InProcessJobBundleFactoryTest {
   @Mock private EnvironmentFactory environmentFactory;
   @Mock private InstructionRequestHandler instructionRequestHandler;
 
-  private ExecutorService executor = Executors.newCachedThreadPool();
-
-  private GrpcFnServer<GrpcDataService> dataServer;
-  private GrpcFnServer<GrpcStateService> stateServer;
   private JobBundleFactory factory;
+  @Mock private GrpcFnServer<GrpcLoggingService> logging;
+  @Mock private GrpcFnServer<FnApiControlClientPoolService> control;
 
   @Before
   public void setup() throws Exception {
@@ -74,23 +71,12 @@ public class SingleEnvironmentInstanceJobBundleFactoryTest {
     when(instructionRequestHandler.handle(any(InstructionRequest.class)))
         .thenReturn(CompletableFuture.completedFuture(InstructionResponse.getDefaultInstance()));
 
-    InProcessServerFactory serverFactory = InProcessServerFactory.create();
-    dataServer =
-        GrpcFnServer.allocatePortAndCreateFor(GrpcDataService.create(executor), serverFactory);
-    stateServer = GrpcFnServer.allocatePortAndCreateFor(GrpcStateService.create(), serverFactory);
-
     factory =
-        SingleEnvironmentInstanceJobBundleFactory.create(
-            environmentFactory, dataServer, stateServer);
+        InProcessJobBundleFactory.createForExistingServers(environmentFactory, logging, control);
   }
 
   @After
-  public void teardown() throws Exception {
-    try (AutoCloseable data = dataServer;
-        AutoCloseable state = stateServer) {
-      executor.shutdownNow();
-    }
-  }
+  public void teardown() throws Exception {}
 
   @Test
   public void closeShutsDownEnvironments() throws Exception {
@@ -111,6 +97,9 @@ public class SingleEnvironmentInstanceJobBundleFactoryTest {
     factory.forStage(stage);
     factory.close();
     verify(remoteEnv).close();
+
+    verify(logging).close();
+    verify(control).close();
   }
 
   @Test
@@ -173,6 +162,9 @@ public class SingleEnvironmentInstanceJobBundleFactoryTest {
       verify(firstRemoteEnv).close();
       verify(secondRemoteEnv).close();
       verify(thirdRemoteEnv).close();
+
+      verify(logging).close();
+      verify(control).close();
     }
   }
 }

@@ -40,7 +40,6 @@ import org.apache.beam.runners.core.construction.graph.QueryablePipeline;
 import org.apache.beam.runners.fnexecution.GrpcContextHeaderAccessorProvider;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.InProcessServerFactory;
-import org.apache.beam.runners.fnexecution.control.DirectJobBundleFactory;
 import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
 import org.apache.beam.runners.fnexecution.control.InstructionRequestHandler;
 import org.apache.beam.runners.fnexecution.control.JobBundleFactory;
@@ -108,7 +107,7 @@ public class RemoteStageEvaluatorFactoryTest implements Serializable {
 
     bundleFactory = ImmutableListBundleFactory.create();
     JobBundleFactory jobBundleFactory =
-        DirectJobBundleFactory.create(environmentFactory, dataServer, stateServer);
+        InProcessJobBundleFactory.create(environmentFactory, dataServer, stateServer);
     factory = new RemoteStageEvaluatorFactory(bundleFactory, jobBundleFactory);
   }
 

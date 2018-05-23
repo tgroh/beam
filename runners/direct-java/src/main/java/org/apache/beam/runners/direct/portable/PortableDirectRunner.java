@@ -24,12 +24,8 @@ import static com.google.common.collect.Iterables.getOnlyElement;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.protobuf.Struct;
-import java.io.File;
+import java.nio.file.Path;
 import java.util.Collections;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import org.apache.beam.model.fnexecution.v1.ProvisionApi.ProvisionInfo;
-import org.apache.beam.model.fnexecution.v1.ProvisionApi.Resources;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Coder;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
@@ -50,52 +46,35 @@ import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNo
 import org.apache.beam.runners.core.construction.graph.ProtoOverrides;
 import org.apache.beam.runners.core.construction.graph.ProtoOverrides.TransformReplacement;
 import org.apache.beam.runners.direct.ExecutableGraph;
-import org.apache.beam.runners.direct.portable.artifact.LocalFileSystemArtifactRetrievalService;
-import org.apache.beam.runners.fnexecution.GrpcContextHeaderAccessorProvider;
-import org.apache.beam.runners.fnexecution.GrpcFnServer;
-import org.apache.beam.runners.fnexecution.InProcessServerFactory;
-import org.apache.beam.runners.fnexecution.ServerFactory;
-import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
-import org.apache.beam.runners.fnexecution.control.ControlClientPool;
-import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
+import org.apache.beam.runners.direct.portable.artifact.LocalFileSystemArtifactSource;
+import org.apache.beam.runners.fnexecution.control.DockerJobBundleFactory;
 import org.apache.beam.runners.fnexecution.control.JobBundleFactory;
-import org.apache.beam.runners.fnexecution.control.MapControlClientPool;
-import org.apache.beam.runners.fnexecution.control.SingleEnvironmentInstanceJobBundleFactory;
-import org.apache.beam.runners.fnexecution.data.GrpcDataService;
-import org.apache.beam.runners.fnexecution.environment.DockerEnvironmentFactory;
-import org.apache.beam.runners.fnexecution.environment.EnvironmentFactory;
-import org.apache.beam.runners.fnexecution.environment.InProcessEnvironmentFactory;
-import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
-import org.apache.beam.runners.fnexecution.logging.PrintingLogWriter;
-import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionService;
-import org.apache.beam.runners.fnexecution.state.GrpcStateService;
-import org.apache.beam.sdk.fn.IdGenerators;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 
 /** The "ReferenceRunner" engine implementation. */
-class PortableDirectRunner {
+public class PortableDirectRunner {
   private final RunnerApi.Pipeline pipeline;
   private final Struct options;
-  private final File artifactsDir;
+  private final Path artifactsDir;
 
   private final EnvironmentType environmentType;
 
   private PortableDirectRunner(
-      Pipeline p, Struct options, File artifactsDir, EnvironmentType environmentType) {
+      Pipeline p, Struct options, Path artifactsDir, EnvironmentType environmentType) {
     this.pipeline = executable(p);
     this.options = options;
     this.artifactsDir = artifactsDir;
     this.environmentType = environmentType;
   }
 
-  static PortableDirectRunner forPipeline(RunnerApi.Pipeline p, Struct options, File artifactsDir) {
+  public static PortableDirectRunner forPipeline(
+      RunnerApi.Pipeline p, Struct options, Path artifactsDir) {
     return new PortableDirectRunner(p, options, artifactsDir, EnvironmentType.DOCKER);
   }
 
   static PortableDirectRunner forInProcessPipeline(
-      RunnerApi.Pipeline p, Struct options, File artifactsDir) {
+      RunnerApi.Pipeline p, Struct options, Path artifactsDir) {
     return new PortableDirectRunner(p, options, artifactsDir, EnvironmentType.IN_PROCESS);
   }
 
@@ -115,48 +94,7 @@ class PortableDirectRunner {
         EvaluationContext.create(Instant::new, bundleFactory, graph, Collections.emptySet());
     RootProviderRegistry rootRegistry = RootProviderRegistry.impulseRegistry(bundleFactory);
     int targetParallelism = Math.max(Runtime.getRuntime().availableProcessors(), 3);
-    ServerFactory serverFactory = createServerFactory();
-    ControlClientPool controlClientPool = MapControlClientPool.create();
-    ExecutorService dataExecutor = Executors.newCachedThreadPool();
-    ProvisionInfo provisionInfo =
-        ProvisionInfo.newBuilder()
-            .setJobId("id")
-            .setJobName("reference")
-            .setPipelineOptions(options)
-            .setWorkerId("foo")
-            .setResourceLimits(Resources.getDefaultInstance())
-            .build();
-    try (GrpcFnServer<GrpcLoggingService> logging =
-            GrpcFnServer.allocatePortAndCreateFor(
-                GrpcLoggingService.forWriter(PrintingLogWriter.getDefault()), serverFactory);
-        GrpcFnServer<ArtifactRetrievalService> artifact =
-            GrpcFnServer.allocatePortAndCreateFor(
-                LocalFileSystemArtifactRetrievalService.forRootDirectory(artifactsDir),
-                serverFactory);
-        GrpcFnServer<StaticGrpcProvisionService> provisioning =
-            GrpcFnServer.allocatePortAndCreateFor(
-                StaticGrpcProvisionService.create(provisionInfo), serverFactory);
-        GrpcFnServer<FnApiControlClientPoolService> control =
-            GrpcFnServer.allocatePortAndCreateFor(
-                FnApiControlClientPoolService.offeringClientsToPool(
-                    controlClientPool.getSink(),
-                    GrpcContextHeaderAccessorProvider.getHeaderAccessor()),
-                serverFactory);
-        GrpcFnServer<GrpcDataService> data =
-            GrpcFnServer.allocatePortAndCreateFor(
-                GrpcDataService.create(dataExecutor), serverFactory);
-        GrpcFnServer<GrpcStateService> state =
-            GrpcFnServer.allocatePortAndCreateFor(GrpcStateService.create(), serverFactory)) {
-
-      EnvironmentFactory environmentFactory =
-          createEnvironmentFactory(
-              control,
-              logging,
-              artifact,
-              provisioning,
-              controlClientPool.getSource());
-      JobBundleFactory jobBundleFactory =
-          SingleEnvironmentInstanceJobBundleFactory.create(environmentFactory, data, state);
+    try (JobBundleFactory jobBundleFactory = createJobBundleFactory()) {
 
       TransformEvaluatorRegistry transformRegistry =
           TransformEvaluatorRegistry.portableRegistry(
@@ -170,41 +108,16 @@ class PortableDirectRunner {
               targetParallelism, rootRegistry, transformRegistry, graph, ctxt);
       executor.start();
       executor.waitUntilFinish(Duration.ZERO);
-    } finally {
-      dataExecutor.shutdown();
     }
   }
 
-  private ServerFactory createServerFactory() {
+  private JobBundleFactory createJobBundleFactory() throws Exception {
     switch (environmentType) {
       case DOCKER:
-        return ServerFactory.createDefault();
+        return DockerJobBundleFactory.create(
+            LocalFileSystemArtifactSource.forRootDirectory(this.artifactsDir.toFile()));
       case IN_PROCESS:
-        return InProcessServerFactory.create();
-      default:
-        throw new IllegalArgumentException(
-            String.format("Unknown %s %s", EnvironmentType.class.getSimpleName(), environmentType));
-    }
-  }
-
-  private EnvironmentFactory createEnvironmentFactory(
-      GrpcFnServer<FnApiControlClientPoolService> control,
-      GrpcFnServer<GrpcLoggingService> logging,
-      GrpcFnServer<ArtifactRetrievalService> artifact,
-      GrpcFnServer<StaticGrpcProvisionService> provisioning,
-      ControlClientPool.Source controlClientSource) {
-    switch (environmentType) {
-      case DOCKER:
-        return DockerEnvironmentFactory.forServices(
-            control,
-            logging,
-            artifact,
-            provisioning,
-            controlClientSource,
-            IdGenerators.incrementingLongs());
-      case IN_PROCESS:
-        return InProcessEnvironmentFactory.create(
-            PipelineOptionsFactory.create(), logging, control, controlClientSource);
+        return InProcessJobBundleFactory.create();
       default:
         throw new IllegalArgumentException(
             String.format("Unknown %s %s", EnvironmentType.class.getSimpleName(), environmentType));

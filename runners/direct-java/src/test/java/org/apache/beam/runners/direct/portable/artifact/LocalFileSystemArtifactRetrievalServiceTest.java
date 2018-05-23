@@ -48,12 +48,13 @@ import org.apache.beam.model.jobmanagement.v1.ArtifactApi.GetArtifactRequest;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.GetManifestRequest;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.GetManifestResponse;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
-import org.apache.beam.model.jobmanagement.v1.ArtifactRetrievalServiceGrpc;
+import org.apache.beam.model.jobmanagement.v1.ArtifactSourceGrpc;
 import org.apache.beam.runners.core.construction.ArtifactServiceStager;
 import org.apache.beam.runners.core.construction.ArtifactServiceStager.StagedFile;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.InProcessServerFactory;
 import org.apache.beam.runners.fnexecution.ServerFactory;
+import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -62,11 +63,9 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-/**
- * Tests for {@link LocalFileSystemArtifactRetrievalService}.
- */
+/** Tests for {@link LocalFileSystemArtifactSource}. */
 @RunWith(JUnit4.class)
-public class LocalFileSystemArtifactRetrievalServiceTest {
+public class LocalFileSystemArtifactSource {
   @Rule public TemporaryFolder tmp = new TemporaryFolder();
 
   private File root;
@@ -74,8 +73,8 @@ public class LocalFileSystemArtifactRetrievalServiceTest {
 
   private GrpcFnServer<LocalFileSystemArtifactStagerService> stagerServer;
 
-  private GrpcFnServer<LocalFileSystemArtifactRetrievalService> retrievalServer;
-  private ArtifactRetrievalServiceGrpc.ArtifactRetrievalServiceStub retrievalStub;
+  private GrpcFnServer<LocalFileSystemArtifactSource> retrievalServer;
+  private ArtifactSourceGrpc.ArtifactSourceStub retrievalStub;
 
   @Before
   public void setup() throws Exception {
@@ -96,7 +95,7 @@ public class LocalFileSystemArtifactRetrievalServiceTest {
     Map<String, byte[]> artifacts = new HashMap<>();
     artifacts.put("foo", "bar, baz, quux".getBytes());
     artifacts.put("spam", new byte[] {127, -22, 5});
-    stageAndCreateRetrievalService(artifacts);
+    stageAndCreateSource(artifacts);
 
     final AtomicReference<Manifest> returned = new AtomicReference<>();
     final CountDownLatch completed = new CountDownLatch(1);
@@ -136,7 +135,7 @@ public class LocalFileSystemArtifactRetrievalServiceTest {
     artifacts.put("foo", fooContents);
     byte[] spamContents = {127, -22, 5};
     artifacts.put("spam", spamContents);
-    stageAndCreateRetrievalService(artifacts);
+    stageAndCreateSource(artifacts);
 
     final CountDownLatch completed = new CountDownLatch(2);
     ByteArrayOutputStream returnedFooBytes = new ByteArrayOutputStream();
@@ -155,7 +154,7 @@ public class LocalFileSystemArtifactRetrievalServiceTest {
 
   @Test
   public void retrieveArtifactNotPresent() throws Exception {
-    stageAndCreateRetrievalService(Collections.singletonMap("foo", "bar, baz, quux".getBytes()));
+    stageAndCreateSource(Collections.singletonMap("foo", "bar, baz, quux".getBytes()));
 
     final CountDownLatch completed = new CountDownLatch(1);
     final AtomicReference<Throwable> thrown = new AtomicReference<>();
@@ -188,7 +187,7 @@ public class LocalFileSystemArtifactRetrievalServiceTest {
     assertThat(thrown.get().getMessage(), containsString("spam"));
   }
 
-  private void stageAndCreateRetrievalService(Map<String, byte[]> artifacts) throws Exception {
+  private void stageAndCreateSource(Map<String, byte[]> artifacts) throws Exception {
     List<StagedFile> artifactFiles = new ArrayList<>();
     for (Map.Entry<String, byte[]> artifact : artifacts.entrySet()) {
       File artifactFile = tmp.newFile(artifact.getKey());
@@ -204,9 +203,9 @@ public class LocalFileSystemArtifactRetrievalServiceTest {
 
     retrievalServer =
         GrpcFnServer.allocatePortAndCreateFor(
-            LocalFileSystemArtifactRetrievalService.forRootDirectory(root), serverFactory);
+            LocalFileSystemArtifactSource.forRootDirectory(root), serverFactory);
     retrievalStub =
-        ArtifactRetrievalServiceGrpc.newStub(
+        ArtifactRetrievalService.newStub(
             InProcessChannelBuilder.forName(retrievalServer.getApiServiceDescriptor().getUrl())
                 .build());
   }

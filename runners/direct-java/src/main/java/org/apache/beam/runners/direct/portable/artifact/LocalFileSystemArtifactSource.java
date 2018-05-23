@@ -30,53 +30,24 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
-import org.apache.beam.model.jobmanagement.v1.ArtifactApi.GetArtifactRequest;
-import org.apache.beam.model.jobmanagement.v1.ArtifactApi.GetManifestResponse;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
-import org.apache.beam.model.jobmanagement.v1.ArtifactRetrievalServiceGrpc;
-import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
+import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** An {@code ArtifactRetrievalService} which stages files to a local temp directory. */
-public class LocalFileSystemArtifactRetrievalService
-    extends ArtifactRetrievalServiceGrpc.ArtifactRetrievalServiceImplBase
-    implements ArtifactRetrievalService {
+public class LocalFileSystemArtifactSource implements ArtifactSource {
   private static final int DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024;
-  private static final Logger LOG =
-      LoggerFactory.getLogger(LocalFileSystemArtifactRetrievalService.class);
+  private static final Logger LOG = LoggerFactory.getLogger(LocalFileSystemArtifactSource.class);
 
-  public static LocalFileSystemArtifactRetrievalService forRootDirectory(File base) {
-    return new LocalFileSystemArtifactRetrievalService(base);
+  public static LocalFileSystemArtifactSource forRootDirectory(File base) {
+    return new LocalFileSystemArtifactSource(base);
   }
 
   private final LocalArtifactStagingLocation location;
-  private final Manifest manifest;
 
-  private LocalFileSystemArtifactRetrievalService(File rootDirectory) {
+  private LocalFileSystemArtifactSource(File rootDirectory) {
     this.location = LocalArtifactStagingLocation.forExistingDirectory(rootDirectory);
-    try (FileInputStream manifestStream = new FileInputStream(location.getManifestFile())) {
-      this.manifest = ArtifactApi.Manifest.parseFrom(manifestStream);
-    } catch (FileNotFoundException e) {
-      throw new IllegalArgumentException(
-          String.format(
-              "No %s in root directory %s", Manifest.class.getSimpleName(), rootDirectory),
-          e);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  @Override
-  public final void getManifest(
-      ArtifactApi.GetManifestRequest request,
-      StreamObserver<GetManifestResponse> responseObserver) {
-    try {
-      responseObserver.onNext(GetManifestResponse.newBuilder().setManifest(manifest).build());
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      responseObserver.onError(Status.INTERNAL.withCause(e).asException());
-    }
   }
 
   /** Get the artifact with the provided name as a sequence of bytes. */
@@ -90,13 +61,22 @@ public class LocalFileSystemArtifactRetrievalService
   }
 
   @Override
-  public void getArtifact(
-      ArtifactApi.GetArtifactRequest request,
-      StreamObserver<ArtifactApi.ArtifactChunk> responseObserver) {
-    System.out.println("Getting artifact " + request.getName());
-    LOG.trace("{} {}", GetArtifactRequest.class.getSimpleName(), request);
+  public Manifest getManifest() throws IOException {
+    try (FileInputStream manifestStream = new FileInputStream(location.getManifestFile())) {
+      return ArtifactApi.Manifest.parseFrom(manifestStream);
+    } catch (FileNotFoundException e) {
+      throw new IllegalArgumentException(
+          String.format("No %s in staging location %s", Manifest.class.getSimpleName(), location),
+          e);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public void getArtifact(String name, StreamObserver<ArtifactChunk> responseObserver) {
     try {
-      ByteBuffer artifact = getArtifact(request.getName());
+      ByteBuffer artifact = getArtifact(name);
       do {
         responseObserver.onNext(
             ArtifactChunk.newBuilder()
@@ -109,19 +89,15 @@ public class LocalFileSystemArtifactRetrievalService
     } catch (FileNotFoundException e) {
       responseObserver.onError(
           Status.INVALID_ARGUMENT
-              .withDescription(String.format("No such artifact %s", request.getName()))
+              .withDescription(String.format("No such artifact %s", name))
               .withCause(e)
               .asException());
     } catch (Exception e) {
       responseObserver.onError(
           Status.INTERNAL
-              .withDescription(
-                  String.format("Could not retrieve artifact with name %s", request.getName()))
+              .withDescription(String.format("Could not retrieve artifact with name %s", name))
               .withCause(e)
               .asException());
     }
   }
-
-  @Override
-  public void close() throws Exception {}
 }
