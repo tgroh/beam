@@ -27,7 +27,6 @@ import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.unix.DomainSocketAddress;
 import java.net.SocketAddress;
-import java.util.Collections;
 import java.util.List;
 import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
 
@@ -42,16 +41,12 @@ public abstract class ManagedChannelFactory {
     return new Epoll();
   }
 
-  public final ManagedChannel forDescriptor(ApiServiceDescriptor apiServiceDescriptor) {
-    return forDescriptorOnly(apiServiceDescriptor);
+  public ManagedChannel forDescriptor(ApiServiceDescriptor apiServiceDescriptor) {
+    return builderFor(apiServiceDescriptor).build();
   }
 
-  protected ManagedChannel forDescriptorOnly(ApiServiceDescriptor descriptor) {
-    return forDescriptor(descriptor, Collections.emptyList());
-  }
-
-  protected abstract ManagedChannel forDescriptor(
-      ApiServiceDescriptor apiServiceDescriptor, List<ClientInterceptor> interceptors);
+  /** Create a {@link ManagedChannelBuilder} for the provided {@link ApiServiceDescriptor}. */
+  protected abstract ManagedChannelBuilder<?> builderFor(ApiServiceDescriptor descriptor);
 
   /**
    * Returns a {@link ManagedChannelFactory} like this one, but which will apply the provided {@link
@@ -68,8 +63,7 @@ public abstract class ManagedChannelFactory {
    */
   private static class Epoll extends ManagedChannelFactory {
     @Override
-    public ManagedChannel forDescriptor(
-        ApiServiceDescriptor apiServiceDescriptor, List<ClientInterceptor> interceptors) {
+    public ManagedChannelBuilder<?> builderFor(ApiServiceDescriptor apiServiceDescriptor) {
       SocketAddress address = SocketAddressFactory.createFrom(apiServiceDescriptor.getUrl());
       return NettyChannelBuilder.forAddress(address)
           .channelType(
@@ -80,9 +74,7 @@ public abstract class ManagedChannelFactory {
           .usePlaintext(true)
           // Set the message size to max value here. The actual size is governed by the
           // buffer size in the layers above.
-          .maxInboundMessageSize(Integer.MAX_VALUE)
-          .intercept(interceptors)
-          .build();
+          .maxInboundMessageSize(Integer.MAX_VALUE);
     }
   }
 
@@ -92,15 +84,12 @@ public abstract class ManagedChannelFactory {
    */
   private static class Default extends ManagedChannelFactory {
     @Override
-    public ManagedChannel forDescriptor(
-        ApiServiceDescriptor apiServiceDescriptor, List<ClientInterceptor> interceptors) {
+    public ManagedChannelBuilder<?> builderFor(ApiServiceDescriptor apiServiceDescriptor) {
       return ManagedChannelBuilder.forTarget(apiServiceDescriptor.getUrl())
           .usePlaintext(true)
           // Set the message size to max value here. The actual size is governed by the
           // buffer size in the layers above.
-          .maxInboundMessageSize(Integer.MAX_VALUE)
-          .intercept(interceptors)
-          .build();
+          .maxInboundMessageSize(Integer.MAX_VALUE);
     }
   }
 
@@ -115,14 +104,13 @@ public abstract class ManagedChannelFactory {
     }
 
     @Override
-    protected ManagedChannel forDescriptorOnly(ApiServiceDescriptor apiServiceDescriptor) {
-      return forDescriptor(apiServiceDescriptor, interceptors);
+    public ManagedChannel forDescriptor(ApiServiceDescriptor apiServiceDescriptor) {
+      return builderFor(apiServiceDescriptor).intercept(interceptors).build();
     }
 
     @Override
-    protected ManagedChannel forDescriptor(
-        ApiServiceDescriptor apiServiceDescriptor, List<ClientInterceptor> interceptors) {
-      return channelFactory.forDescriptor(apiServiceDescriptor, interceptors);
+    protected ManagedChannelBuilder<?> builderFor(ApiServiceDescriptor descriptor) {
+      return channelFactory.builderFor(descriptor);
     }
 
     @Override
