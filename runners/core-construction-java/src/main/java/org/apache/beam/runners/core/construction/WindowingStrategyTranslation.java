@@ -212,10 +212,8 @@ public class WindowingStrategyTranslation implements Serializable {
     if (windowFn instanceof GlobalWindows) {
       return SdkFunctionSpec.newBuilder()
           .setEnvironmentId(
-              components.registerEnvironment(Environments.JAVA_SDK_HARNESS_ENVIRONMENT))
-          .setSpec(
-              FunctionSpec.newBuilder()
-                  .setUrn(getUrn(GlobalWindowsPayload.Enum.PROPERTIES)))
+              components.registerEnvironment(Environments.defaultJavaSdkEnvironment()))
+          .setSpec(FunctionSpec.newBuilder().setUrn(getUrn(GlobalWindowsPayload.Enum.PROPERTIES)))
           .build();
     } else if (windowFn instanceof FixedWindows) {
       FixedWindowsPayload fixedWindowsPayload =
@@ -225,7 +223,7 @@ public class WindowingStrategyTranslation implements Serializable {
               .build();
       return SdkFunctionSpec.newBuilder()
           .setEnvironmentId(
-              components.registerEnvironment(Environments.JAVA_SDK_HARNESS_ENVIRONMENT))
+              components.registerEnvironment(Environments.defaultJavaSdkEnvironment()))
           .setSpec(
               FunctionSpec.newBuilder()
                   .setUrn(getUrn(FixedWindowsPayload.Enum.PROPERTIES))
@@ -239,7 +237,7 @@ public class WindowingStrategyTranslation implements Serializable {
           .build();
       return SdkFunctionSpec.newBuilder()
           .setEnvironmentId(
-              components.registerEnvironment(Environments.JAVA_SDK_HARNESS_ENVIRONMENT))
+              components.registerEnvironment(Environments.defaultJavaSdkEnvironment()))
           .setSpec(
               FunctionSpec.newBuilder()
                   .setUrn(getUrn(SlidingWindowsPayload.Enum.PROPERTIES))
@@ -252,7 +250,7 @@ public class WindowingStrategyTranslation implements Serializable {
               .build();
       return SdkFunctionSpec.newBuilder()
           .setEnvironmentId(
-              components.registerEnvironment(Environments.JAVA_SDK_HARNESS_ENVIRONMENT))
+              components.registerEnvironment(Environments.defaultJavaSdkEnvironment()))
           .setSpec(
               FunctionSpec.newBuilder()
                   .setUrn(getUrn(SessionsPayload.Enum.PROPERTIES))
@@ -261,7 +259,7 @@ public class WindowingStrategyTranslation implements Serializable {
     } else {
       return SdkFunctionSpec.newBuilder()
           .setEnvironmentId(
-              components.registerEnvironment(Environments.JAVA_SDK_HARNESS_ENVIRONMENT))
+              components.registerEnvironment(Environments.defaultJavaSdkEnvironment()))
           .setSpec(
               FunctionSpec.newBuilder()
                   .setUrn(SERIALIZED_JAVA_WINDOWFN_URN)
