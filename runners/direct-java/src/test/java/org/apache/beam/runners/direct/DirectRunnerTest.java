@@ -327,7 +327,8 @@ public class DirectRunnerTest implements Serializable {
 
                   @Teardown
                   public void teardown() {
-                    // just to not have a fast execution hiding an issue until we have a shutdown callback
+                    // reduce chance of fast execution hiding an issue
+                    // TODO: Remove when the DirectRunner has a shutdown callback
                     try {
                       Thread.sleep(1000);
                     } catch (final InterruptedException e) {

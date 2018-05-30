@@ -902,13 +902,11 @@ public class WatermarkManager<ExecutableT, CollectionT> {
    * MAX(CurrentInputWatermark, MIN(PendingElements, InputPCollectionWatermarks))
    * </pre>
    *
-   * and the output watermark, which can, at any time, be updated to equal:
+   * <p>and the output watermark, which can, at any time, be updated to equal:
    *
    * <pre>
    * MAX(CurrentOutputWatermark, MIN(InputWatermark, WatermarkHolds))
    * </pre>
-   *
-   * .
    *
    * <p>Updates to watermarks may not be immediately visible.
    *

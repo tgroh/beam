@@ -150,7 +150,8 @@ class MultiStepCombine<K, InputT, AccumT, OutputT>
                     () ->
                         new IOException(
                             String.format(
-                                "%s.matcher() should only match %s instances using %s, but %s was missing",
+                                "%s.matcher() should only match %s instances using %s, "
+                                    + "but %s was missing",
                                 MultiStepCombine.class.getSimpleName(),
                                 PerKey.class.getSimpleName(),
                                 CombineFn.class.getSimpleName(),
