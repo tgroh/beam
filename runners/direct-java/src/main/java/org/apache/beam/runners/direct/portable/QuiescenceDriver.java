@@ -158,7 +158,6 @@ class QuiescenceDriver implements ExecutionDriver {
         Collection<TimerData> delivery = transformTimers.getTimers();
         KeyedWorkItem<?, Object> work =
             KeyedWorkItems.timersWorkItem(transformTimers.getKey().getKey(), delivery);
-        // TODO: Extract from graph
         PCollectionNode inputPCollection =
             Iterables.getOnlyElement(graph.getPerElementInputs(transformTimers.getExecutable()));
         @SuppressWarnings({"unchecked", "rawtypes"})
