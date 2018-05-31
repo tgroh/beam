@@ -42,9 +42,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-/** Tests for the {@link PortableDirectRunner}. */
+/** Tests for the {@link ReferenceRunner}. */
 @RunWith(JUnit4.class)
-public class PortableDirectRunnerTest implements Serializable {
+public class ReferenceRunnerTest implements Serializable {
   @Test
   public void pipelineExecution() throws Exception {
     Pipeline p = Pipeline.create();
@@ -85,7 +85,7 @@ public class PortableDirectRunnerTest implements Serializable {
 
     p.replaceAll(Collections.singletonList(JavaReadViaImpulse.boundedOverride()));
 
-    PortableDirectRunner runner = PortableDirectRunner.forPipeline(PipelineTranslation.toProto(p));
+    ReferenceRunner runner = ReferenceRunner.forPipeline(PipelineTranslation.toProto(p));
     runner.execute();
   }
 }

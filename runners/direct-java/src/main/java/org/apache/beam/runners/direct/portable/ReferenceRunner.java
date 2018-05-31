@@ -23,6 +23,7 @@ import static com.google.common.collect.Iterables.getOnlyElement;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.protobuf.Struct;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
@@ -39,6 +40,7 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.runners.core.construction.ModelCoders;
 import org.apache.beam.runners.core.construction.ModelCoders.KvCoderComponents;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
+import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.SyntheticComponents;
 import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
@@ -60,20 +62,21 @@ import org.apache.beam.runners.fnexecution.environment.InProcessEnvironmentFacto
 import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.runners.fnexecution.logging.Slf4jLogWriter;
 import org.apache.beam.runners.fnexecution.state.GrpcStateService;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 
 /** The "ReferenceRunner" engine implementation. */
-class PortableDirectRunner {
+class ReferenceRunner {
   private final RunnerApi.Pipeline pipeline;
+  private final Struct options;
 
-  private PortableDirectRunner(RunnerApi.Pipeline p) throws IOException {
+  private ReferenceRunner(RunnerApi.Pipeline p, Struct options) throws IOException {
     this.pipeline = executable(p);
+    this.options = options;
   }
 
-  static PortableDirectRunner forPipeline(RunnerApi.Pipeline p) throws IOException {
-    return new PortableDirectRunner(p);
+  static ReferenceRunner forPipeline(RunnerApi.Pipeline p, Struct options) throws IOException {
+    return new ReferenceRunner(p, options);
   }
 
   private RunnerApi.Pipeline executable(RunnerApi.Pipeline original) {
@@ -112,7 +115,10 @@ class PortableDirectRunner {
 
       EnvironmentFactory environmentFactory =
           InProcessEnvironmentFactory.create(
-              PipelineOptionsFactory.create(), logging, control, controlClientPool.getSource());
+              PipelineOptionsTranslation.fromProto(options),
+              logging,
+              control,
+              controlClientPool.getSource());
       JobBundleFactory jobBundleFactory =
           DirectJobBundleFactory.create(environmentFactory, data, state);
 
