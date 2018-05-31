@@ -23,8 +23,10 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.Set;
 import org.apache.beam.runners.core.construction.JavaReadViaImpulse;
+import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.GroupByKey;
@@ -85,7 +87,10 @@ public class ReferenceRunnerTest implements Serializable {
 
     p.replaceAll(Collections.singletonList(JavaReadViaImpulse.boundedOverride()));
 
-    ReferenceRunner runner = ReferenceRunner.forPipeline(PipelineTranslation.toProto(p));
+    ReferenceRunner runner =
+        ReferenceRunner.forPipeline(
+            PipelineTranslation.toProto(p),
+            PipelineOptionsTranslation.toProto(PipelineOptionsFactory.create()));
     runner.execute();
   }
 }
