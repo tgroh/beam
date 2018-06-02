@@ -34,4 +34,5 @@ dependencies {
   shadow library.java.findbugs_annotations
   shadowTest library.java.hamcrest_core
   shadowTest library.java.junit
+  shadowTest library.java.mockito_core
 }

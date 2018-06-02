@@ -41,6 +41,7 @@ import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNo
 import org.apache.beam.runners.direct.ExecutableGraph;
 import org.apache.beam.runners.local.ExecutionDriver;
 import org.apache.beam.runners.local.ExecutionDriver.DriverState;
+import org.apache.beam.runners.local.MultiplexingPipelineMessageReceiver;
 import org.apache.beam.runners.local.PipelineMessageReceiver;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult.State;
@@ -72,9 +73,10 @@ final class ExecutorServiceParallelExecutor
   private final TransformExecutorService parallelExecutorService;
   private final LoadingCache<StepAndKey, TransformExecutorService> serialExecutorServices;
 
-  private final QueueMessageReceiver visibleUpdates;
+  private final MultiplexingPipelineMessageReceiver messageReceiver;
 
-  private AtomicReference<State> pipelineState = new AtomicReference<>(State.RUNNING);
+  private final QueueMessageReceiver visibleUpdates;
+  private final AtomicReference<State> pipelineState = new AtomicReference<>(State.RUNNING);
 
   public static ExecutorServiceParallelExecutor create(
       int targetParallelism,
@@ -116,7 +118,9 @@ final class ExecutorServiceParallelExecutor
             .removalListener(shutdownExecutorServiceListener())
             .build(serialTransformExecutorServiceCacheLoader());
 
+    this.messageReceiver = MultiplexingPipelineMessageReceiver.create();
     this.visibleUpdates = new QueueMessageReceiver();
+    messageReceiver.addReceiver(visibleUpdates);
 
     parallelExecutorService = TransformExecutorServices.parallel(executorService);
     executorFactory = new DirectTransformExecutor.Factory(context, registry);
@@ -266,6 +270,11 @@ final class ExecutorServiceParallelExecutor
     return pipelineState.get();
   }
 
+  public BlockingQueue<State> getPipelineStateStream() {
+    return new LinkedBlockingQueue<>();
+    // TODO: implement;
+  }
+
   private boolean isTerminalStateUpdate(VisibleExecutorUpdate update) {
     return !(update.getNewState() == null && update.getNewState().isTerminal());
   }
@@ -274,6 +283,11 @@ final class ExecutorServiceParallelExecutor
   public void stop() {
     shutdownIfNecessary(State.CANCELLED);
     visibleUpdates.cancelled();
+  }
+
+  @Override
+  public void receiveMessages(PipelineMessageReceiver receiver) {
+    this.messageReceiver.addReceiver(receiver);
   }
 
   private void shutdownIfNecessary(State newState) {
