@@ -71,6 +71,8 @@ import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.runners.fnexecution.logging.Slf4jLogWriter;
 import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionService;
 import org.apache.beam.runners.fnexecution.state.GrpcStateService;
+import org.apache.beam.runners.local.PipelineMessageReceiver;
+import org.apache.beam.sdk.PipelineResult.State;
 import org.apache.beam.sdk.fn.IdGenerators;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.joda.time.Duration;
@@ -83,6 +85,8 @@ public class ReferenceRunner {
   @Nullable private final File artifactsDir;
 
   private final EnvironmentType environmentType;
+
+  private PipelineExecutor executor;
 
   private ReferenceRunner(
       Pipeline p, Struct options, @Nullable File artifactsDir, EnvironmentType environmentType) {
@@ -166,7 +170,7 @@ public class ReferenceRunner {
               bundleFactory,
               jobBundleFactory,
               EvaluationContextStepStateAndTimersProvider.forContext(ctxt));
-      ExecutorServiceParallelExecutor executor =
+      executor =
           ExecutorServiceParallelExecutor.create(
               targetParallelism, rootRegistry, transformRegistry, graph, ctxt);
       executor.start();
@@ -210,6 +214,18 @@ public class ReferenceRunner {
         throw new IllegalArgumentException(
             String.format("Unknown %s %s", EnvironmentType.class.getSimpleName(), environmentType));
     }
+  }
+
+  public void cancel() {
+    executor.stop();
+  }
+
+  public State getState() {
+    return executor.getPipelineState();
+  }
+
+  public void attachMessageReceiver(PipelineMessageReceiver receiver) {
+    executor.receiveMessages(receiver);
   }
 
   @VisibleForTesting

@@ -23,6 +23,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Status;
+import io.grpc.StatusException;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.nio.file.Files;
@@ -33,11 +34,13 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.beam.model.jobmanagement.v1.JobApi;
 import org.apache.beam.model.jobmanagement.v1.JobApi.CancelJobRequest;
 import org.apache.beam.model.jobmanagement.v1.JobApi.CancelJobResponse;
 import org.apache.beam.model.jobmanagement.v1.JobApi.GetJobStateRequest;
 import org.apache.beam.model.jobmanagement.v1.JobApi.GetJobStateResponse;
+import org.apache.beam.model.jobmanagement.v1.JobApi.JobState.Enum;
 import org.apache.beam.model.jobmanagement.v1.JobApi.PrepareJobResponse;
 import org.apache.beam.model.jobmanagement.v1.JobApi.RunJobRequest;
 import org.apache.beam.model.jobmanagement.v1.JobApi.RunJobResponse;
@@ -47,6 +50,9 @@ import org.apache.beam.runners.direct.portable.artifact.LocalFileSystemArtifactS
 import org.apache.beam.runners.fnexecution.FnService;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.ServerFactory;
+import org.apache.beam.runners.local.PipelineMessageReceiver;
+import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.PipelineResult.State;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -153,9 +159,9 @@ public class ReferenceRunnerJobService extends JobServiceImplBase implements FnS
               preparingJob.getOptions(),
               preparingJob.getStagingLocation().toFile());
       String jobId = preparingJob + Integer.toString(ThreadLocalRandom.current().nextInt());
+      runningJobs.put(jobId, runner);
       responseObserver.onNext(RunJobResponse.newBuilder().setJobId(jobId).build());
       responseObserver.onCompleted();
-      runningJobs.put(jobId, runner);
       executor.submit(
           () -> {
             runner.execute();
@@ -172,19 +178,136 @@ public class ReferenceRunnerJobService extends JobServiceImplBase implements FnS
   public void getState(
       GetJobStateRequest request, StreamObserver<GetJobStateResponse> responseObserver) {
     LOG.trace("{} {}", GetJobStateRequest.class.getSimpleName(), request);
-    responseObserver.onError(
-        Status.NOT_FOUND
-            .withDescription(String.format("Unknown Job ID %s", request.getJobId()))
-            .asException());
+    String id = request.getJobId();
+    try {
+      ReferenceRunner runner = getExecutingRunner(id);
+      responseObserver.onNext(
+          GetJobStateResponse.newBuilder()
+              .setState(convertToJobApiState(runner.getState()))
+              .build());
+      responseObserver.onCompleted();
+    } catch (StatusException | StatusRuntimeException e) {
+      responseObserver.onError(e);
+    } catch (Exception e) {
+      responseObserver.onError(Status.INTERNAL.withCause(e).asException());
+    }
+  }
+
+  @Override
+  public void getStateStream(
+      GetJobStateRequest request, StreamObserver<GetJobStateResponse> responseObserver) {
+    LOG.trace("{} stream {}", GetJobStateRequest.class.getSimpleName(), request);
+    try {
+      ReferenceRunner runner = getExecutingRunner(request.getJobId());
+      State currentState = runner.getState();
+      responseObserver.onNext(
+          GetJobStateResponse.newBuilder().setState(convertToJobApiState(currentState)).build());
+      if (currentState.isTerminal()) {
+        responseObserver.onCompleted();
+        return;
+      }
+
+      // This prevents a race between checking the state of the pipeline, having that state change
+      // to a terminal state (which prevents updates from arriving to the new receiver) before the
+      // receiver is attached. The AtomicBoolean prevents double-closing the message receiver.
+      AtomicBoolean active = new AtomicBoolean(true);
+      runner.attachMessageReceiver(
+          new PipelineMessageReceiver() {
+            @Override
+            public void failed(Exception e) {
+              if (active.getAndSet(false)) {
+                responseObserver.onNext(
+                    GetJobStateResponse.newBuilder().setState(Enum.FAILED).build());
+                responseObserver.onCompleted();
+              }
+            }
+
+            @Override
+            public void failed(Error e) {
+              if (active.getAndSet(false)) {
+                responseObserver.onNext(
+                    GetJobStateResponse.newBuilder().setState(Enum.FAILED).build());
+                responseObserver.onCompleted();
+              }
+            }
+
+            @Override
+            public void cancelled() {
+              if (active.getAndSet(false)) {
+                responseObserver.onNext(
+                    GetJobStateResponse.newBuilder().setState(Enum.CANCELLED).build());
+                responseObserver.onCompleted();
+              }
+            }
+
+            @Override
+            public void completed() {
+              if (active.getAndSet(false)) {
+                responseObserver.onNext(
+                    GetJobStateResponse.newBuilder().setState(Enum.DONE).build());
+                responseObserver.onCompleted();
+              }
+            }
+          });
+      if (active.getAndSet(!runner.getState().isTerminal())) {
+        responseObserver.onNext(
+            GetJobStateResponse.newBuilder()
+                .setState(convertToJobApiState(runner.getState()))
+                .build());
+        responseObserver.onCompleted();
+      }
+    } catch (StatusException | StatusRuntimeException e) {
+      responseObserver.onError(e);
+    } catch (Exception e) {
+      responseObserver.onError(Status.INTERNAL.withCause(e).asException());
+    }
   }
 
   @Override
   public void cancel(CancelJobRequest request, StreamObserver<CancelJobResponse> responseObserver) {
     LOG.trace("{} {}", CancelJobRequest.class.getSimpleName(), request);
-    responseObserver.onError(
-        Status.NOT_FOUND
-            .withDescription(String.format("Unknown Job ID %s", request.getJobId()))
-            .asException());
+    try {
+      ReferenceRunner runner = getExecutingRunner(request.getJobId());
+      runner.cancel();
+      // TODO: Wait until job is cancelled
+      responseObserver.onNext(CancelJobResponse.getDefaultInstance());
+      responseObserver.onCompleted();
+    } catch (StatusException | StatusRuntimeException e) {
+      responseObserver.onError(e);
+    } catch (Exception e) {
+      responseObserver.onError(Status.INTERNAL.withCause(e).asException());
+    }
+  }
+
+  private ReferenceRunner getExecutingRunner(String id) throws StatusException {
+    ReferenceRunner runner = runningJobs.get(id);
+    if (runner == null) {
+      throw Status.NOT_FOUND.withDescription(String.format("Unknown Job ID %s", id)).asException();
+    }
+    return runner;
+  }
+
+  private Enum convertToJobApiState(PipelineResult.State javaPipelineState) {
+    switch (javaPipelineState) {
+      case RUNNING:
+        return Enum.RUNNING;
+      case DONE:
+        return Enum.DONE;
+      case CANCELLED:
+        return Enum.CANCELLED;
+      case FAILED:
+        return Enum.FAILED;
+      case STOPPED:
+        return Enum.STOPPED;
+      case UPDATED:
+        return Enum.UPDATED;
+      case UNKNOWN:
+        return Enum.UNSPECIFIED;
+      default:
+        throw new IllegalStateException(
+            String.format(
+                "Unknown %s %s", PipelineResult.State.class.getSimpleName(), javaPipelineState));
+    }
   }
 
   @Override
@@ -195,6 +318,9 @@ public class ReferenceRunnerJobService extends JobServiceImplBase implements FnS
       } catch (Exception e) {
         LOG.warn("Exception while closing preparing job {}", preparingJob);
       }
+    }
+    for (ReferenceRunner executing : ImmutableList.copyOf(runningJobs.values())) {
+      executing.cancel();
     }
   }
 }

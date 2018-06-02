@@ -19,6 +19,7 @@ package org.apache.beam.runners.direct.portable;
 
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.apache.beam.runners.direct.ExecutableGraph;
+import org.apache.beam.runners.local.PipelineMessageReceiver;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult.State;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -58,4 +59,7 @@ interface PipelineExecutor {
    * <p>The executor may continue to run for a short time after this method returns.
    */
   void stop();
+
+  /** Attaches the provided {@link PipelineMessageReceiver} to this {@link PipelineExecutor}. */
+  void receiveMessages(PipelineMessageReceiver receiver);
 }
